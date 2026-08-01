@@ -6,5 +6,5 @@
 
 This repository organizes the core symbolic computing apparatus for Urbit:
 
-- Racoon (Real AlgebraiCs in hOON) offers basic symbolic operations.
+- Raccoon (Real AlgebraiCs in hOON) offers basic symbolic operations.
 
