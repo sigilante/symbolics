@@ -1,12 +1,12 @@
   ::  /tests/lib/baloon
 ::::  Baloon test suite
 ::
-::  Phase 0: shape and construction.
+::  Phases 0 and 1: shape, construction, and arithmetic.
 ::
-::  Naming: ++test-p0-* for Phase 0.  Every crash row in SPEC S8 gets a
-::  dedicated ++test-p0-crash-* arm, and every non-crash row a matching
-::  ++test-p0-nocrash-* arm -- S8 is a two-sided contract and both halves
-::  are jettable.
+::  Naming: ++test-p0-*, ++test-p1-*, and so on.  Every crash row in SPEC
+::  S8 gets a dedicated ++test-*-crash-* arm, and every non-crash row a
+::  matching ++test-*-nocrash-* arm -- S8 is a two-sided contract and both
+::  halves are jettable.
 ::
 ::  Property-test inputs are built by local helpers rather than by the
 ::  library arm they would otherwise be exercising.
@@ -74,6 +74,22 @@
   ^-  qmat
   =/  n=@ud  +((mod k 4))
   (mk n n (slag (mul k 40) ns))
+::
+::    +zip-mats:  consecutive pairs from a matrix supply
+++  zip-mats
+  |=  a=(list qmat)
+  ^-  (list [qmat qmat])
+  ?~  a  ~
+  ?~  t.a  ~
+  [[i.a i.t.a] $(a t.a)]
+::    +triple-mats:  consecutive triples from a matrix supply
+++  triple-mats
+  |=  a=(list qmat)
+  ^-  (list [qmat qmat qmat])
+  ?~  a  ~
+  ?~  t.a  ~
+  ?~  t.t.a  ~
+  [[i.a i.t.a i.t.t.a] $(a t.a)]
 ::
 +|  %p0-shape
 ++  test-p0-dims
@@ -369,4 +385,240 @@
   !>  %+  skip  zeros-vectors:vec
       |=  [r=@ud c=@ud m=qmat]
       =(m (zeros:qm r c))
+::
++|  %p1-arithmetic
+++  test-p1-add-sub
+  =/  ma=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
+  =/  mb=qmat  ~[~[[--5 1] [--6 1]] ~[[--7 1] [--8 1]]]
+  ;:  weld
+    %+  expect-eq
+      !>(`qmat`~[~[[--6 1] [--8 1]] ~[[--10 1] [--12 1]]])
+    !>((add:qm ma mb))
+    %+  expect-eq
+      !>(`qmat`~[~[[-4 1] [-4 1]] ~[[-4 1] [-4 1]]])
+    !>((sub:qm ma mb))
+    %+  expect-eq
+      !>(`qmat`~[~[[-1 1] [-2 1]] ~[[-3 1] [-4 1]]])
+    !>((neg:qm ma))
+    ::  subtracting a matrix from itself gives the zero matrix, which is
+    ::  canonical -- unlike a polynomial, a matrix never collapses
+    %+  expect-eq  !>((zeros:qm 2 2))  !>((sub:qm ma ma))
+  ==
+++  test-p1-mul
+  =/  ma=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
+  =/  mb=qmat  ~[~[[--5 1] [--6 1]] ~[[--7 1] [--8 1]]]
+  =/  w=qmat   ~[~[[--1 1] [--2 1] [--3 1]] ~[[--4 1] [--5 1] [--6 1]]]
+  =/  v=qmat   ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]] ~[[--5 1] [--6 1]]]
+  ;:  weld
+    %+  expect-eq
+      !>(`qmat`~[~[[--19 1] [--22 1]] ~[[--43 1] [--50 1]]])
+    !>((mul:qm ma mb))
+    ::  non-square, in both orders: 2x3 * 3x2 is 2x2, and 3x2 * 2x3 is 3x3
+    %+  expect-eq
+      !>(`qmat`~[~[[--22 1] [--28 1]] ~[[--49 1] [--64 1]]])
+    !>((mul:qm w v))
+    %+  expect-eq
+      !>  ^-  qmat
+      :~  ~[[--9 1] [--12 1] [--15 1]]
+          ~[[--19 1] [--26 1] [--33 1]]
+          ~[[--29 1] [--40 1] [--51 1]]
+      ==
+    !>((mul:qm v w))
+  ==
+++  test-p1-scale-pow
+  =/  ma=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
+  ;:  weld
+    %+  expect-eq
+      !>(`qmat`~[~[[--1 2] [--1 1]] ~[[--3 2] [--2 1]]])
+    !>((scale:qm ma [--1 2]))
+    ::  scaling by zero gives the zero matrix, not a smaller one
+    %+  expect-eq  !>((zeros:qm 2 2))  !>((scale:qm ma zero:qq))
+    ::  m^0 is the identity, even for the zero matrix
+    %+  expect-eq  !>((idn:qm 2))  !>((pow:qm ma 0))
+    %+  expect-eq  !>((idn:qm 2))  !>((pow:qm (zeros:qm 2 2) 0))
+    %+  expect-eq  !>(ma)          !>((pow:qm ma 1))
+    %+  expect-eq
+      !>(`qmat`~[~[[--37 1] [--54 1]] ~[[--81 1] [--118 1]]])
+    !>((pow:qm ma 3))
+    ::  a nilpotent matrix: N^2 is zero
+    %+  expect-eq
+      !>((zeros:qm 2 2))
+    !>((pow:qm ~[~[[--0 1] [--1 1]] ~[[--0 1] [--0 1]]] 2))
+  ==
+::
++|  %p1-properties
+::  Property: the ring axioms of square matrices under + and *, sampled.
+::  Addition commutes; multiplication does NOT, and is not asserted to.
+++  test-p1-prop-axioms
+  =/  ms  (qsquares seed-qm 24)
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [qmat qmat])
+  %+  skip  (zip-mats ms)
+  |=  [a=qmat b=qmat]
+  ?.  =((dims:qm a) (dims:qm b))  %.y
+  =/  n  r:(dims:qm a)
+  ?&  =((add:qm a b) (add:qm b a))
+      =(a (add:qm a (zeros:qm n n)))
+      =((zeros:qm n n) (add:qm a (neg:qm a)))
+      =(a (mul:qm a (idn:qm n)))
+      =(a (mul:qm (idn:qm n) a))
+      =((sub:qm a b) (add:qm a (neg:qm b)))
+  ==
+::  Property: multiplication distributes over addition, and associates.
+++  test-p1-prop-distributive
+  =/  ms  (qsquares seed-qm 18)
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [qmat qmat qmat])
+  %+  skip  (triple-mats ms)
+  |=  [a=qmat b=qmat c=qmat]
+  ?.  ?&(=((dims:qm a) (dims:qm b)) =((dims:qm b) (dims:qm c)))  %.y
+  ?&  =((mul:qm a (add:qm b c)) (add:qm (mul:qm a b) (mul:qm a c)))
+      =((mul:qm (add:qm a b) c) (add:qm (mul:qm a c) (mul:qm b c)))
+      =((mul:qm a (mul:qm b c)) (mul:qm (mul:qm a b) c))
+  ==
+::  Property: transpose is an anti-homomorphism for the product, and a
+::  homomorphism for the sum.  (a*b)^T = b^T * a^T, note the reversal.
+++  test-p1-prop-transpose-mul
+  =/  ms  (qsquares seed-qm 24)
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [qmat qmat])
+  %+  skip  (zip-mats ms)
+  |=  [a=qmat b=qmat]
+  ?.  =((dims:qm a) (dims:qm b))  %.y
+  ?&  =((transpose:qm (mul:qm a b)) (mul:qm (transpose:qm b) (transpose:qm a)))
+      =((transpose:qm (add:qm a b)) (add:qm (transpose:qm a) (transpose:qm b)))
+  ==
+::  Property: +pow agrees with repeated multiplication.
+++  test-p1-prop-pow
+  =/  es=(list @ud)  ~[0 1 2 3 5]
+  %+  expect-eq  !>(~)
+  !>  ^-  (list qmat)
+  %+  skip  (qsquares seed-qm 18)
+  |=  m=qmat
+  =/  n  r:(dims:qm m)
+  %+  levy  es
+  |=  e=@ud
+  =/  want=qmat
+    =/  i=@ud     e
+    =/  acc=qmat  (idn:qm n)
+    |-  ^-  qmat
+    ?:  =(0 i)  acc
+    $(i (dec i), acc (mul:qm acc m))
+  =((pow:qm m e) want)
+::  Property: +scale agrees with multiplying by a scaled identity, and
+::  scaling by zero always gives the zero matrix.
+++  test-p1-prop-scale
+  =/  xs=(list frac)  ~[[--0 1] [--1 1] [-1 1] [--1 2] [-3 4]]
+  %+  expect-eq  !>(~)
+  !>  ^-  (list qmat)
+  %+  skip  (qsquares seed-qm 18)
+  |=  m=qmat
+  =/  d  (dims:qm m)
+  ?&  =((scale:qm m zero:qq) (zeros:qm r.d c.d))
+      =(m (scale:qm m one:qq))
+      %+  levy  xs
+      |=  x=frac
+      =((scale:qm m x) (mul:qm m (scale:qm (idn:qm r.d) x)))
+  ==
+::  Property: every arithmetic product keeps the shape it should, and its
+::  entries stay canonical.
+++  test-p1-prop-shape
+  =/  ms  (qmats seed-qm 24)
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [qmat qmat])
+  %+  skip  (zip-mats ms)
+  |=  [a=qmat b=qmat]
+  =/  da  (dims:qm a)
+  =/  db  (dims:qm b)
+  ?&  ::  the product is rows(a) x cols(b)
+      ?|  ?!(=(c.da r.db))
+          =((dims:qm (mul:qm a b)) [r.da c.db])
+      ==
+      ::  sums keep the shape
+      ?|(?!(=(da db)) =((dims:qm (add:qm a b)) da))
+      ::  and every entry is canonical
+      =((neg:qm a) (canon:qm (neg:qm a)))
+      =((scale:qm a [--2 3]) (canon:qm (scale:qm a [--2 3])))
+  ==
+::
++|  %p1-crashes
+::  S8: +add and +sub crash on a dimension mismatch.
+++  test-p1-crash-add-mismatch
+  =/  m2=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
+  =/  m1=qmat  ~[~[[--1 1]]]
+  =/  w=qmat   ~[~[[--1 1] [--2 1] [--3 1]]]
+  ;:  weld
+    (expect-fail |.((add:qm m2 m1)))
+    (expect-fail |.((add:qm m1 m2)))
+    (expect-fail |.((sub:qm m2 w)))
+    ::  same entry count, different shape
+    (expect-fail |.((add:qm ~[~[[--1 1] [--2 1]]] ~[~[[--1 1]] ~[[--2 1]]])))
+  ==
+::  S8: +mul crashes unless cols(a) = rows(b).
+++  test-p1-crash-mul-mismatch
+  =/  m2=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
+  =/  m1=qmat  ~[~[[--1 1]]]
+  ;:  weld
+    (expect-fail |.((mul:qm m2 m1)))
+    (expect-fail |.((mul:qm m1 m2)))
+  ==
+::  S8: +pow crashes on a non-square input, including at exponent zero,
+::  where there is no identity of matching shape to produce.
+++  test-p1-crash-pow-nonsquare
+  =/  w=qmat  ~[~[[--1 1] [--2 1] [--3 1]]]
+  ;:  weld
+    (expect-fail |.((pow:qm w 2)))
+    (expect-fail |.((pow:qm w 0)))
+  ==
+++  test-p1-nocrash
+  =/  m2=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
+  =/  w=qmat   ~[~[[--1 1] [--2 1] [--3 1]] ~[[--4 1] [--5 1] [--6 1]]]
+  =/  v=qmat   ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]] ~[[--5 1] [--6 1]]]
+  ;:  weld
+    ::  non-square multiplication is fine when the inner dimensions agree
+    (expect-success |.((mul:qm w v)))
+    (expect-success |.((mul:qm v w)))
+    ::  neg and scale never constrain shape
+    (expect-success |.((neg:qm w)))
+    (expect-success |.((scale:qm w zero:qq)))
+    (expect-success |.((pow:qm m2 0)))
+    (expect-success |.((add:qm w w)))
+  ==
+::
++|  %p1-vectors
+++  test-p1-vec-add
+  %+  expect-eq  !>(~)
+  !>  %+  skip  add-vectors:vec
+      |=  [a=qmat b=qmat c=qmat]
+      =(c (add:qm a b))
+::
+++  test-p1-vec-sub
+  %+  expect-eq  !>(~)
+  !>  %+  skip  sub-vectors:vec
+      |=  [a=qmat b=qmat c=qmat]
+      =(c (sub:qm a b))
+::
+++  test-p1-vec-mul
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mul-vectors:vec
+      |=  [a=qmat b=qmat c=qmat]
+      =(c (mul:qm a b))
+::
+++  test-p1-vec-neg
+  %+  expect-eq  !>(~)
+  !>  %+  skip  neg-vectors:vec
+      |=  [a=qmat c=qmat]
+      =(c (neg:qm a))
+::
+++  test-p1-vec-scale
+  %+  expect-eq  !>(~)
+  !>  %+  skip  scale-vectors:vec
+      |=  [a=qmat x=frac c=qmat]
+      =(c (scale:qm a x))
+::
+++  test-p1-vec-pow
+  %+  expect-eq  !>(~)
+  !>  %+  skip  pow-vectors:vec
+      |=  [a=qmat e=@ud c=qmat]
+      =(c (pow:qm a e))
 --

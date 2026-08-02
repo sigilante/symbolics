@@ -15,7 +15,7 @@ Racoon's single `c`.
 | Phase | Contents | State |
 |---|---|---|
 | **P0** | shape and construction | **complete** |
-| P1 | arithmetic | not started |
+| **P1** | arithmetic | **complete** |
 | P2 | elimination — rref, rank, det, inv, solve, nullspace | not started |
 | P3 | spectral — charpoly, eigen | not started |
 
@@ -68,7 +68,7 @@ its argument order.
 -test /=base=/tests/lib/baloon ~
 ```
 
-25 arms, all green. Behavioral, property, crash-row, and vector-driven.
+44 arms, all green. Behavioral, property, crash-row, and vector-driven.
 §8 is treated as a two-sided contract: every crash row has a dedicated test
 and every non-crash boundary has a matching expected-success test.
 

@@ -200,6 +200,92 @@ def zeros_rows(count=48):
     return rows
 
 
+
+# --------------------------------------------------------------------------
+# Phase 1 families
+# --------------------------------------------------------------------------
+
+
+def conformable_pairs(rng, count, same=True):
+    """Pairs of matrices: same shape when .same, else cols(a) == rows(b)."""
+    out = []
+    if same:
+        edges = [
+            ([[0]], [[0]]),
+            ([[1]], [[-1]]),
+            ([[1, 2], [3, 4]], [[5, 6], [7, 8]]),
+            ([[Rational(1, 2)]], [[Rational(1, 3)]]),
+        ]
+    else:
+        edges = [
+            ([[1]], [[1]]),
+            ([[1, 2], [3, 4]], [[5, 6], [7, 8]]),
+            ([[1, 2, 3], [4, 5, 6]], [[1, 2], [3, 4], [5, 6]]),
+            ([[1, 2], [3, 4], [5, 6]], [[1, 2, 3], [4, 5, 6]]),
+        ]
+    out.extend([([[Rational(x) for x in r] for r in a],
+                 [[Rational(x) for x in r] for r in b]) for a, b in edges])
+    while len(out) < count:
+        r = rng.randrange(1, 5)
+        k = rng.randrange(1, 5)
+        c = k if same else rng.randrange(1, 5)
+        a = rand_qmat(rng, r, k)
+        b = rand_qmat(rng, r, k) if same else rand_qmat(rng, k, c)
+        out.append((a, b))
+    return out
+
+
+def binop_rows(rng, op, same=True, count=48):
+    rows = []
+    for a, b in conformable_pairs(rng, count, same):
+        c = of_matrix(op(Matrix(a), Matrix(b)))
+        rows.append("[%s %s %s]" % (qmat(a), qmat(b), qmat(c)))
+    return rows
+
+
+def neg_rows(rng, count=48):
+    rows = []
+    for m in supply(rng, count):
+        rows.append("[%s %s]" % (qmat(m), qmat(of_matrix(-Matrix(m)))))
+    return rows
+
+
+def scale_rows(rng, count=48):
+    rows = []
+    scalars = [Rational(0), Rational(1), Rational(-1), Rational(1, 2),
+               Rational(-3, 4), Rational(5)]
+    for i, m in enumerate(supply(rng, count)):
+        x = scalars[i % len(scalars)]
+        rows.append("[%s %s %s]"
+                    % (qmat(m), frac(x), qmat(of_matrix(Matrix(m) * x))))
+    return rows
+
+
+def pow_rows(rng, count=48):
+    """+pow:qm -- [m e c].  Square inputs only; non-square crashes."""
+    rows = []
+    mats = [
+        [[Rational(1)]],
+        [[Rational(0)]],
+        [[Rational(1), Rational(2)], [Rational(3), Rational(4)]],
+        [[Rational(1), Rational(0)], [Rational(0), Rational(1)]],
+        [[Rational(1, 2), Rational(1, 3)], [Rational(1, 4), Rational(1, 5)]],
+        # nilpotent: powers vanish
+        [[Rational(0), Rational(1)], [Rational(0), Rational(0)]],
+    ]
+    while len(mats) < 12:
+        n = rng.randrange(1, 4)
+        mats.append(rand_qmat(rng, n, n, denom=3, span=4))
+    i = 0
+    while len(rows) < count:
+        m = mats[i % len(mats)]
+        e = i % 6
+        i += 1
+        c = of_matrix(Matrix(m) ** e)
+        rows.append("[%s %s %s]" % (qmat(m), ud(e), qmat(c)))
+    return rows
+
+
 # --------------------------------------------------------------------------
 
 
@@ -232,6 +318,22 @@ def main():
          "+idn:qm, oracle sympy.eye")
     emit("zeros-vectors", "(list [r=@ud c=@ud m=qmat])", zeros_rows(),
          "+zeros:qm, oracle sympy.zeros")
+
+    # Phase 1
+    bt = "(list [a=qmat b=qmat c=qmat])"
+    emit("add-vectors", bt, binop_rows(rng, lambda p, q: p + q),
+         "+add:qm, oracle sympy Matrix addition")
+    emit("sub-vectors", bt, binop_rows(rng, lambda p, q: p - q),
+         "+sub:qm, oracle sympy Matrix subtraction")
+    emit("mul-vectors", bt,
+         binop_rows(rng, lambda p, q: p * q, same=False),
+         "+mul:qm, oracle sympy Matrix product; cols(a) = rows(b)")
+    emit("neg-vectors", "(list [a=qmat c=qmat])", neg_rows(rng),
+         "+neg:qm")
+    emit("scale-vectors", "(list [a=qmat x=frac c=qmat])", scale_rows(rng),
+         "+scale:qm; includes the zero scalar")
+    emit("pow-vectors", "(list [a=qmat e=@ud c=qmat])", pow_rows(rng),
+         "+pow:qm; square inputs, includes e = 0 and a nilpotent matrix")
 
     print("--")
 

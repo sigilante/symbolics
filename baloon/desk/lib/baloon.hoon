@@ -13,7 +13,7 @@
 ::  uniqueness needs help, as with the nullspace basis, SPEC S7 pins a
 ::  CONVENTION rather than an algorithm.
 ::
-::  Phase 0: shape and construction.
+::  Phases 0 and 1: shape, construction, and arithmetic.
 ::
 ::  Jet registration follows /lib/racoon, which follows urbit/numerics
 ::  /lib/math.hoon: one root ~% under %non, then ~/ per nested core.
@@ -74,6 +74,33 @@
     ?~  m  !!
     ?:  =(0 i)  [r t.m]
     [i.m $(m t.m, i (dec i))]
+  ::    +vadd:  elementwise sum of two vectors
+  ::
+  ::  The callers check dimensions first, so the two lists always run out
+  ::  together; a short list simply terminates the walk.
+  ++  vadd
+    |=  [x=qvec y=qvec]
+    ^-  qvec
+    ?~  x  ~
+    ?~  y  ~
+    [(add:qq i.x i.y) $(x t.x, y t.y)]
+  ::    +vsub:  elementwise difference of two vectors
+  ++  vsub
+    |=  [x=qvec y=qvec]
+    ^-  qvec
+    ?~  x  ~
+    ?~  y  ~
+    [(sub:qq i.x i.y) $(x t.x, y t.y)]
+  ::    +dot:  the inner product of two vectors
+  ::
+  ::  Produces the zero rational on an empty vector, which cannot arise for
+  ::  canonical input since every row has at least one entry.
+  ++  dot
+    |=  [x=qvec y=qvec]
+    ^-  frac
+    ?~  x  zero:qq
+    ?~  y  zero:qq
+    (add:qq (mul:qq i.x i.y) $(x t.x, y t.y))
   --
 +|  %public
 ++  baloon
@@ -87,9 +114,8 @@
   ::  outside the supported domain: the Hoon computes deterministically and
   ::  a Milestone B jet detects the violation and falls back.
   ::
-  ::  Phase 0 below.  Phase 1 adds add, sub, neg, mul, scale, and pow;
-  ::  Phase 2 adds rref, rank, det, inv, solve, and nullspace; Phase 3 adds
-  ::  charpoly and eigen.
+  ::  Phases 0 and 1 below.  Phase 2 adds rref, rank, det, inv, solve, and
+  ::  nullspace; Phase 3 adds charpoly and eigen.
   ++  qm
     ~/  %qm
     |%
@@ -194,6 +220,89 @@
       |=  *
       ^-  qvec
       (reap c zero:qq)
+    ::    +add:  matrix addition
+    ::
+    ::  [a=qmat b=qmat] -> qmat.  Elementwise.  Crashes on a dimension
+    ::  mismatch (SPEC S8).
+    ::
+    ::  No canonicalization is needed: entry sums come from +add:qq, which
+    ::  is canonical, and a matrix has no trailing-zero form to strip.  This
+    ::  is where matrices are simpler than Racoon's polynomials, whose +add
+    ::  must canonicalize because leading terms can cancel.
+    ++  add
+      |=  [a=qmat b=qmat]
+      ^-  qmat
+      ?>  =((dims a) (dims b))
+      |-  ^-  qmat
+      ?~  a  ~
+      ?~  b  ~
+      [(vadd:pv i.a i.b) $(a t.a, b t.b)]
+    ::    +neg:  matrix negation
+    ++  neg
+      |=  m=qmat
+      ^-  qmat
+      %+  turn  m
+      |=(r=qvec ^-(qvec (turn r neg:qq)))
+    ::    +sub:  matrix subtraction
+    ::
+    ::  Crashes on a dimension mismatch (SPEC S8).
+    ++  sub
+      |=  [a=qmat b=qmat]
+      ^-  qmat
+      ?>  =((dims a) (dims b))
+      |-  ^-  qmat
+      ?~  a  ~
+      ?~  b  ~
+      [(vsub:pv i.a i.b) $(a t.a, b t.b)]
+    ::    +scale:  multiply every entry by a scalar
+    ::
+    ::  Scaling by zero produces the zero matrix, which is canonical: a
+    ::  matrix has no notion of collapsing to a smaller shape.
+    ++  scale
+      |=  [m=qmat x=frac]
+      ^-  qmat
+      %+  turn  m
+      |=(r=qvec ^-(qvec (turn r |=(f=frac (mul:qq x f)))))
+    ::    +mul:  matrix multiplication
+    ::
+    ::  [a=qmat b=qmat] -> qmat, of shape rows(a) x cols(b).  Crashes
+    ::  unless cols(a) = rows(b) (SPEC S8).
+    ::
+    ::  Transposing b once up front turns every entry of the product into
+    ::  an inner product of two ROWS, which is the cheap direction on
+    ::  nested lists -- walking a column otherwise costs a traversal per
+    ::  entry.
+    ++  mul
+      ~/  %mul
+      |=  [a=qmat b=qmat]
+      ^-  qmat
+      ?>  =(c:(dims a) r:(dims b))
+      =/  bt=qmat  (transpose b)
+      %+  turn  a
+      |=  r=qvec
+      ^-  qvec
+      (turn bt |=(s=qvec (dot:pv r s)))
+    ::    +pow:  matrix power
+    ::
+    ::  [m=qmat e=@ud] -> qmat.  Binary square-and-multiply.  m^0 is the
+    ::  identity of matching size, including for the zero matrix.  Crashes
+    ::  on a non-square input (SPEC S8).
+    ++  pow
+      |=  [m=qmat e=@ud]
+      ^-  qmat
+      =/  d  (dims m)
+      ?>  =(r.d c.d)
+      ?:  =(0 e)  (idn r.d)
+      =/  k=@ud     (dec (met 0 e))
+      =/  acc=qmat  m
+      |-  ^-  qmat
+      ?:  =(0 k)  acc
+      =/  nk=@ud    (dec k)
+      =/  sq=qmat   (mul acc acc)
+      %=  $
+        k    nk
+        acc  ?:(=(1 (cut 0 [nk 1] e)) (mul sq m) sq)
+      ==
     --
   +|  %reserved
   ::    +zm:  matrices over Z.  Milestone C.
