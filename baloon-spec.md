@@ -12,9 +12,11 @@ Audience: as for Racoon. Assume competence; assume Racoon Milestone A is complet
 
 Exact linear algebra over ℚ for Urbit, built entirely on Racoon. Determinants, reduced row echelon form, rank, inverse, linear solving, nullspace, characteristic polynomial, and rational eigenvalues — all exact, no floating point anywhere.
 
-Baloon is to exact arithmetic what Lagoon is to approximate arithmetic. The two are siblings, not layers: Lagoon owns IEEE 754, fixed-point, posits, and complex; Baloon owns ℚ. Neither depends on the other.
+Baloon is to exact arithmetic what Lagoon is to approximate arithmetic. The two are siblings, not layers: Lagoon owns IEEE 754, fixed-point, posits, and complex; Baloon owns ℚ (and later ℤ and ℤ/n and 𝔽p). Neither depends on the other.
 
 `/lib/baloon` depends on `/lib/racoon` and nothing else, the same relationship `/lib/lagoon` has to `/lib/math`.
+
+**Milestone A is ℚ only.** ℤ, ℤ/n, and 𝔽p are Milestone C (§13). They shape the type layer and the core layout now — §6 declares their matrix types and reserves their sub-cores, because both choices are cheaper to make once, up front, than to retrofit — but no arm in Milestone A consumes them.
 
 ## 2. Platform contract
 
@@ -62,24 +64,50 @@ Identical to Racoon's §4, against the same pier and the same pinned Vere. Baloo
 ```hoon
 /-  *racoon
 |%
-::  $qmat: a matrix over Q, row-major.
-::  Canonical form: nonempty, rectangular (every row the same nonempty
-::  length), every entry a canonical $frac.  Dimensions are derived, not
-::  stored: rows = (lent m), cols = (lent (snag 0 m)).
+::  Matrices are dense, row-major, nested lists.  Canonical form in every
+::  ring: nonempty, rectangular (every row the same nonempty length), every
+::  entry canonical for its ring.  Dimensions are derived, not stored:
+::  rows = (lent m), cols = (lent (snag 0 m)).
+::
+::  Names are ring-prefixed throughout, as Racoon's $zol / $mol / $qol are.
+::  Nothing here is unprefixed: an unprefixed name in a multi-ring library
+::  is a trap that only springs once the second ring arrives.
+::
+::    $qmat: a matrix over Q.  Entries are canonical $frac.
 ::
 +$  qmat  (list (list frac))
-::  $qvec: a vector, as a bare list of entries.  Used where a result is not
-::  itself a matrix -- the nullspace basis, a single row or column.
-::
 +$  qvec  (list frac)
-::  $rref: reduced row echelon form with its pivot columns.
-::  .piv is ascending, and (lent piv) is the rank.
+::    $zmat: a matrix over Z.  Milestone C; declared now because the
+::    representation question is already settled by $qmat's.
 ::
-+$  rref  [m=qmat piv=(list @ud)]
++$  zmat  (list (list @s))
++$  zvec  (list @s)
+::    $mmat: a matrix over Z/n.  Entries lie in [0, n); the modulus is
+::    carried by the +mm door, not by the matrix, exactly as Racoon's $mol
+::    leaves n to +mx.  Milestone C.
+::
++$  mmat  (list (list @ud))
++$  mvec  (list @ud)
+::    $qrref: reduced row echelon form over Q, with its pivot columns.
+::    .piv is ascending, and (lent piv) is the rank.
+::
+::  Ring-prefixed because RREF is NOT a ring-generic notion.  Over Z there
+::  is no RREF at all -- a pivot cannot be scaled to 1 without leaving Z --
+::  and the row-canonical form is instead the Hermite normal form.  Over
+::  Z/n an RREF exists exactly when the needed pivots are units.
+::
++$  qrref  [m=qmat piv=(list @ud)]
+::
+::  RESERVED, deliberately not declared: the Hermite and Smith normal form
+::  products for +zm.  Whether they carry their unimodular transform
+::  ([h=zmat u=zmat] against a bare h) depends on design work not yet done,
+::  and guessing would pin a convention S14 would rather see escalated.
 --
 ```
 
 Dimensions are derived rather than carried. Carrying `[r c data]` would introduce two further invariants that can desync from the data; deriving introduces one (rectangularity). Fewer redundant invariants is the same reasoning that gave Racoon its no-trailing-zero polynomial form.
+
+**Milestone A builds ℚ only.** `$zmat` and `$mmat` are declared so that naming and representation are settled once, while the reasoning is fresh, rather than chosen inconsistently later under pressure. No arm consumes them until Milestone C. Types carry no battery-axis consequence — they are not jetted — so declaring them early costs nothing, which is precisely why the genuinely unpredictable shapes above are left undeclared instead.
 
 `desk/lib/baloon.hoon` skeleton:
 
@@ -111,6 +139,10 @@ Dimensions are derived rather than carried. Carrying `[r c data]` would introduc
 
 `+zm` and `+mm` are declared empty from the outset. Adding an arm to a Hoon core moves the battery axes of the arms already in it, so introducing a sub-core later would shift the `%baloon` battery — and that is the parent axis every sub-core jet resolves against. This is Racoon's Q5, applied up front rather than retrofitted.
 
+There are **three** sub-cores, not four: 𝔽p is ℤ/n with n prime, so it shares `$mmat` and the `+mm` door, exactly as Racoon serves both from `+mx`. Nor is there any `kind` tag or dispatch — `raccoon-spec` §16 records the generic-ring design as considered and rejected in favor of concrete per-ring cores, and Baloon does not relitigate it.
+
+Note also that no new polynomial types are needed. `+charpoly` produces `qol` over ℚ, `zol` over ℤ (monic, integer coefficients), and `mol` over ℤ/n — all three already exist in Racoon's `sur`. Likewise `+det` produces `frac`, `@s`, and `@ud` respectively. The per-core signatures differ; no shared type does.
+
 Private helpers live in `+pv`, outside the `%baloon` core, so helper churn cannot disturb a hinted core's layout.
 
 ## 7. Canonical conventions (normative)
@@ -121,7 +153,7 @@ Private helpers live in `+pv`, outside the `%baloon` core, so helper churn canno
 | Indexing | Zero-based. `(get m i j)` is row `i`, column `j` |
 | Dimensions | Derived: `rows = (lent m)`, `cols = (lent (snag 0 m))` |
 | `+canon` | The only arm accepting non-canonical input: re-canonicalizes every entry through `+new:qq`. Does **not** repair raggedness — a ragged input is outside the supported domain |
-| `+rref` | The reduced row echelon form: leading entry of every nonzero row is 1, is the only nonzero in its column, and pivots strictly advance; zero rows sort last. Unique for a given matrix. `.piv` lists pivot columns ascending |
+| `+rref` (`qm`) | The reduced row echelon form: leading entry of every nonzero row is 1, is the only nonzero in its column, and pivots strictly advance; zero rows sort last. Unique for a given matrix. `.piv` lists pivot columns ascending |
 | `+rank` | `(lent piv:(rref m))` |
 | `+det` | Crashes on non-square. `det` of a 1×1 is its entry. Canonical |
 | `+inv` | Crashes on non-square and on singular. `inv(m) * m` is the identity exactly |
@@ -177,7 +209,7 @@ Every arm is `free`: the product is canonical, so a Milestone B jet may use any 
 
 | Arm | Signature | Spec algorithm |
 |---|---|---|
-| `rref` | `qmat -> rref` | Gauss–Jordan. Pivot selection is the first nonzero in the column at or below the current row — deterministic and exact; there is no magnitude-based pivoting because there is no rounding to control |
+| `rref` | `qmat -> qrref` | Gauss–Jordan. Pivot selection is the first nonzero in the column at or below the current row — deterministic and exact; there is no magnitude-based pivoting because there is no rounding to control |
 | `rank` | `qmat -> @ud` | `(lent piv:(rref m))` |
 | `det` | `qmat -> frac` | **Bareiss fraction-free elimination** over ℤ: clear denominators to an integer matrix, run Bareiss with its exact divisions, rescale. B4 — plain elimination over ℚ swells denominators badly |
 | `inv` | `qmat -> qmat` | Gauss–Jordan on `[m | I]` |
@@ -221,7 +253,12 @@ A phase closes when: the library compiles clean; all tests for this and prior ph
 
 No floating point (Lagoon owns it). No matrices over ℤ or ℤ/n in Milestone A — `+zm` and `+mm` are declared but empty, and are Milestone C. No Hermite or Smith normal form. No LLL. No LU/QR/SVD decompositions. No eigenvectors, and no eigenvalues outside ℚ. No sparse representation. No symbolic matrix entries. No performance work beyond recording baselines. No jets.
 
-Milestone C candidates, for context: integer linear algebra with HNF and SNF; eigenvectors for rational eigenvalues; minimal polynomial; PLU with a deterministic pivot convention.
+Milestone C candidates, for context: integer linear algebra with HNF and SNF; matrices over ℤ/n and 𝔽p; eigenvectors for rational eigenvalues; minimal polynomial; PLU with a deterministic pivot convention.
+
+Two notes for whoever picks up ℤ and ℤ/n, recorded now while the reasoning is fresh:
+
+- **The ℤ machinery is largely built already.** `+det:qm` is specified as Bareiss, which clears denominators, eliminates over ℤ, and rescales. `+zm` therefore mostly *promotes* private `+pv` helpers to public arms rather than writing them fresh.
+- **`+mm` likely needs no primality assertion.** Racoon's factorization genuinely requires a field, so `sqfree`, `ddf`, `edf`, and `factor` assert it. Linear algebra needs strictly less: elimination requires only that each pivot it actually uses be a unit. So `+rref:mm` should crash on a non-unit pivot — the same discipline as `+divmod:mx` crashing on a non-unit leading coefficient — and over 𝔽p that crash is unreachable, since every nonzero element is a unit. That is a §8 crash row, not a §5 invariant.
 
 ## 14. Escalation and decision authority
 
