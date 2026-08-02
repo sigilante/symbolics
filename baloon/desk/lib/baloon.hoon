@@ -429,6 +429,13 @@
       a  (zput a k (zvcomb --1 (zrow a k) nq (zrow a p)))
       u  (zput u k (zvcomb --1 (zrow u k) nq (zrow u p)))
     ==
+  ::    +zvzed:  is every entry of this integer vector zero?
+  ++  zvzed
+    |=  v=(list @s)
+    ^-  ?
+    ?~  v  %.y
+    ?.  =(--0 i.v)  %.n
+    $(v t.v)
   ::    +zfind:  the first nonzero entry of the trailing submatrix
   ::
   ::  Scanned row-major from [t][t], so the choice is deterministic and
@@ -1393,6 +1400,77 @@
         a  (zput:pv a t (zvscale:pv -1 (zrow:pv a t)))
         u  (zput:pv u t (zvscale:pv -1 (zrow:pv u t)))
       ==
+    ::    +nullspace:  a basis for the integer kernel
+    ::
+    ::  [m=zmat] -> (list zvec), a Z-basis of {x : m * x = 0} with x a
+    ::  column of length cols(m).  Empty exactly when m has full column
+    ::  rank.  Never crashes.
+    ::
+    ::  THIS IS THE ARM THE HERMITE TRANSFORM EXISTS FOR (escalation B1,
+    ::  reason 2).  Over Q the kernel falls out of the RREF, but over Z
+    ::  there is no RREF, and the form alone is not enough -- the basis
+    ::  lives in the TRANSFORM, not in h.
+    ::
+    ::  u * m^T = h, with u unimodular.  Row i of h is zero exactly when
+    ::  row i of u annihilates m^T from the left, which is to say it is
+    ::  in the right kernel of m.  Those rows of u span the kernel over
+    ::  Z -- not merely over Q -- because u is unimodular: they extend to
+    ::  a basis of the whole lattice, so the sublattice they generate is
+    ::  saturated and no integer vector in the kernel is missed.
+    ::
+    ::  CANONICAL BY A SECOND PASS.  h is unique for a given matrix but u
+    ::  is NOT when the kernel is nontrivial -- any multiple of a kernel
+    ::  row may be added to another.  So the kernel rows are put through
+    ::  +hnf once more: the Hermite form of a full-row-rank matrix depends
+    ::  only on the lattice its rows generate, which makes the output a
+    ::  function of m alone and keeps this arm `free` like every other.
+    ++  nullspace
+      ~/  %nullspace
+      |=  m=zmat
+      ^-  (list zvec)
+      =/  d   (dims m)
+      =/  hu  (hnf (transpose m))
+      =/  ker=zmat
+        =/  i=@ud  0
+        =|  out=zmat
+        |-  ^-  zmat
+        ?:  =(i c.d)  (flop out)
+        ?.  (zvzed:pv (zrow:pv h.hu i))  $(i +(i))
+        $(i +(i), out [(zrow:pv u.hu i) out])
+      ::  full column rank: no kernel, and +hnf could not take an empty
+      ::  matrix anyway
+      ?~  ker  ~
+      h:(hnf ker)
+    ::    +solve:  solve a x = b over Z
+    ::
+    ::  [a=zmat b=zmat] -> (unit zmat).  Crashes unless a is square and
+    ::  rows(b) = rows(a), exactly as +solve:qm does (SPEC S8).
+    ::
+    ::  Produces the unique INTEGER solution when there is one, and ~
+    ::  otherwise.  Two distinct situations collapse into that ~, and
+    ::  callers should know it: a may be singular, so there is no unique
+    ::  solution over any ring; or the unique rational solution may fail
+    ::  to be integral, as it does for 2x = 1.
+    ::
+    ::  Solved over Q and brought back.  +of-q returns the LEAST common
+    ::  denominator of its input, so d = 1 is precisely the test for
+    ::  integrality -- no per-entry check is needed, and no separate
+    ::  divisibility argument either.
+    ::
+    ::  Note this needs no Hermite form: for square a the rational
+    ::  solution is already unique, and the only question is whether it
+    ::  lands in Z.  HNF earns its place in +nullspace, not here.
+    ++  solve
+      |=  [a=zmat b=zmat]
+      ^-  (unit zmat)
+      =/  da  (dims a)
+      =/  db  (dims b)
+      ?>  ?&(=(r.da c.da) =(r.db r.da))
+      =/  q  (solve:qm (to-q a) (to-q b))
+      ?~  q  ~
+      =/  oq  (of-q u.q)
+      ?.  =(1 d.oq)  ~
+      `z.oq
     --
   ::    +mm:  matrices over Z/n, a door on the modulus.  Milestone C.
   ::

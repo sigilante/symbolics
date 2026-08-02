@@ -5,7 +5,8 @@ Milestone C) changes only by escalation. Silence is not acceptance.
 
 ## B1 — Hermite and Smith normal form: what does the arm return? (RESOLVED)
 
-**Status: resolved — carry the transform. Phase C2 is built.**
+**Status: resolved — carry the transform. Phase C2 is built, and
+`+nullspace:zm` now consumes the transform, which was reason 2 below.**
 
 `+hnf` returns `[h=zmat u=zmat]` with `u · m = h`; `+snf` returns
 `[d=zmat u=zmat v=zmat]` with `u · m · v = d`. Both forms and both

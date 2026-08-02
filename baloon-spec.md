@@ -345,12 +345,27 @@ rows:
 | `+of-q:zm` | ragged or non-canonical input | outside the supported domain |
 | `+mm` any arm | `n < 2` | outside the supported domain |
 
-`+canon`, `+rref`, `+inv`, `+solve`, and `+nullspace` **do not exist on
-`+zm`.** `+canon` has nothing to normalize, as §C4 records. `+rank` and
-`+det` do exist — both are well defined over ℤ. For the rest: over ℤ a pivot cannot be scaled to 1 without leaving the
-ring, so there is no RREF; the row-canonical form is the Hermite normal
-form and they belong to it. Declaring them and crashing would be worse
-than their absence.
+`+canon`, `+rref`, and `+inv` **do not exist on `+zm`.** `+canon` has
+nothing to normalize, as §C4 records. Over ℤ a pivot cannot be scaled to
+1 without leaving the ring, so there is no RREF at all, and `+inv` would
+be defined only for the `det = ±1` case that `+solve` already covers.
+Declaring them and crashing would be worse than their absence.
+
+`+det`, `+rank`, `+solve`, and `+nullspace` **do** exist. The first two
+are well defined over ℤ outright. The latter two were listed here as
+absent while the Hermite form was still blocked, "belonging to it" — and
+with C2 landed they are built:
+
+| Arm | Signature | Notes |
+|---|---|---|
+| `+nullspace:zm` | `zmat -> (list zvec)` | A ℤ-basis of the kernel, from the Hermite **transform**: rows of `u` whose image in `h` is zero. Unimodularity is what makes the sublattice saturated, so no integer kernel vector is missed. Put through `+hnf` a second time to be canonical, since `u` is not unique when the kernel is nontrivial. Empty iff full column rank; never crashes |
+| `+solve:zm` | `[zmat zmat] -> (unit zmat)` | Requires `a` square and `rows(b) = rows(a)`, crashing otherwise, exactly as `+solve:qm`. Produces the unique **integer** solution, or `~`. Needs no Hermite form: for square `a` the rational solution is already unique, and `+of-q`'s least common denominator being 1 is precisely the integrality test |
+
+| Arm | Condition | Behavior |
+|---|---|---|
+| `+solve:zm` | `a` non-square, or `rows(b) != rows(a)` | crash |
+| `+solve:zm` | `a` singular, **or** the rational solution is non-integral | **no crash**: product is `~`. Both situations collapse into the same `~`, and the arm documents that they do |
+| `+nullspace:zm` | full column rank | **no crash**: product is `~` |
 
 ## C4. Phases
 
@@ -367,8 +382,9 @@ than their absence.
   minor, and the two agree. That is exactly the property composite ℤ/n
   lacks, which is why `+rank:mm` asserts primality and this one does
   not.
-- **C2 — `+zm` normal forms.** `hnf`, `snf`. **Escalation B1 resolved:
-  both carry their transforms.**
+- **C2 — `+zm` normal forms and what they unlock.** `hnf`, `snf`, then
+  `nullspace` and `solve`. **Escalation B1 resolved: both forms carry
+  their transforms** — and `+nullspace` is the arm that consumes one.
 - **C3 — `+mm` complete.** Shape, arithmetic, and elimination in one
   phase: it is `+qm`'s arm set over a different ring, and splitting it
   would create phase gates with nothing to decide.

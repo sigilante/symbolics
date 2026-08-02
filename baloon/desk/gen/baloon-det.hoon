@@ -16,17 +16,17 @@
 |=  [* [txt=@t ~] ~]
 :-  %noun
 ^-  tape
-=/  parsed  (redm:fmt txt)
+=/  parsed  (redq:fmt txt)
 ?~  parsed  "parse error, or a ragged matrix"
 =/  m=qmat  u.parsed
 ~&  '::'
-=/  lines  (shom:fmt m)
+=/  lines  (shoq:fmt m)
 |-
 ?^  lines
   ~&  i.lines
   $(lines t.lines)
 ~&  '::'
-~&  (weld "dims  " (shod:fmt m))
+~&  (weld "dims  " (shod:fmt (dims:qm m)))
 ~&  (weld "rank  " (dot:fmt (rank:qm m)))
 ?.  (is-square:qm m)
   "not square, so no determinant or spectrum"

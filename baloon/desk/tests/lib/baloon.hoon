@@ -1078,36 +1078,36 @@
     ::  squarely rather than raggedly
     %+  expect-eq
       !>(`(list tape)`~["[ 1 2 ]" "[ 3 4 ]"])
-    !>((shom:fmt m2))
+    !>((shoq:fmt m2))
     ::  a wider entry widens every column
     %+  expect-eq
       !>(`(list tape)`~["[   1 -25 ]" "[ 3/4   4 ]"])
-    !>((shom:fmt ~[~[[--1 1] [-25 1]] ~[[--3 4] [--4 1]]]))
-    %+  expect-eq  !>("2 x 2")  !>((shod:fmt m2))
-    %+  expect-eq  !>("1 x 3")  !>((shod:fmt (zeros:qm 1 3)))
+    !>((shoq:fmt ~[~[[--1 1] [-25 1]] ~[[--3 4] [--4 1]]]))
+    %+  expect-eq  !>("2 x 2")  !>((shod:fmt (dims:qm m2)))
+    %+  expect-eq  !>("1 x 3")  !>((shod:fmt (dims:qm (zeros:qm 1 3))))
     %+  expect-eq
       !>("[1 2]")
-    !>((shov:fmt ~[[--1 1] [--2 1]]))
+    !>((shovq:fmt ~[[--1 1] [--2 1]]))
   ==
 ++  test-fmt-parse
   ;:  weld
     %+  expect-eq
       !>(`(unit qmat)`[~ ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]])
-    !>((redm:fmt '[[1 2] [3 4]]'))
+    !>((redq:fmt '[[1 2] [3 4]]'))
     ::  commas and arbitrary whitespace are accepted
     %+  expect-eq
-      !>((redm:fmt '[[1 2] [3 4]]'))
-    !>((redm:fmt '[[1, 2], [3, 4]]'))
+      !>((redq:fmt '[[1 2] [3 4]]'))
+    !>((redq:fmt '[[1, 2], [3, 4]]'))
     ::  negative and fractional entries, canonicalized on the way in
     %+  expect-eq
       !>(`(unit qmat)`[~ ~[~[[--1 2] [-1 3]]]])
-    !>((redm:fmt '[[2/4, -1/3]]'))
+    !>((redq:fmt '[[2/4, -1/3]]'))
     ::  a ragged matrix is rejected: raggedness is outside the canonical
     ::  form, and the parser is the right boundary to catch it
-    %+  expect-eq  !>(`(unit qmat)`~)  !>((redm:fmt '[[1 2] [3]]'))
+    %+  expect-eq  !>(`(unit qmat)`~)  !>((redq:fmt '[[1 2] [3]]'))
     ::  as is nonsense
-    %+  expect-eq  !>(`(unit qmat)`~)  !>((redm:fmt 'nonsense'))
-    %+  expect-eq  !>(`(unit qmat)`~)  !>((redm:fmt '[]'))
+    %+  expect-eq  !>(`(unit qmat)`~)  !>((redq:fmt 'nonsense'))
+    %+  expect-eq  !>(`(unit qmat)`~)  !>((redq:fmt '[]'))
   ==
 ::  Property: parse . print is the identity on every matrix in the corpus.
 ::  Several hundred distinct matrices across the arithmetic, elimination,
@@ -1127,12 +1127,12 @@
   |=  m=qmat
   =/  txt=@t
     %-  crip
-    =/  ls=(list tape)  (shom:fmt m)
+    =/  ls=(list tape)  (shoq:fmt m)
     =/  out=tape  "["
     |-  ^-  tape
     ?~  ls  (weld out "]")
     $(ls t.ls, out (weld out i.ls))
-  =([~ m] (redm:fmt txt))
+  =([~ m] (redq:fmt txt))
 ::  Integer matrices, with SymPy determinants and characteristic
 ::  polynomials.  Ascending coefficient order throughout, matching $zol.
 ++  cvecs-z
@@ -1857,5 +1857,210 @@
     (expect-success |.((hnf:zm (zeros:zm 3 2))))
     (expect-success |.((snf:zm ~[~[--1 --2 --3]])))
     (expect-success |.((hnf:zm ~[~[--1] ~[--2] ~[--3]])))
+  ==
+::  The Milestone C rings.  Same conventions, ring-suffixed arms.
+++  test-fmt-z
+  ;:  weld
+    ::  a wider entry widens every column, as over Q
+    %+  expect-eq
+      !>(`(list tape)`~["[  1 -2 ]" "[ 30  4 ]"])
+    !>((shoz:fmt ~[~[--1 -2] ~[--30 --4]]))
+    %+  expect-eq  !>("[1 -2 0]")  !>((shovz:fmt ~[--1 -2 --0]))
+    %+  expect-eq  !>("3 x 2")
+    !>((shod:fmt (dims:zm ~[~[--1 --2] ~[--3 --4] ~[--5 --6]])))
+    %+  expect-eq
+      !>(`(unit zmat)`[~ ~[~[--1 -2] ~[--3 --4]]])
+    !>((redz:fmt '[[1 -2] [3 4]]'))
+    %+  expect-eq
+      !>((redz:fmt '[[1 -2] [3 4]]'))
+    !>((redz:fmt '[[1, -2], [3, 4]]'))
+    %+  expect-eq  !>(`(unit zvec)`[~ ~[--1 -2]])  !>((redvz:fmt '[1 -2]'))
+    ::  ragged, empty, and non-integral input are all rejected
+    %+  expect-eq  !>(`(unit zmat)`~)  !>((redz:fmt '[[1 2] [3]]'))
+    %+  expect-eq  !>(`(unit zmat)`~)  !>((redz:fmt '[]'))
+    %+  expect-eq  !>(`(unit zmat)`~)  !>((redz:fmt '[[1/2]]'))
+    %+  expect-eq  !>(`(unit zmat)`~)  !>((redz:fmt 'nonsense'))
+  ==
+++  test-fmt-m
+  =/  d7  ~(. mm 7)
+  ;:  weld
+    %+  expect-eq
+      !>(`(list tape)`~["[  1  2 ]" "[ 30  4 ]"])
+    !>((shom:fmt ~[~[1 2] ~[30 4]]))
+    %+  expect-eq  !>("[1 2 0]")  !>((shovm:fmt ~[1 2 0]))
+    %+  expect-eq  !>("2 x 3")  !>((shod:fmt (dims:d7 (zeros:d7 2 3))))
+    %+  expect-eq
+      !>(`(unit mmat)`[~ ~[~[1 2] ~[3 4]]])
+    !>((redm:fmt '[[1 2] [3 4]]'))
+    %+  expect-eq  !>(`(unit mvec)`[~ ~[1 2]])  !>((redvm:fmt '[1 2]'))
+    ::  a negative has no representative without the modulus, which this
+    ::  library does not have, so it is a parse failure not a guess
+    %+  expect-eq  !>(`(unit mmat)`~)  !>((redm:fmt '[[1 -2]]'))
+    ::  and entries are NOT reduced on the way in; that is +canon:mm's job
+    %+  expect-eq  !>(`(unit mmat)`[~ ~[~[9]]])  !>((redm:fmt '[[9]]'))
+    %+  expect-eq  !>(`mmat`~[~[2]])
+    !>((canon:d7 (need (redm:fmt '[[9]]'))))
+  ==
+::  Property: parse . print is the identity over Z too, on every matrix
+::  the Milestone C vectors carry.
+++  test-fmt-roundtrip-z
+  =/  ms=(list zmat)  (turn cvecs-hs |=([m=zmat sd=zvec] m))
+  %+  expect-eq  !>(~)
+  !>  ^-  (list zmat)
+  %+  skip  ms
+  |=  m=zmat
+  =/  txt=@t
+    %-  crip
+    =/  ls=(list tape)  (shoz:fmt m)
+    =/  out=tape  "["
+    |-  ^-  tape
+    ?~  ls  (weld out "]")
+    $(ls t.ls, out (weld out i.ls))
+  =([~ m] (redz:fmt txt))
+::
+::  The integer kernel and the integer solve -- the arms escalation B1's
+::  second argument was made for.  +nullspace reads the Hermite
+::  TRANSFORM, not the form; +solve turns out not to need either.
+::
+::    +zcol:  a zvec as a column matrix, for checking m * v = 0
+++  zcol
+  |=  v=zvec
+  ^-  zmat
+  (transpose:zm ~[v])
+++  test-c2-nullspace-values
+  ;:  weld
+    ::  cross-checked against an independent row-HNF written in Python;
+    ::  the basis is the Hermite form of the kernel lattice, so it is a
+    ::  function of the matrix alone
+    %+  expect-eq
+      !>(`(list zvec)`~[~[--1 --1 -1] ~[--0 --3 -2]])
+    !>((nullspace:zm ~[~[--1 --2 --3] ~[--2 --4 --6]]))
+    ::  a single row spanning the same row space has the same kernel
+    %+  expect-eq
+      !>(`(list zvec)`~[~[--1 --1 -1] ~[--0 --3 -2]])
+    !>((nullspace:zm ~[~[--1 --2 --3]]))
+    %+  expect-eq
+      !>(`(list zvec)`~[~[--1 --1 -1] ~[--0 --3 -2]])
+    !>((nullspace:zm ~[~[--3 --6 --9] ~[--2 --4 --6] ~[--1 --2 --3]]))
+    ::  full column rank: empty, and no crash
+    %+  expect-eq  !>(`(list zvec)`~)
+    !>((nullspace:zm ~[~[--1 --2] ~[--3 --4]]))
+    %+  expect-eq  !>(`(list zvec)`~)  !>((nullspace:zm ~[~[--6]]))
+    (expect-success |.((nullspace:zm (idn:zm 3))))
+    %+  expect-eq  !>(`(list zvec)`~)  !>((nullspace:zm (idn:zm 3)))
+    ::  the zero matrix has all of Z^c for a kernel, whose Hermite basis
+    ::  is the identity
+    %+  expect-eq
+      !>(`(list zvec)`~[~[--1 --0] ~[--0 --1]])
+    !>((nullspace:zm (zeros:zm 2 2)))
+    %+  expect-eq  !>(`(list zvec)`~[~[--0 --1]])
+    !>((nullspace:zm ~[~[--2 --0] ~[--0 --0]]))
+    %+  expect-eq  !>(`(list zvec)`~[~[--1 --0]])
+    !>((nullspace:zm ~[~[--0 --1] ~[--0 --2]]))
+    ::  SATURATION: the kernel of [[2 4] [4 8]] over Q is spanned by
+    ::  (2, -1), and the integer kernel is exactly the integer multiples
+    ::  of it -- not of (4, -2).  A basis read off a rational nullspace
+    ::  would not have to be saturated; one read off a unimodular
+    ::  transform always is.
+    %+  expect-eq  !>(`(list zvec)`~[~[--2 -1]])
+    !>((nullspace:zm ~[~[--2 --4] ~[--4 --8]]))
+    %+  expect-eq  !>(`(list zvec)`~[~[--0 --0 --1]])
+    !>((nullspace:zm ~[~[--1 --0 --0] ~[--0 --1 --0]]))
+  ==
+++  test-c2-nullspace-properties
+  =/  vs  cvecs-hs
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  =/  m=zmat  m.i.vs
+  =/  d   (dims:zm m)
+  =/  ns  (nullspace:zm m)
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      %+  weld
+        ;:  weld
+          ::  rank-nullity over Z, with rank taken over Q where it is
+          ::  defined -- the two agree, which is exactly what fails over
+          ::  composite Z/n
+          %+  expect-eq  !>(`@ud`c.d)  !>((add (rank:zm m) (lent ns)))
+          ::  and the basis vectors are independent, so re-deriving the
+          ::  kernel of the basis itself finds nothing
+          %-  expect  !>(?~(ns %.y =(~ (nullspace:zm (transpose:zm ns)))))
+        ==
+      ::  every basis vector is genuinely in the kernel
+      =/  bs  ns
+      |-  ^-  tang
+      ?~  bs  ~
+      %+  weld
+        %+  expect-eq
+          !>((zeros:zm r.d 1))
+        !>((mul:zm m (zcol i.bs)))
+      $(bs t.bs)
+  ==
+++  test-c2-solve
+  ;:  weld
+    ::  the identity solves trivially
+    %+  expect-eq
+      !>(`(unit zmat)`[~ ~[~[--3] ~[--4]]])
+    !>((solve:zm (idn:zm 2) ~[~[--3] ~[--4]]))
+    ::  an exactly divisible system
+    %+  expect-eq
+      !>(`(unit zmat)`[~ ~[~[--2] ~[--3]]])
+    !>((solve:zm ~[~[--2 --0] ~[--0 --2]] ~[~[--4] ~[--6]]))
+    ::  a unimodular system: det 1, so every integer right-hand side has
+    ::  an integer solution
+    %+  expect-eq
+      !>(`(unit zmat)`[~ ~[~[--1] ~[--1]]])
+    !>((solve:zm ~[~[--2 --1] ~[--1 --1]] ~[~[--3] ~[--2]]))
+    ::  ~ for a rational solution that is not integral: 2x = 1
+    %+  expect-eq  !>(`(unit zmat)`~)  !>((solve:zm ~[~[--2]] ~[~[--1]]))
+    %+  expect-eq  !>(`(unit zmat)`~)
+    !>((solve:zm ~[~[--3 --0] ~[--0 --3]] ~[~[--3] ~[--4]]))
+    ::  and ~ for a singular a, where there is no unique solution at all.
+    ::  Both situations collapse into the same ~, which is the contract.
+    %+  expect-eq  !>(`(unit zmat)`~)
+    !>((solve:zm ~[~[--1 --2] ~[--2 --4]] ~[~[--1] ~[--2]]))
+    ::  crash rows are about SHAPE only, exactly as in +solve:qm
+    (expect-fail |.((solve:zm ~[~[--1 --2 --3] ~[--4 --5 --6]] (idn:zm 2))))
+    (expect-fail |.((solve:zm (idn:zm 2) (idn:zm 3))))
+    (expect-success |.((solve:zm (idn:zm 2) (idn:zm 2))))
+    ::  a multi-column right-hand side is solved column by column
+    %+  expect-eq
+      !>(`(unit zmat)`[~ (idn:zm 2)])
+    !>((solve:zm ~[~[--2 --1] ~[--1 --1]] ~[~[--2 --1] ~[--1 --1]]))
+  ==
+++  test-c2-solve-properties
+  ::  whenever +solve produces an answer, it really is one
+  =/  as=(list zmat)
+    :~  (idn:zm 3)
+        ~[~[--2 --1] ~[--1 --1]]
+        ~[~[--1 --2] ~[--0 --1]]
+        ~[~[--2 --0] ~[--0 --2]]
+        ~[~[--3 --1 --0] ~[--0 --1 --2] ~[--1 --0 --1]]
+    ==
+  =|  out=tang
+  |-  ^-  tang
+  ?~  as  out
+  =/  a=zmat  i.as
+  =/  d   (dims:zm a)
+  =/  b=zmat  (zeros:zm r.d 1)
+  =/  bb=zmat  (put:zm b 0 0 --6)
+  =/  r  (solve:zm a bb)
+  %=  $
+    as  t.as
+    out
+      %+  weld  out
+      ?~  r
+        ::  no integer solution claimed, so nothing to verify
+        ~
+      ;:  weld
+        %+  expect-eq  !>(`zmat`bb)  !>((mul:zm a u.r))
+        ::  and it agrees with the rational solve on the same system
+        %+  expect-eq
+          !>(`(unit qmat)`[~ (to-q:zm u.r)])
+        !>((solve:qm (to-q:zm a) (to-q:zm bb)))
+      ==
   ==
 --

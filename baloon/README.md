@@ -68,7 +68,7 @@ its argument order.
 -test /=base=/tests/lib/baloon ~
 ```
 
-100 arms, all green. Behavioral, property, crash-row, and vector-driven.
+106 arms, all green. Behavioral, property, crash-row, and vector-driven.
 §8 is treated as a two-sided contract: every crash row has a dedicated test
 and every non-crash boundary has a matching expected-success test.
 
@@ -97,6 +97,33 @@ makes a printed matrix legible. The parser accepts `[[1 2] [3 4]]` and
 `[[1, 2], [3, 4]]` alike, with any whitespace, and **rejects ragged input**:
 raggedness is outside the canonical form, and a parser is the right boundary
 to catch it rather than admit it.
+
+**All three rings are covered**, and the trailing letter names the ring —
+the convention `racoon-fmt` already uses for `shoz`/`shom`/`shoq` and
+`redz`/`redq`:
+
+| | ℚ | ℤ | ℤ/n |
+|---|---|---|---|
+| render matrix | `shoq` | `shoz` | `shom` |
+| render vector | `shovq` | `shovz` | `shovm` |
+| parse matrix | `redq` | `redz` | `redm` |
+| parse vector | `redvq` | `redvz` | `redvm` |
+
+Milestone A called these `shom` and `redm` — for *matrix*, when there was
+one ring and no ambiguity to have. Milestone C created the ambiguity:
+`$mmat` **is** the ring ℤ/n, so `redm` parsing a matrix over ℚ had become
+actively wrong. They were renamed rather than worked around, which is the
+whole reason `/sur/baloon` ring-prefixes every type it declares.
+
+`shod` is shared by all three and takes *dimensions* rather than a matrix,
+since a shape is not a ring-dependent notion: `(shod (dims:zm m))`.
+
+Two things the ℤ/n side cannot do, and says so instead of guessing: the
+modulus lives on the `mm` door rather than on the matrix, so `shom` does
+not print it, and `redm` rejects a negative literal outright — `-1` has no
+representative without knowing `n`. Parse over ℤ and reduce through
+`of-z:mm` when negative input matters. Parsed entries are never reduced;
+that is `canon:mm`'s job.
 
 `parse . print` is asserted as an identity over the whole generated corpus.
 
@@ -237,6 +264,41 @@ hnf → h = [[2 4 4] [0 6 0] [0 0 12]]     det u = -1
 snf → d = diag(2, 6, 12)                 det u = -1, det v = 1
 ```
 
+### The integer kernel and the integer solve
+
+`hnf` was argued for on two grounds; this is the second one, cashed in.
+
+**`nullspace:zm` reads the transform, not the form.** `u · mᵀ = h`, and
+row *i* of `h` is zero exactly when row *i* of `u` annihilates `mᵀ` from
+the left — that is, lies in the right kernel of `m`. Unimodularity is
+what makes those rows a basis **over ℤ** and not merely over ℚ: they
+extend to a basis of the whole lattice, so the sublattice they generate
+is saturated and no integer kernel vector is missed.
+
+That distinction is testable, and tested. The kernel of `[[2 4] [4 8]]`
+is spanned by `(2, −1)` — *not* `(4, −2)`. A basis read off a rational
+nullspace need not be saturated; one read off a unimodular transform
+always is.
+
+**It needs a second Hermite pass to be canonical.** `h` is unique for a
+given matrix but `u` is *not* when the kernel is nontrivial: any multiple
+of a kernel row may be added to another. Running the kernel rows through
+`hnf` again fixes it, because the Hermite form of a full-row-rank matrix
+depends only on the lattice its rows generate. So the output is a
+function of `m` alone, and the arm stays `free`.
+
+**`solve:zm` turns out not to need HNF at all.** For square `a` the
+rational solution is already unique, and the only question is whether it
+lands in ℤ. `of-q` returns the *least* common denominator of its input,
+so `d = 1` is exactly the integrality test — no per-entry check, no
+divisibility argument. Two situations collapse into its `~`, and the arm
+says so plainly: `a` may be singular, or the unique rational solution may
+simply not be integral, as for `2x = 1`.
+
+`canon`, `rref`, and `inv` remain absent from `zm`. There is no RREF over
+ℤ, and `inv` would be defined only for the `det = ±1` case that `solve`
+already covers.
+
 ### Verification
 
 Cross-ring agreement is the cheapest real check Milestone C affords, and
@@ -257,7 +319,7 @@ decidable directly. The Smith diagonal *is* checked against SymPy's
 convention-independent. That turned out to be the better test either way:
 it verifies the definition rather than agreement with another program.
 
-100 test arms, all green.
+106 test arms, all green.
 
 ## Decision log
 
