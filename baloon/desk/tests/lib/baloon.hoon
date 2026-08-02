@@ -1631,4 +1631,231 @@
         !>((mul:dr m (transpose:dr ~[i.vs])))
       $(vs t.vs)
   ==
+::  Integer matrices with their SNF diagonals, from SymPy's
+::  invariant_factors.  The invariant factors are canonical -- unique
+::  up to sign, independent of any row-versus-column convention -- so
+::  they are a genuine oracle here, where SymPy's column-style
+::  hermite_normal_form is not.  Signs dropped: +snf produces the
+::  non-negative representatives.
+++  cvecs-hs
+  ^-  (list [m=zmat sd=zvec])
+  :~
+    [~[~[--2 --4 --4] ~[-6 --6 --12] ~[--10 -4 -16]] ~[--2 --6 --12]]
+    [~[~[--1 --2] ~[--3 --4]] ~[--1 --2]]
+    [~[~[--2 --0] ~[--0 --3]] ~[--1 --6]]
+    [~[~[--6]] ~[--6]]
+    [~[~[--0 --0] ~[--0 --0]] ~[--0 --0]]
+    [~[~[--1 --2 --3] ~[--4 --5 --6]] ~[--1 --3]]
+    [~[~[--2 --4 --6] ~[--8 --10 --12] ~[--14 --16 --18]] ~[--2 --6 --0]]
+    [~[~[--0 --1] ~[--1 --0]] ~[--1 --1]]
+    [~[~[-3 --0] ~[--0 -5]] ~[--1 --15]]
+    [~[~[--4 --6 --8]] ~[--2]]
+    [~[~[--4] ~[--6] ~[--8]] ~[--2]]
+    [~[~[--9 --0 --0] ~[--0 --0 --0] ~[--0 --0 --4]] ~[--1 --36 --0]]
+    [~[~[-8 --4] ~[--4 --2] ~[--0 -3]] ~[--1 --4]]
+    [~[~[--7 -3] ~[-4 --7] ~[-5 -8]] ~[--1 --1]]
+    [~[~[-4 -3 --2 -5] ~[-3 -1 -1 --6]] ~[--1 --1]]
+    [~[~[--2 -8 --2] ~[-3 --8 --2]] ~[--1 --2]]
+    [~[~[--4 --4 --2 --1] ~[-3 --3 --7 --0] ~[--6 -6 --7 --0]] ~[--1 --1 --63]]
+    [~[~[-3 --1 --7 --0] ~[-6 -5 --4 --5]] ~[--1 --1]]
+  ==
+::
+::  Phase C2: the Hermite and Smith normal forms (SPEC-QUESTIONS B1).
+::
+::  These are the arms the returned transform was argued for, so the
+::  tests lean on it: u * m = h and u * m * v = d are exact identities,
+::  and |det u| = |det v| = 1 says the transforms really are unimodular.
+::  Neither could be checked at all from a bare form.  The SHAPE of each
+::  form is then checked structurally rather than against an oracle,
+::  since SymPy's hermite_normal_form is column-style.
+::
+::    +unimodular:  does this matrix have determinant +/-1?
+++  unimodular
+  |=  m=zmat
+  ^-  ?
+  =/  x=@s  (det:zm m)
+  ?|(=(--1 x) =(-1 x))
+::    +lead:  the index of the first nonzero entry of a row, if any
+++  lead
+  |=  v=zvec
+  ^-  (unit @ud)
+  =/  j=@ud  0
+  |-  ^-  (unit @ud)
+  ?~  v  ~
+  ?.  =(--0 i.v)  `j
+  $(v t.v, j +(j))
+::    +hnf-ok:  does h satisfy the SPEC C2 Hermite conditions?
+::
+::  Nonzero rows first, leading columns strictly increasing, every pivot
+::  strictly positive, and every entry above a pivot in [0, pivot).
+++  hnf-ok
+  |=  h=zmat
+  ^-  ?
+  =/  d   (dims:zm h)
+  =/  i=@ud     0
+  =/  prev=(unit @ud)  ~
+  =/  dead=?    %.n
+  |-  ^-  ?
+  ?:  =(i r.d)  %.y
+  =/  lj  (lead (row:zm h i))
+  ?~  lj
+    ::  once a zero row appears, every later row must be zero too
+    $(i +(i), dead %.y)
+  ?:  dead  %.n
+  =/  p=@s  (get:zm h i u.lj)
+  ?.  (syn:si p)  %.n
+  ?:  =(--0 p)  %.n
+  ::  strictly advancing pivots
+  ?.  ?~(prev %.y (gth u.lj u.prev))  %.n
+  ::  every entry above this pivot reduced into [0, pivot)
+  =/  above=?
+    =/  k=@ud  0
+    |-  ^-  ?
+    ?:  (gte k i)  %.y
+    =/  x=@s  (get:zm h k u.lj)
+    ?.  ?&((syn:si x) (gth p x))  %.n
+    $(k +(k))
+  ?.  above  %.n
+  ::  $ and not ^$: the inner |- closed inside its own =/, so the nearest
+  ::  loop in scope here is already the outer one
+  $(i +(i), prev `u.lj)
+::    +snf-ok:  is d diagonal, non-negative, with d_i dividing d_(i+1)?
+++  snf-ok
+  |=  m=zmat
+  ^-  ?
+  =/  dd  (dims:zm m)
+  =/  lim=@ud  (min r.dd c.dd)
+  =/  i=@ud  0
+  |-  ^-  ?
+  ?:  =(i r.dd)  %.y
+  =/  ok=?
+    =/  j=@ud  0
+    |-  ^-  ?
+    ?:  =(j c.dd)  %.y
+    =/  x=@s  (get:zm m i j)
+    ?:  =(i j)
+      ::  on the diagonal: non-negative, and divides its successor
+      ?.  (syn:si x)  %.n
+      ?:  (gte +(i) lim)  $(j +(j))
+      =/  y=@s  (get:zm m +(i) +(i))
+      ?.  ?:(=(--0 x) =(--0 y) =(0 (mod (abs:si y) (abs:si x))))  %.n
+      $(j +(j))
+    ::  off the diagonal: zero
+    ?.  =(--0 x)  %.n
+    $(j +(j))
+  ?.  ok  %.n
+  $(i +(i))
+::
+++  test-c2-hnf
+  =/  vs  cvecs-hs
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  =/  m=zmat  m.i.vs
+  =/  r  (hnf:zm m)
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      ;:  weld
+        ::  the identity the transform exists to make checkable
+        %+  expect-eq  !>(`zmat`h.r)  !>((mul:zm u.r m))
+        %-  expect  !>((unimodular u.r))
+        ::  and the SPEC C2 shape
+        %-  expect  !>((hnf-ok h.r))
+        ::  u is square of the row count, so it acts on m from the left
+        %+  expect-eq  !>(`[r=@ud c=@ud]`[r:(dims:zm m) r:(dims:zm m)])
+        !>((dims:zm u.r))
+        %+  expect-eq  !>((dims:zm m))  !>((dims:zm h.r))
+        ::  idempotent: the Hermite form of a Hermite form is itself
+        %+  expect-eq  !>(`zmat`h.r)  !>(h:(hnf:zm h.r))
+      ==
+  ==
+++  test-c2-hnf-value
+  ::  worked by hand: pivots 2, 6, 12 with the first row reduced against
+  ::  each of them, which is the whole convention in one matrix
+  =/  t=zmat  ~[~[--2 --4 --4] ~[-6 --6 --12] ~[--10 -4 -16]]
+  =/  r  (hnf:zm t)
+  ;:  weld
+    %+  expect-eq
+      !>(`zmat`~[~[--2 --4 --4] ~[--0 --6 --0] ~[--0 --0 --12]])
+    !>(h.r)
+    %+  expect-eq  !>(`@s`-1)  !>((det:zm u.r))
+    ::  the identity matrix is already in Hermite form, with u = I
+    %+  expect-eq  !>(`zmat`(idn:zm 3))  !>(h:(hnf:zm (idn:zm 3)))
+    %+  expect-eq  !>(`zmat`(idn:zm 3))  !>(u:(hnf:zm (idn:zm 3)))
+    ::  a zero matrix stays zero, and its transform is still unimodular
+    %+  expect-eq  !>((zeros:zm 2 3))  !>(h:(hnf:zm (zeros:zm 2 3)))
+    %-  expect  !>((unimodular u:(hnf:zm (zeros:zm 2 3))))
+    ::  a single negative entry comes back positive
+    %+  expect-eq  !>(`zmat`~[~[--7]])  !>(h:(hnf:zm ~[~[-7]]))
+  ==
+++  test-c2-snf
+  =/  vs  cvecs-hs
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  =/  m=zmat  m.i.vs
+  =/  r  (snf:zm m)
+  =/  dd  (dims:zm m)
+  =/  lim=@ud  (min r.dd c.dd)
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      ;:  weld
+        ::  u * m * v = d, both transforms unimodular
+        %+  expect-eq  !>(`zmat`d.r)  !>((mul:zm (mul:zm u.r m) v.r))
+        %-  expect  !>((unimodular u.r))
+        %-  expect  !>((unimodular v.r))
+        ::  diagonal, non-negative, and the divisibility chain holds
+        %-  expect  !>((snf-ok d.r))
+        ::  the diagonal is SymPy's invariant factors, up to sign
+        %+  expect-eq
+          !>(`zvec`sd.i.vs)
+        !>((turn (gulf 0 (dec lim)) |=(k=@ud (get:zm d.r k k))))
+        ::  shapes: u is r x r, v is c x c, d is r x c
+        %+  expect-eq  !>(`[r=@ud c=@ud]`[r.dd r.dd])  !>((dims:zm u.r))
+        %+  expect-eq  !>(`[r=@ud c=@ud]`[c.dd c.dd])  !>((dims:zm v.r))
+        %+  expect-eq  !>(`[r=@ud c=@ud]`[r.dd c.dd])  !>((dims:zm d.r))
+      ==
+  ==
+::    +t1-snf:  the running example, reused across the C2 tests
+++  t1-snf  `zmat`~[~[--2 --4 --4] ~[-6 --6 --12] ~[--10 -4 -16]]
+::    +prod-t1:  the product of its Smith diagonal
+++  prod-t1
+  ^-  @s
+  =/  d  d:(snf:zm t1-snf)
+  =/  a=@s  (get:zm d 0 0)
+  =/  b=@s  (get:zm d 1 1)
+  =/  c=@s  (get:zm d 2 2)
+  (pro:si a (pro:si b c))
+++  test-c2-snf-invariants
+  ;:  weld
+    ::  diag(2, 3) has SNF diag(1, 6): coprime entries merge, and their
+    ::  product is preserved.  This is the divisibility pass working.
+    %+  expect-eq
+      !>(`zmat`~[~[--1 --0] ~[--0 --6]])
+    !>(d:(snf:zm ~[~[--2 --0] ~[--0 --3]]))
+    ::  and diag(2, 4) is already a divisibility chain, so it is fixed
+    %+  expect-eq
+      !>(`zmat`~[~[--2 --0] ~[--0 --4]])
+    !>(d:(snf:zm ~[~[--2 --0] ~[--0 --4]]))
+    ::  the product of the diagonal is |det|, for a nonsingular matrix,
+    ::  which is the sharpest single statement about what SNF preserves
+    %+  expect-eq  !>(`@s`--144)  !>(prod-t1)
+    ::  and it agrees with the determinant up to sign
+    %+  expect-eq  !>(`@s`-144)   !>((det:zm t1-snf))
+    ::  a rank-deficient matrix gets a zero on the diagonal
+    %+  expect-eq
+      !>(`zmat`~[~[--1 --0] ~[--0 --0]])
+    !>(d:(snf:zm ~[~[--1 --2] ~[--2 --4]]))
+    ::  the identity is its own Smith form
+    %+  expect-eq  !>(`zmat`(idn:zm 3))  !>(d:(snf:zm (idn:zm 3)))
+    ::  neither form crashes on a rectangular or a zero input
+    (expect-success |.((snf:zm (zeros:zm 2 3))))
+    (expect-success |.((hnf:zm (zeros:zm 3 2))))
+    (expect-success |.((snf:zm ~[~[--1 --2 --3]])))
+    (expect-success |.((hnf:zm ~[~[--1] ~[--2] ~[--3]])))
+  ==
 --

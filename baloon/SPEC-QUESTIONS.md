@@ -3,9 +3,13 @@
 Per `baloon-spec.md` §14, pinned material (§6–§10, and §C2–§C3 for
 Milestone C) changes only by escalation. Silence is not acceptance.
 
-## B1 — Hermite and Smith normal form: what does the arm return? (OPEN)
+## B1 — Hermite and Smith normal form: what does the arm return? (RESOLVED)
 
-**Status: open. Blocks phase C2. Does not block C0, C1, or C3.**
+**Status: resolved — carry the transform. Phase C2 is built.**
+
+`+hnf` returns `[h=zmat u=zmat]` with `u · m = h`; `+snf` returns
+`[d=zmat u=zmat v=zmat]` with `u · m · v = d`. Both forms and both
+conventions below are now pinned in §C2. The original argument follows.
 
 §6 reserved this deliberately:
 
@@ -17,9 +21,9 @@ Milestone C) changes only by escalation. Silence is not acceptance.
 
 The design work is now done, and the question is ready to answer.
 
-**Recommendation: carry the transform.** `+hnf` returns `[h=zmat
-u=zmat]` with `u * m = h`, and `+snf` returns `[d=zmat u=zmat v=zmat]`
-with `u * m * v = d`.
+**Recommendation, accepted: carry the transform.** `+hnf` returns
+`[h=zmat u=zmat]` with `u * m = h`, and `+snf` returns `[d=zmat u=zmat
+v=zmat]` with `u * m * v = d`.
 
 Three reasons, in order of weight:
 
@@ -46,7 +50,12 @@ row-major and §7 is row-indexed throughout:
   divisors in the usual order.
 
 Note SymPy's `hermite_normal_form` is **column**-style, so it cannot be
-used as an oracle without transposing. §C5 records this.
+used as an oracle without transposing. §C5 records this. In the event the
+Hermite shape is checked STRUCTURALLY instead — the conditions above are
+decidable directly — while the Smith diagonal is checked against SymPy's
+`invariant_factors`, which *are* canonical up to sign and so are
+convention-independent. That turned out to be the better test anyway: it
+verifies the definition rather than agreement with another program.
 
 ## B2 — `+qm` stays frozen (RESOLVED, no escalation needed)
 

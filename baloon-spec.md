@@ -327,6 +327,9 @@ nonempty, rectangular, dense, row-major, zero-based, dimensions derived,
 | `+inv:mm` `+solve:mm` | Need only that `det` be a **unit** mod n, which is decidable without primality. No assertion |
 | `+to-q` `+of-q` | The ring bridges live in the *later* core, never in frozen `+qm`. `to-q:zm` embeds exactly. `of-q:zm` clears denominators and returns `[m=zmat d=@ud]`, the common denominator alongside, since the map ℚ → ℤ loses information otherwise |
 | `+to-z:mm` | Lifts to the **symmetric** representatives, in `(−n/2, n/2]`. `of-z:mm` reduces. `to-z ∘ of-z` is not the identity; that is what "representative" means and the arms say so |
+| `+hnf:zm` | `zmat -> [h=zmat u=zmat]` with `u · m = h` and `det u = ±1`. **Row-style**, since Baloon is row-major and §7 is row-indexed throughout: upper triangular, pivots strictly positive and strictly advancing, every entry *above* a pivot reduced into `[0, pivot)`, zero rows last. Unique for a given matrix, so the arm is `free` |
+| `+snf:zm` | `zmat -> [d=zmat u=zmat v=zmat]` with `u · m · v = d`, both transforms unimodular. `d` is diagonal and non-negative with `d_i | d_(i+1)` — the elementary divisors in the usual order, zeros last. Unique, so `free` |
+| Why the transforms | A bare `h` can only be verified against another implementation. With the transform, `u · m = h` and `det u = ±1` are exact properties a test asserts directly — and the ℤ kernel and ℤ-solve read the transform, not the form. It costs the same row operations applied to an identity alongside. Escalation B1 |
 
 ## C3. Crash table (normative — every row gets a test)
 
@@ -364,8 +367,8 @@ than their absence.
   minor, and the two agree. That is exactly the property composite ℤ/n
   lacks, which is why `+rank:mm` asserts primality and this one does
   not.
-- **C2 — `+zm` normal forms.** Hermite, and Smith if C2's escalation
-  lands. **Blocked on the §6 reservation** — see `SPEC-QUESTIONS.md` B1.
+- **C2 — `+zm` normal forms.** `hnf`, `snf`. **Escalation B1 resolved:
+  both carry their transforms.**
 - **C3 — `+mm` complete.** Shape, arithmetic, and elimination in one
   phase: it is `+qm`'s arm set over a different ring, and splitting it
   would create phase gates with nothing to decide.

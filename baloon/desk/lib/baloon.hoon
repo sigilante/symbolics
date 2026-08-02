@@ -319,6 +319,166 @@
     ^-  @s
     =/  c=@s  (bareiss (zminor m j i) (dec n))
     ?:(=(0 (mod (add i j) 2)) c (dif:si --0 c))
+  ::    +zegcd:  extended GCD over the integers
+  ::
+  ::  [a=@s b=@s] -> [g=@s u=@s v=@s] with g = gcd(|a|, |b|) >= 0 and
+  ::  u*a + v*b = g.  +egcd:nz works over the naturals, so the signs are
+  ::  carried on the cofactors: u*|a| = (u * sgn a) * a.
+  ++  zegcd
+    |=  [a=@s b=@s]
+    ^-  [g=@s u=@s v=@s]
+    =/  e  (egcd:nz (abs:si a) (abs:si b))
+    :+  (sun:si d.e)
+      ?:((syn:si a) u.e (dif:si --0 u.e))
+    ?:((syn:si b) v.e (dif:si --0 v.e))
+  ::    +zdvd:  does x divide y?
+  ++  zdvd
+    |=  [x=@s y=@s]
+    ^-  ?
+    ?:  =(--0 x)  =(--0 y)
+    =(0 (mod (abs:si y) (abs:si x)))
+  ::    +zfloor:  floor division by a POSITIVE divisor
+  ::
+  ::  +fra:si truncates toward zero, which is not what reducing an entry
+  ::  into [0, pivot) needs: floor(-7/3) is -3, not -2.
+  ++  zfloor
+    |=  [a=@s b=@s]
+    ^-  @s
+    ?:  (syn:si a)  (fra:si a b)
+    =/  n=@ud  (abs:si a)
+    =/  m=@ud  (abs:si b)
+    (dif:si --0 (sun:si (div (sub (add n m) 1) m)))
+  ::    +zvscale:  multiply an integer vector by a scalar
+  ++  zvscale
+    |=  [a=@s v=(list @s)]
+    ^-  (list @s)
+    (turn v |=(x=@s (pro:si a x)))
+  ::    +zvcomb:  the integer combination a*v + b*w
+  ++  zvcomb
+    |=  [a=@s v=(list @s) b=@s w=(list @s)]
+    ^-  (list @s)
+    ?~  v  ~
+    ?~  w  ~
+    [(sum:si (pro:si a i.v) (pro:si b i.w)) $(v t.v, w t.w)]
+  ::    +zswap:  exchange two rows
+  ++  zswap
+    |=  [m=(list (list @s)) i=@ud k=@ud]
+    ^-  (list (list @s))
+    ?:  =(i k)  m
+    (zput (zput m i (zrow m k)) k (zrow m i))
+  ::    +ztrans:  transpose an integer matrix
+  ::
+  ::  A COLUMN operation on m is a row operation on its transpose, which
+  ::  is how +snf below reuses one row-clearing routine for both sides
+  ::  instead of writing the column case out a second time.
+  ++  ztrans
+    |=  m=(list (list @s))
+    ^-  (list (list @s))
+    ?~  m  ~
+    %+  turn  (gulf 0 (dec (lent i.m)))
+    |=  j=@ud
+    ^-  (list @s)
+    (turn m |=(r=(list @s) (zat r j)))
+  ::    +zclear:  clear column j below row p, by unimodular row operations
+  ::
+  ::  [a u p j r] -> [a u], with every operation applied to u as well.
+  ::  Rows p and i are replaced by the combinations
+  ::
+  ::      row_p <- s*row_p + t*row_i        with s*a_pj + t*a_ij = g
+  ::      row_i <- -(a_ij/g)*row_p + (a_pj/g)*row_i
+  ::
+  ::  whose 2 x 2 transform has determinant (s*a_pj + t*a_ij)/g = 1.  So
+  ::  u is unimodular at every step, by construction rather than by a
+  ::  check afterward, and a_ij lands at exactly zero.
+  ++  zclear
+    |=  [a=(list (list @s)) u=(list (list @s)) p=@ud j=@ud r=@ud]
+    ^-  [(list (list @s)) (list (list @s))]
+    =/  i=@ud  +(p)
+    |-  ^-  [(list (list @s)) (list (list @s))]
+    ?:  (gte i r)  [a u]
+    =/  apj=@s  (zat (zrow a p) j)
+    =/  aij=@s  (zat (zrow a i) j)
+    ?:  =(--0 aij)  $(i +(i))
+    =/  e   (zegcd apj aij)
+    =/  qp=@s  (fra:si apj g.e)
+    =/  qi=@s  (fra:si aij g.e)
+    =/  nq=@s  (dif:si --0 qi)
+    ::  all four combinations read the OLD rows, so the pair updates
+    ::  atomically rather than feeding the first result into the second
+    =/  arp=(list @s)  (zvcomb u.e (zrow a p) v.e (zrow a i))
+    =/  ari=(list @s)  (zvcomb nq (zrow a p) qp (zrow a i))
+    =/  urp=(list @s)  (zvcomb u.e (zrow u p) v.e (zrow u i))
+    =/  uri=(list @s)  (zvcomb nq (zrow u p) qp (zrow u i))
+    %=  $
+      i  +(i)
+      a  (zput (zput a p arp) i ari)
+      u  (zput (zput u p urp) i uri)
+    ==
+  ::    +zreduce:  reduce every entry ABOVE a pivot into [0, pivot)
+  ++  zreduce
+    |=  [a=(list (list @s)) u=(list (list @s)) p=@ud j=@ud pp=@s]
+    ^-  [(list (list @s)) (list (list @s))]
+    =/  k=@ud  0
+    |-  ^-  [(list (list @s)) (list (list @s))]
+    ?:  (gte k p)  [a u]
+    =/  q=@s  (zfloor (zat (zrow a k) j) pp)
+    ?:  =(--0 q)  $(k +(k))
+    =/  nq=@s  (dif:si --0 q)
+    %=  $
+      k  +(k)
+      a  (zput a k (zvcomb --1 (zrow a k) nq (zrow a p)))
+      u  (zput u k (zvcomb --1 (zrow u k) nq (zrow u p)))
+    ==
+  ::    +zfind:  the first nonzero entry of the trailing submatrix
+  ::
+  ::  Scanned row-major from [t][t], so the choice is deterministic and
+  ::  the Smith form comes out canonical rather than pivot-dependent.
+  ++  zfind
+    |=  [a=(list (list @s)) t=@ud r=@ud c=@ud]
+    ^-  (unit [p=@ud q=@ud])
+    =/  i=@ud  t
+    |-  ^-  (unit [p=@ud q=@ud])
+    ?:  (gte i r)  ~
+    =/  hit=(unit @ud)
+      =/  j=@ud  t
+      |-  ^-  (unit @ud)
+      ?:  (gte j c)  ~
+      ?.  =(--0 (zat (zrow a i) j))  `j
+      $(j +(j))
+    ?~  hit  $(i +(i))
+    `[i u.hit]
+  ::    +zcolclean:  is column t zero below row t?
+  ++  zcolclean
+    |=  [a=(list (list @s)) t=@ud r=@ud]
+    ^-  ?
+    =/  i=@ud  +(t)
+    |-  ^-  ?
+    ?:  (gte i r)  %.y
+    ?.  =(--0 (zat (zrow a i) t))  %.n
+    $(i +(i))
+  ::    +zdiag:  isolate entry [t][t], clearing its row and column
+  ::
+  ::  Alternates clearing column t below row t (row operations, tracked in
+  ::  u) with clearing row t right of column t (column operations, tracked
+  ::  in v via the transpose).  Clearing the row can put entries back into
+  ::  the column, so this repeats -- but each round strictly reduces
+  ::  |a[t][t]|, which cannot happen forever.
+  ++  zdiag
+    |=  $:  a=(list (list @s))
+            u=(list (list @s))
+            v=(list (list @s))
+            t=@ud
+            r=@ud
+            c=@ud
+        ==
+    ^-  [(list (list @s)) (list (list @s)) (list (list @s))]
+    |-  ^-  [(list (list @s)) (list (list @s)) (list (list @s))]
+    =/  rc  (zclear a u t t r)
+    =/  cc  (zclear (ztrans -.rc) (ztrans v) t t c)
+    =/  a2  (ztrans -.cc)
+    =/  v2  (ztrans +.cc)
+    ?:  (zcolclean a2 t r)  [a2 +.rc v2]
+    $(a a2, u +.rc, v v2)
   ::    +bareiss:  the determinant of an integer matrix, fraction-free
   ::
   ::  [m=(list (list @s)) n=@ud] -> @s, for an n x n integer matrix.
@@ -1107,6 +1267,132 @@
       ^-  @s
       ?>  =(1 q.f)
       p.f
+    ::    +hnf:  the Hermite normal form, with its unimodular transform
+    ::
+    ::  [m=zmat] -> [h=zmat u=zmat] with u * m = h and det(u) = +/-1.
+    ::  Never crashes; every integer matrix has one, rectangular included.
+    ::
+    ::  ROW-style, upper triangular, since Baloon is row-major and S7 is
+    ::  row-indexed throughout.  The form (SPEC C2, escalation B1):
+    ::
+    ::    - pivots strictly positive, advancing left to right
+    ::    - every entry ABOVE a pivot reduced into [0, pivot)
+    ::    - zero rows last
+    ::
+    ::  which makes it unique for a given matrix, so the arm is `free`.
+    ::
+    ::  The transform is returned rather than discarded because it is what
+    ::  makes the arm checkable: u * m = h and det(u) = +/-1 are exact
+    ::  properties a test can assert, where a bare h could only be
+    ::  compared against another implementation.  It costs the same row
+    ::  operations applied to an identity alongside -- a constant factor.
+    ++  hnf
+      ~/  %hnf
+      |=  m=zmat
+      ^-  [h=zmat u=zmat]
+      =/  dm  (dims m)
+      =/  a=zmat  m
+      =/  u=zmat  (idn r.dm)
+      =/  p=@ud   0
+      =/  j=@ud   0
+      |-  ^-  [h=zmat u=zmat]
+      ?:  ?|(=(p r.dm) =(j c.dm))  [a u]
+      =/  cl  (zclear:pv a u p j r.dm)
+      =/  a1=zmat  -.cl
+      =/  u1=zmat  +.cl
+      =/  pt=@s  (zat:pv (zrow:pv a1 p) j)
+      ::  a column with nothing in it contributes no pivot
+      ?:  =(--0 pt)  $(a a1, u u1, j +(j))
+      ::  negate the row to make the pivot positive, in a and u alike
+      =/  a2=zmat
+        ?:  (syn:si pt)  a1
+        (zput:pv a1 p (zvscale:pv -1 (zrow:pv a1 p)))
+      =/  u2=zmat
+        ?:  (syn:si pt)  u1
+        (zput:pv u1 p (zvscale:pv -1 (zrow:pv u1 p)))
+      =/  rd  (zreduce:pv a2 u2 p j (zat:pv (zrow:pv a2 p) j))
+      $(a -.rd, u +.rd, p +(p), j +(j))
+    ::    +snf:  the Smith normal form, with both unimodular transforms
+    ::
+    ::  [m=zmat] -> [d=zmat u=zmat v=zmat] with u * m * v = d, both u and
+    ::  v unimodular.  d is diagonal, non-negative, and its entries are
+    ::  the elementary divisors in the usual order: d_i divides d_(i+1),
+    ::  with the zeros last.  Never crashes.
+    ::
+    ::  Two stages.  +zdiag isolates each diagonal entry by alternating
+    ::  row and column clearing; then the divisibility pass repairs any
+    ::  adjacent pair where d_i does not divide d_(i+1), by adding one
+    ::  column into the other and re-isolating the 2 x 2 block.  The scan
+    ::  restarts after every repair, since fixing one pair can disturb an
+    ::  earlier one -- and it terminates because the product of the
+    ::  diagonal is invariant while |d_i| strictly decreases each time.
+    ::
+    ::  Both transforms are returned, for the reason +hnf returns one:
+    ::  u * m * v = d, det(u) = +/-1, and det(v) = +/-1 are exactly what
+    ::  the tests assert.
+    ++  snf
+      ~/  %snf
+      |=  m=zmat
+      ^-  [d=zmat u=zmat v=zmat]
+      =/  dm  (dims m)
+      =/  lim=@ud  (min r.dm c.dm)
+      ::  stage one: diagonalize
+      =/  dg
+        =/  a=zmat  m
+        =/  u=zmat  (idn r.dm)
+        =/  v=zmat  (idn c.dm)
+        =/  t=@ud   0
+        |-  ^-  [zmat zmat zmat]
+        ?:  =(t lim)  [a u v]
+        =/  hit  (zfind:pv a t r.dm c.dm)
+        ::  the trailing submatrix is entirely zero; the rest is done
+        ?~  hit  [a u v]
+        ::  bring the pivot to [t][t]: a row swap in a and u, a column
+        ::  swap in a and v
+        =/  a1=zmat  (zswap:pv a t p.u.hit)
+        =/  u1=zmat  (zswap:pv u t p.u.hit)
+        =/  a2=zmat  (ztrans:pv (zswap:pv (ztrans:pv a1) t q.u.hit))
+        =/  v1=zmat  (ztrans:pv (zswap:pv (ztrans:pv v) t q.u.hit))
+        =/  st  (zdiag:pv a2 u1 v1 t r.dm c.dm)
+        $(t +(t), a -.st, u +<.st, v +>.st)
+      ::  stage two: enforce d_i | d_(i+1)
+      =/  fx
+        =/  a=zmat  -.dg
+        =/  u=zmat  +<.dg
+        =/  v=zmat  +>.dg
+        =/  t=@ud   0
+        |-  ^-  [zmat zmat zmat]
+        ?:  ?|(=(0 lim) (gte +(t) lim))  [a u v]
+        =/  x=@s  (zat:pv (zrow:pv a t) t)
+        =/  y=@s  (zat:pv (zrow:pv a +(t)) +(t))
+        ?:  (zdvd:pv x y)  $(t +(t))
+        ::  fold column t+1 into column t, putting x and y in one column,
+        ::  then re-isolate: the block becomes gcd(x, y) and x*y/gcd(x, y)
+        =/  at=zmat  (ztrans:pv a)
+        =/  vt=zmat  (ztrans:pv v)
+        =/  a1=zmat
+          %-  ztrans:pv
+          %^  zput:pv  at  t
+          (zvcomb:pv --1 (zrow:pv at t) --1 (zrow:pv at +(t)))
+        =/  v1=zmat
+          %-  ztrans:pv
+          %^  zput:pv  vt  t
+          (zvcomb:pv --1 (zrow:pv vt t) --1 (zrow:pv vt +(t)))
+        =/  st  (zdiag:pv a1 u v1 t r.dm c.dm)
+        ::  restart the scan: a repair here can disturb an earlier pair
+        $(t 0, a -.st, u +<.st, v +>.st)
+      ::  finally, make every diagonal entry non-negative
+      =/  a=zmat  -.fx
+      =/  u=zmat  +<.fx
+      =/  t=@ud   0
+      |-  ^-  [d=zmat u=zmat v=zmat]
+      ?:  =(t lim)  [a u +>.fx]
+      ?:  (syn:si (zat:pv (zrow:pv a t) t))  $(t +(t))
+      %=  $
+        t  +(t)
+        a  (zput:pv a t (zvscale:pv -1 (zrow:pv a t)))
+        u  (zput:pv u t (zvscale:pv -1 (zrow:pv u t)))
+      ==
     --
   ::    +mm:  matrices over Z/n, a door on the modulus.  Milestone C.
   ::

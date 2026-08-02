@@ -68,7 +68,7 @@ its argument order.
 -test /=base=/tests/lib/baloon ~
 ```
 
-96 arms, all green. Behavioral, property, crash-row, and vector-driven.
+100 arms, all green. Behavioral, property, crash-row, and vector-driven.
 §8 is treated as a two-sided contract: every crash row has a dedicated test
 and every non-crash boundary has a matching expected-success test.
 
@@ -139,7 +139,7 @@ deferred**; C proceeded ahead of it because it needs nothing from it.
 |---|---|---|
 | **`+zm`** | shape, arithmetic, `to-q`/`of-q`, `det`, `rank`, `charpoly` | **complete** |
 | **`+mm`** | the whole `+qm` arm set over ℤ/n, plus `of-z`/`to-z` | **complete** |
-| `+zm` normal forms | Hermite, Smith | **blocked** — `SPEC-QUESTIONS.md` B1 |
+| **`+zm` normal forms** | `hnf`, `snf`, each with its transform | **complete** |
 
 **The reserved-core discipline paid off exactly as intended.** Adding arms
 *inside* `+zm` and `+mm` leaves `%baloon`'s own battery at three arms, so
@@ -198,6 +198,45 @@ correct over every modulus; the product is canonical, so a jet may do
 better. All three behaviors are pinned by tests: `det:mm w = 5`,
 `w · inv(w) = I`, and `rref:mm w` crashes.
 
+### Normal forms carry their transforms
+
+Escalation B1 is resolved: **carry the transform.** `hnf` returns
+`[h u]` with `u · m = h`; `snf` returns `[d u v]` with `u · m · v = d`,
+all three unimodular where they should be.
+
+The deciding argument was testability. A bare `h` can only be checked
+against another implementation; with the transform, `u · m = h` and
+`det u = ±1` are exact properties the suite asserts directly — and the ℤ
+kernel and ℤ-solve read the transform, not the form. It costs the same
+row operations applied to an identity alongside.
+
+Conventions, both row-style since Baloon is row-major and §7 is
+row-indexed throughout:
+
+- **`hnf`** — upper triangular; pivots strictly positive and strictly
+  advancing; every entry *above* a pivot reduced into `[0, pivot)`; zero
+  rows last.
+- **`snf`** — diagonal, non-negative, `d_i | d_(i+1)`; the elementary
+  divisors in the usual order, zeros last.
+
+Both are unique for a given matrix, so both arms are `free`.
+
+`snf` runs in two stages: alternate row/column clearing isolates each
+diagonal entry, then a divisibility pass repairs any adjacent pair where
+`d_i ∤ d_(i+1)` by folding one column into the other and re-isolating the
+2×2 block. The scan restarts after each repair — fixing one pair can
+disturb an earlier one — and terminates because the product of the
+diagonal is invariant while `|d_i|` strictly decreases. Column operations
+reuse the row-clearing routine through the transpose rather than being
+written out a second time.
+
+```
+m = [[2 4 4] [-6 6 12] [10 -4 -16]]
+
+hnf → h = [[2 4 4] [0 6 0] [0 0 12]]     det u = -1
+snf → d = diag(2, 6, 12)                 det u = -1, det v = 1
+```
+
 ### Verification
 
 Cross-ring agreement is the cheapest real check Milestone C affords, and
@@ -209,7 +248,16 @@ Transcribed SymPy vectors pin fixed inputs on top of that, and **𝔽₂ and
 𝔽₃ are covered exhaustively** — all 16 and all 81 2×2 matrices, with the
 determinant cross-checked against `ad − bc`, an independent formula.
 
-96 test arms, all green.
+The normal forms are checked differently, and deliberately. SymPy's
+`hermite_normal_form` is **column**-style, so it is not an oracle for a
+row-style form without transposing — the Hermite *shape* is therefore
+verified structurally, straight from the conditions above, which are
+decidable directly. The Smith diagonal *is* checked against SymPy's
+`invariant_factors`, which are canonical up to sign and so
+convention-independent. That turned out to be the better test either way:
+it verifies the definition rather than agreement with another program.
+
+100 test arms, all green.
 
 ## Decision log
 
