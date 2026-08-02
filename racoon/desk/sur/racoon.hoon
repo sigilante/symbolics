@@ -6,8 +6,9 @@
 ::  defensively re-canonicalize their arguments.  The sole exception per ring
 ::  is +canon, which exists precisely to impose the canonical form.
 ::
-::  Signed integers are Hoon's ZigZag-coded @s; all signed scalar arithmetic
-::  goes through ++si.  Unsigned integers are @ud.
+::  * Signed integers are Hoon's ZigZag-coded @s; all signed scalar arithmetic
+::    goes through ++si.
+::  * Unsigned integers are @ud.
 ::
 |%
 ::

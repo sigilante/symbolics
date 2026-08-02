@@ -7,10 +7,6 @@
 ::
 ::  Phase 0: scalars and number theory (+nz, +qq).
 ::
-::  Jet registration mirrors urbit/numerics /lib/math.hoon: the root ~% nests
-::  under %non, each sub-core carries ~/ with its own name, and the arms
-::  listed in SPEC S10 carry per-arm ~/ hints.
-::
 /-  *racoon
 =<  racoon
 ~%  %non  ..part  ~
@@ -29,15 +25,15 @@
   ++  powm
     |=  [b=@ud e=@ud m=@ud]
     ^-  @ud
-    ?:  =(1 m)  0
-    ?:  =(0 e)  (mod 1 m)
+    ?:  =(1 m)   0
+    ?:  =(0 e)   (mod 1 m)
     =/  bb=@ud   (mod b m)
     =/  k=@ud    (dec (met 0 e))
     =/  acc=@ud  bb
     |-  ^-  @ud
-    ?:  =(0 k)  acc
-    =/  nk=@ud  (dec k)
-    =/  sq=@ud  (mod (mul acc acc) m)
+    ?:  =(0 k)   acc
+    =/  nk=@ud   (dec k)
+    =/  sq=@ud   (mod (mul acc acc) m)
     %=  $
       k    nk
       acc  ?:(=(1 (cut 0 [nk 1] e)) (mod (mul sq bb) m) sq)
@@ -48,7 +44,7 @@
   ++  ds
     |=  n=@ud
     ^-  [d=@ud s=@ud]
-    =/  s=@ud  0
+    =|  s=@ud
     |-  ^-  [d=@ud s=@ud]
     ?:  =(1 (end 0 n))  [n s]
     $(n (rsh 0 n), s +(s))
