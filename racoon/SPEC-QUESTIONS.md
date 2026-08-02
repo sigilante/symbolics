@@ -44,6 +44,46 @@ delegates to it rather than reimplementing the cross-multiplication.
 
 ---
 
+## Q3 — `+new:qq` with `q = 0` is not in the crash table (§8)
+
+**Status:** RESOLVED ~2026.8.1 — approved. §8 gains the row `+new` (`qq`),
+`q = 0`, crash; implemented as `?<  =(0 q)`.
+
+§8 gives `+div` and `+inv` (`qq`) a crash on a zero divisor/operand, but says
+nothing about the constructor `+new` receiving `q = 0`. There is no
+non-crashing answer that respects the `$frac` invariant: `gcd(|p|, 0) = |p|`,
+so reducing yields `q' = 0` and a value outside the type. Letting it through
+would put a non-canonical `$frac` into circulation, which R5 then propagates
+silently through every downstream arm.
+
+**Proposed resolution:** add a §8 row — `+new` (`qq`), `q = 0`, crash. This is
+implemented now as `?<  =(0 q)`, because shipping the alternative (a
+type-violating product) is worse than shipping a flagged deviation. Revert if
+rejected.
+
+---
+
+## Q4 — §10 says nested `~%`, the file it says to copy uses `~/`
+
+**Status:** RESOLVED ~2026.8.1 — approved; follow the file, not the prose.
+
+§10 requires registration that "mirrors `/lib/math.hoon` **exactly**", and
+also describes "nested `~%` per sub-core". Those conflict:
+`libmath/desk/lib/math.hoon` uses a single root `~%  %non  ..part  ~` and then
+plain `~/  %name` on every nested core (`~/  %math`, `~/  %rs`, ...). Lagoon
+does the same.
+
+**Resolution taken:** followed the file, per §10's operative instruction —
+root `~%  %non  ..part  ~`, then `~/  %racoon`, `~/  %nz`, `~/  %qq`. Flagging
+in case the prose was the intent and the precedent is the accident.
+
+Building the library prints `fund: in racoon, parent 4bc26355 not found at 7`.
+This is expected and not a defect: no jets exist until Milestone B, so the
+runtime has nothing to resolve the `%racoon` core's parent against. Confirmed
+normal by the reviewer ~2026.8.1; do not chase it.
+
+---
+
 ## Notes (delegated, recorded not escalated)
 
 - **Spelling.** §3 spells every path `raccoon`; the repository directory and
