@@ -12,7 +12,7 @@ Audience: as for Racoon. Assume competence; assume Racoon Milestone A is complet
 
 Exact linear algebra over ℚ for Urbit, built entirely on Racoon. Determinants, reduced row echelon form, rank, inverse, linear solving, nullspace, characteristic polynomial, and rational eigenvalues — all exact, no floating point anywhere.
 
-Baloon is to exact arithmetic what Lagoon is to approximate arithmetic. The two are siblings, not layers: Lagoon owns IEEE 754, fixed-point, posits, and complex; Baloon owns ℚ (and later ℤ and ℤ/n and 𝔽p). Neither depends on the other.
+Baloon is to exact arithmetic what Lagoon is to approximate arithmetic. The two are siblings, not layers: Lagoon owns IEEE 754, fixed-point, posits, and complex; Baloon owns ℚ (and later ℤ and ℤ/n). Neither depends on the other.
 
 `/lib/baloon` depends on `/lib/racoon` and nothing else, the same relationship `/lib/lagoon` has to `/lib/math`.
 
