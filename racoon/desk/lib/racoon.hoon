@@ -419,8 +419,11 @@
   ::  the zero polynomial is ~.  Every arm requires canonical input and
   ::  produces canonical output; +canon is the sole exception (R5).
   ::
-  ::  Phase 1 arithmetic below.  Phase 2 adds pdiv, content, pp, gcd, res,
-  ::  disc, and mig; Phase 3 adds sqfree and factor.
+  ::  FROZEN at the P3 gate (R6).  Arm set and order are fixed for Milestone
+  ::  A; no reordering, renaming, or insertion without escalation.  The
+  ::  public API is canon is-zero deg lc pcmp add sub neg mul shift scale
+  ::  eval pdiv content pp gcd res disc mig sqfree factor; the remaining
+  ::  arms are delegated private helpers (SPEC S14).
   ++  zx
     ~/  %zx
     |%
@@ -1122,8 +1125,11 @@
   ::  place where the +zx and +mx implementations genuinely differ, rather
   ::  than differing only in coefficient type.
   ::
-  ::  Phase 1 arithmetic below.  Phase 2 adds divmod, gcd, egcd, and powmod;
-  ::  Phase 3 adds sqfree, ddf, edf, and factor.
+  ::  FROZEN at the P3 gate (R6).  Arm set and order are fixed for Milestone
+  ::  A; no reordering, renaming, or insertion without escalation.  The
+  ::  public API is cadd csub cmul cneg cinv cpow canon is-zero deg lc pcmp
+  ::  add sub neg mul shift scale eval divmod gcd egcd powmod sqfree ddf edf
+  ::  factor.
   ++  mx
     ~/  %mx
     |_  n=@ud
@@ -1619,6 +1625,11 @@
   ::  and delegate to +zx rather than running Euclid over $frac directly:
   ::  rational coefficient swell is the classic failure mode, and +gcd:zx
   ::  is modular and certified.
+  ::
+  ::  FROZEN at the P3 gate (R6).  Arm set and order are fixed for Milestone
+  ::  A; no reordering, renaming, or insertion without escalation.  The
+  ::  public API is canon is-zero deg lc pcmp add sub neg mul shift scale
+  ::  eval divmod gcd; +clear and +embed are delegated private helpers.
   ++  qx
     ~/  %qx
     |%

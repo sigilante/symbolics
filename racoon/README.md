@@ -17,15 +17,18 @@ and file name. Only the spec document spells it `raccoon`.
 | Phase | Contents | State |
 |---|---|---|
 | **P0** | `nz`, `qq` — integers, number theory, rational scalars | **complete, frozen** |
-| P1 | `zx` — ℤ[x] arithmetic | **complete** |
-| P1 | `mx` — (ℤ/n)[x] arithmetic and ℤ/n scalars | **complete** |
-| **P2** | division, GCD, resultants; `qx` | **complete** |
-| **P3** | factorization | **complete** |
+| **P1** | `zx` — ℤ[x] arithmetic | **complete, frozen** |
+| **P1** | `mx` — (ℤ/n)[x] arithmetic and ℤ/n scalars | **complete, frozen** |
+| **P2** | division, GCD, resultants; `qx` | **complete, frozen** |
+| **P3** | factorization; `SD_3` passes | **complete, frozen** |
 
-`%nz` and `%qq` are frozen under R6: arm sets and order are fixed for
-Milestone A, and no reordering, renaming, or insertion happens without
-escalation. `%racoon` itself is frozen at five arms — see Q5 in the decision
-log.
+**Milestone A is complete and the interface is frozen.** All six hinted
+cores — `%racoon`, `%nz`, `%qq`, `%zx`, `%mx`, `%qx` — have their arm sets and
+order fixed under R6: no reordering, renaming, or insertion without
+escalation. `%racoon` itself is frozen at five arms; see Q5 in the decision
+log for why that had to happen up front rather than phase by phase.
+
+This is the contract Milestone B jets are written against.
 
 ## Layout
 
@@ -248,6 +251,7 @@ file.
 | Q3 | Add a §8 crash row: `+new:qq` on `q = 0` | No product respects the `$frac` invariant — `gcd(|p|, 0) = |p|` reduces to `q' = 0` — and R5 forbids downstream arms from re-canonicalizing, so a bad value would propagate silently. |
 | Q4 | Jet registration follows `/lib/math.hoon`, not §10's prose | §10 demands mirroring that file "exactly" while also describing "nested `~%` per sub-core"; the file and Lagoon both use one root `~%` under `%non` and plain `~/` below. Followed the file, per §10's operative instruction. |
 | Q5 | Reserve all five sub-core slots now; `%nz`/`%qq` frozen at the P0 gate | R6 freezes a hinted core once its phase closes, but adding an arm to a Hoon core moves the battery axes of the arms already there. Introducing `zx`/`mx`/`qx` as their phases land would shift the `%racoon` battery at every gate — and that is the parent axis each sub-core jet resolves against, so freezing `%nz` internally would buy a jet author nothing. Declaring all five arms now fixes `%racoon` for the milestone; each sub-core freezes at its own gate. |
+| — | Interface frozen at the P3 gate | R6. `%zx`, `%mx`, and `%qx` join `%nz`, `%qq`, and `%racoon`; every hinted core's arm set and order is now fixed for the milestone. Each core's header comment records its public API, so a jet author can tell the public arms from the delegated helpers without consulting §9. |
 | — | `factor:zx` monic-izes nothing; recombination multiplies by `lc` | Follows §9's pinned pipeline literally. The lifted factors are kept monic by dividing `f` through by its leading coefficient mod `p^k` — valid because `p ∤ lc(f)`, so `lc` is a unit at every power of `p`. |
 | — | Delegated private helpers in `zx` beyond §9's public list | `lift`, `crt-lift`, `xdiv`, `combos`, `mprod`, `hstep`, `hlift`, `firr`; and `npow`, `mstrip`, `mderiv`, `mproot`, `remod` in `pv`. §14 delegates helper structure and naming. `xdiv` is worth noting: Z is not a field, so exact division goes through `pdiv` and then divides the quotient by `lc(b)^e`. |
 | — | `res` oracle is the Sylvester determinant, not `sympy.resultant` | SymPy normalizes argument order by degree and so loses the sign when `deg a < deg b` and both degrees are odd; it disagreed with the definition on 19/300 sampled pairs. The determinant is definitional and self-consistent. The library correspondingly swaps to `deg a >= deg b` with the `(-1)^(mn)` sign, which the subresultant recurrence requires. |
