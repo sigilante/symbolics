@@ -7,6 +7,7 @@
 This repository organizes the core symbolic computing apparatus for Urbit:
 
 - Racoon (Real AlgebraiCs in hOON) offers basic symbolic operations.
+- Baloon (Basic linear ALgebra in hOON) offers exact linear algebra over ℚ.
 
 ℤ represents the set of integers (e.g., ${-2, -1, 0, 1, 2, ...}$), with the name derived from the German word Zahlen meaning "numbers". 
 
