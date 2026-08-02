@@ -41,10 +41,12 @@ racoon/
     tests/lib/racoon.hoon     test suite
     lib/racoon-fmt.hoon       rendering and parsing
     lib/racoon-rs.hoon        Reed-Solomon codec over F_p
+    lib/racoon-fp3.hoon       extension fields F_p[x]/(m)
     gen/racoon-bench.hoon     benchmark generator
     gen/racoon-factor.hoon    factor a polynomial from the dojo
     gen/racoon-gcd.hoon       gcd of two polynomials from the dojo
     gen/racoon-rs.hoon        Reed-Solomon round-trip demonstration
+    gen/racoon-fp3.hoon       Goldilocks extension field demonstration
   tools/genvec.py             SymPy vector generator
   tools/requirements.txt      pinned SymPy version
   scripts/sync.sh             copy desk/ into the pier
@@ -239,7 +241,7 @@ alone. Do not read a trend into two points.
 -test /=base=/tests/lib/racoon ~
 ```
 
-190 arms, all green. Three kinds:
+204 arms, all green. Three kinds:
 
 - **Behavioral** — known values and adversarial families. `is-prime` gets eight
   Carmichael numbers and five strong pseudoprimes rather than random odds,
@@ -325,6 +327,68 @@ Three levers, in increasing order of certainty: spend two more parity
 symbols; use `decode-upto` to refuse corrections heavier than a chosen
 weight, trading correction power for detection; or carry an outer integrity
 check over the message. Only the last is certain.
+
+## Extension fields
+
+`/lib/racoon-fp3` builds 𝔽p[x]/(m) — a finite field as a quotient of the
+polynomial ring by a monic irreducible modulus. The motivating case is the
+cubic 𝔽p[x]/(x³ − x − 1) over the Goldilocks prime 2⁶⁴ − 2³² + 1, which is
+Nockchain's `$felt`; hence the file name. **The door is general in the
+modulus and works at any degree** — the tests run it as a quadratic too. The
+name describes the instance that prompted it, not a restriction.
+
+```
++racoon-fp3 [3 4 5]
+"field:    F_p[x]/(x^3 - x - 1), p = 2^64 - 2^32 + 1"
+"rank:     3"
+"irred:    %.y"
+"a:        ~[3 4 5]"
+"a^-1:     ~[17.402.588.744.730.739.926 ... ]"
+"a a^-1:   ~[1]"
+"a^2:      ~[49 89 71]"
+"a^(p^3):  ~[3 4 5]"
+"N(a):     53"
+```
+
+Instantiate it on any prime and any irreducible modulus:
+
+```
+=gl3  %~  .  fp3
+      :-  18.446.744.069.414.584.321
+      ~[18.446.744.069.414.584.320 18.446.744.069.414.584.320 0 1]
+```
+
+**It is a consumer, not an extension of the library.** Racoon has no
+extension fields by design — `mx` is (ℤ/n)[x], and 𝔽p only when n is prime.
+This fills that gap from outside the frozen interface, using nothing but
+`mx` polynomial arithmetic, which is the shape the freeze is meant to
+permit.
+
+**Inversion uses `egcd:mx` run to completion**, exactly as written: for
+nonzero *a* of degree below deg(m) with m irreducible, gcd(a, m) = 1, so the
+cofactor *u* in *ua* + *vm* = 1 is *a*⁻¹. That is the clean contrast with
+Reed–Solomon, whose key equation needed the same algorithm *stopped early*
+and so had to be written locally. Between them the two clients exercise both
+halves of that arm.
+
+**Irreducibility is a precondition, not an invariant.** A reducible modulus
+makes the quotient a ring with zero divisors, and `inv` then crashes on
+those divisors — honest, but not a diagnosis. `+irreducible` checks it once,
+up front, by delegating to Racoon's certified factorization; the Goldilocks
+cubic was verified against SymPy before the library was written and is
+re-checked in-ship by the test suite.
+
+**`+canon` reduces further than `canon:mx` does.** Racoon takes coefficient
+range as a precondition of the `$mol` form, and its `canon` only strips
+trailing zeros. Here `canon` is the boundary where outside data enters the
+field, so it folds coefficients into [0, p) *and* brings the degree below
+deg(m). Every other arm assumes its arguments are already field elements.
+
+**Verification.** Goldilocks vectors for `mul`, `inv`, `frob`, `norm`, and
+`pow` were computed independently in Python and transcribed, as the
+Reed–Solomon vectors were; the norm was cross-checked against SymPy's
+resultant. 𝔽₂₇ and 𝔽₄₉ are checked *exhaustively* — at 27 and 49 elements,
+trying everything is a better test than sampling.
 
 ## Decision log
 
