@@ -56,6 +56,12 @@
 ::  Z/n an RREF exists exactly when the pivots actually needed are units.
 ::
 +$  qrref  [m=qmat piv=(list @ud)]
+::    $mrref: reduced row echelon form over Z/n, with its pivot columns.
+::    Milestone C.  Same shape as $qrref, and ring-prefixed for the same
+::    reason: RREF is not a ring-generic notion, and over Z/n it exists
+::    only where the needed pivots are units.
+::
++$  mrref  [m=mmat piv=(list @ud)]
 ::
 ::  RESERVED, deliberately not declared: the Hermite and Smith normal form
 ::  products for +zm.  Whether they carry their unimodular transform

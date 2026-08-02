@@ -278,3 +278,113 @@ Kernel style, as Racoon: `::` header per arm stating the mathematical contract, 
 - Bareiss, "Sylvester's Identity and Multistep Integer-Preserving Gaussian Elimination" (1968) — the fraction-free determinant.
 - von zur Gathen & Gerhard, *Modern Computer Algebra* — linear algebra over rings, §5 and §25.
 - `urbit/numerics` `/lib/lagoon` — the approximate sibling; precedent for array-library shape, not for representation.
+
+---
+
+# Milestone C — ℤ and ℤ/n
+
+**Engineering Specification v0.2 — Milestone C: the remaining rings**
+
+Milestone B (jets) is deferred until there are more clients; Milestone C
+proceeds ahead of it. Nothing here is jetted, so the freeze discipline
+below is about keeping the *option* of jets, not about serving existing
+ones.
+
+## C1. Why this costs no escalation
+
+`+zm` and `+mm` were declared empty in §6 for exactly this moment. Adding
+arms *inside* them leaves `%baloon`'s own battery at three arms, so `+qm`'s
+axes — frozen when Milestone A's P3 closed — do not move. Milestone C adds
+no arm to `%baloon` and no arm to `+qm`.
+
+Two consequences follow, and they are load-bearing:
+
+- **`+qm` stays shut.** `minpoly` and rational eigenvectors are Milestone C
+  candidates (§13) but are *not* added to `+qm`. They go in
+  `/lib/baloon-spectral`, a consumer, computed from `qm`'s public arms
+  alone — the pattern `/lib/racoon-rs` and `/lib/racoon-fp3` have now
+  established twice. A frozen interface that gets reopened for every good
+  idea was never frozen.
+- **`$qmat`, `$zmat`, `$mmat` are unchanged.** §6 settled the
+  representation for all three at once. Milestone C adds no matrix type.
+
+## C2. Canonical conventions (normative)
+
+Everything in §7 carries over unchanged where it is ring-generic:
+nonempty, rectangular, dense, row-major, zero-based, dimensions derived,
+`+canon` the only arm accepting non-canonical input.
+
+| Item | Convention |
+|---|---|
+| `$zmat` | Entries are `@s`. There is no normalization beyond `@s` itself — every integer is its own canonical form |
+| `$mmat` | Entries lie in `[0, n)`. The modulus is the `+mm` door's sample, never the matrix's |
+| `+det:zm` | Bareiss, exact. Result `@s`. Crashes on non-square |
+| `+det:mm` | **Lift to ℤ, take the integer determinant, reduce mod n.** The determinant is a polynomial with integer coefficients in the entries, so this is exact for *any* representatives and any `n`, prime or not. Bareiss's exact divisions are unavailable in ℤ/n — a divisor need not be a unit — and this sidesteps that entirely rather than working around it |
+| `+charpoly:zm` | `det(xI − A)` as a `zol`, monic of degree `n` |
+| `+charpoly:mm` | `det(xI − A)` as a `mol`. Same lift-and-reduce argument as `+det:mm`: the coefficients are integer polynomials in the entries |
+| `+rref:mm` | Gauss–Jordan. **Pivot selection is the first entry at or below the current row that is a UNIT mod n** — not merely the first nonzero. If a column has nonzero entries at or below the current row but no unit among them, the arm crashes (§C3). Over 𝔽p every nonzero element is a unit, so the search always succeeds on the first nonzero and the crash is unreachable |
+| `+rank:mm` `+nullspace:mm` | **Require `n` prime, asserted.** Over a field the kernel is a vector space and §7's basis convention transfers exactly. Over composite ℤ/n the kernel is not free, rank is not well defined, and a unit-pivot echelon form does not generate the whole kernel — producing a plausible-looking submodule basis would be silently wrong, which is worse than crashing |
+| `+inv:mm` `+solve:mm` | Need only that `det` be a **unit** mod n, which is decidable without primality. No assertion |
+| `+to-q` `+of-q` | The ring bridges live in the *later* core, never in frozen `+qm`. `to-q:zm` embeds exactly. `of-q:zm` clears denominators and returns `[m=zmat d=@ud]`, the common denominator alongside, since the map ℚ → ℤ loses information otherwise |
+| `+to-z:mm` | Lifts to the **symmetric** representatives, in `(−n/2, n/2]`. `of-z:mm` reduces. `to-z ∘ of-z` is not the identity; that is what "representative" means and the arms say so |
+
+## C3. Crash table (normative — every row gets a test)
+
+Every §8 row carries over to `+zm` and `+mm` with the same behavior. New
+rows:
+
+| Arm | Condition | Behavior |
+|---|---|---|
+| `+rref:mm` `+inv:mm` `+solve:mm` | a column needing a pivot has nonzero entries but no unit among them | crash |
+| `+inv:mm` | `det` is not a unit mod n | crash |
+| `+solve:mm` | `det` is not a unit mod n | **no crash**: product is `~` |
+| `+rank:mm` `+nullspace:mm` | `n` not prime | crash |
+| `+of-q:zm` | ragged or non-canonical input | outside the supported domain |
+| `+mm` any arm | `n < 2` | outside the supported domain |
+
+`+canon`, `+rref`, `+inv`, `+solve`, and `+nullspace` **do not exist on
+`+zm`.** `+canon` has nothing to normalize, as §C4 records. `+rank` and
+`+det` do exist — both are well defined over ℤ. For the rest: over ℤ a pivot cannot be scaled to 1 without leaving the
+ring, so there is no RREF; the row-canonical form is the Hermite normal
+form and they belong to it. Declaring them and crashing would be worse
+than their absence.
+
+## C4. Phases
+
+- **C0 — `+zm` shape and arithmetic.** `dims is-square get put row col
+  transpose idn zeros add neg sub scale mul pow to-q of-q`, in `+qm`'s
+  order so the two cores read side by side. **No `+canon`**: over ℚ the
+  entries carry a normal form `+new:qq` imposes, but every `@s` is already
+  its own canonical form, so the arm would be the identity. An arm that
+  does nothing is worse than an absent one.
+- **C1 — `+zm` over ℤ.** `det rank charpoly`. `+det` promotes
+  `bareiss:pv` to a public arm rather than writing it fresh, as §13
+  anticipated. `rank` needs no qualifier: the rank of an integer matrix
+  is its rank over ℚ, equivalently the size of its largest nonvanishing
+  minor, and the two agree. That is exactly the property composite ℤ/n
+  lacks, which is why `+rank:mm` asserts primality and this one does
+  not.
+- **C2 — `+zm` normal forms.** Hermite, and Smith if C2's escalation
+  lands. **Blocked on the §6 reservation** — see `SPEC-QUESTIONS.md` B1.
+- **C3 — `+mm` complete.** Shape, arithmetic, and elimination in one
+  phase: it is `+qm`'s arm set over a different ring, and splitting it
+  would create phase gates with nothing to decide.
+
+## C5. Testing
+
+§11 carries over. Additions:
+
+- SymPy oracles: `Matrix.det`, `.charpoly`, `.rref` and `.nullspace` over
+  `GF(p)` via `Matrix.rref(iszerofunc=...)` or `polys.matrices`, and
+  `.hermite_normal_form`. **Verify each convention against the definition
+  before pinning it** (§11.3) — SymPy's HNF is column-style by default,
+  which is not what C2 specifies.
+- Cross-ring property tests, which are the cheapest real check Milestone C
+  affords: `det:zm` of an integer matrix equals `det:qm` of its embedding;
+  `det:mm` equals `det:zm` reduced; `charpoly:mm` equals `charpoly:zm`
+  reduced; `inv:mm` times the matrix is the identity. Milestone A's ℚ arms
+  are already trusted, so they serve as the oracle for the new rings
+  without any external dependency at all.
+- 𝔽p exhaustive coverage where it is affordable: all 2×2 matrices over
+  𝔽₂ and 𝔽₃ (16 and 81 of them) checked for `det`, `inv` where it exists,
+  and rank–nullity.

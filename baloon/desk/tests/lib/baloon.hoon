@@ -16,6 +16,10 @@
 =/  qq  qq:racoon
 =/  qx  qx:racoon
 =/  qm  qm:baloon
+=/  nz  nz:racoon
+=/  mx  mx:racoon
+=/  zm  zm:baloon
+=/  mm  mm:baloon
 |%
 +|  %seeds
 ::    +seed-qm:  pinned PRNG seed for the +qm property tests
@@ -1129,4 +1133,502 @@
     ?~  ls  (weld out "]")
     $(ls t.ls, out (weld out i.ls))
   =([~ m] (redm:fmt txt))
+::  Integer matrices, with SymPy determinants and characteristic
+::  polynomials.  Ascending coefficient order throughout, matching $zol.
+++  cvecs-z
+  ^-  (list [m=zmat d=@s p=zol k=@ud])
+  :~
+    :*  ~[~[--6]]
+        --6
+        ~[-6 --1]
+        1
+    ==
+    :*  ~[~[-3 --2] ~[-6 -3]]
+        --21
+        ~[--21 --6 --1]
+        2
+    ==
+    :*  ~[~[-3 -2 --6] ~[--3 --1 -2] ~[-2 -5 -2]]
+        -62
+        ~[--62 --9 --4 --1]
+        3
+    ==
+    :*  ~[~[-3 -1 -5] ~[-3 --2 --0] ~[-6 -4 --1]]
+        -129
+        ~[--129 -40 --0 --1]
+        3
+    ==
+    :*  ~[~[--0 --6 --6 -5] ~[--1 -3 --4 --4] ~[-4 --6 -2 -6] ~[--6 --4 --2 -1]]
+        -520
+        ~[-520 --374 --31 --6 --1]
+        4
+    ==
+    :*  ~[~[-4 --4 -4 -3] ~[--2 --1 -6 --0] ~[-2 -1 -4 --2] ~[--3 -5 --4 -3]]
+        -854
+        ~[-854 -249 --8 --10 --1]
+        4
+    ==
+    :*  ~[~[--1 --2] ~[--2 --4]]
+        --0
+        ~[--0 -5 --1]
+        1
+    ==
+    :*  ~[~[--0 --0 --1] ~[--1 --0 --0] ~[--0 --1 --0]]
+        --1
+        ~[-1 --0 --0 --1]
+        3
+    ==
+  ==
+::  The same matrices over Z/7, F_7 being a field, and over Z/6,
+::  which is not.  det and charpoly are the integer answers reduced.
+++  cvecs-m7
+  ^-  (list [m=mmat d=@ud p=mol])
+  :~
+    :*  ~[~[6]]
+        6
+        ~[1 1]
+    ==
+    :*  ~[~[4 2] ~[1 4]]
+        0
+        ~[0 6 1]
+    ==
+    :*  ~[~[4 5 6] ~[3 1 5] ~[5 2 5]]
+        1
+        ~[6 2 4 1]
+    ==
+    :*  ~[~[4 6 2] ~[4 2 0] ~[1 3 1]]
+        4
+        ~[3 2 0 1]
+    ==
+    :*  ~[~[0 6 6 2] ~[1 4 4 4] ~[3 6 5 1] ~[6 4 2 6]]
+        5
+        ~[5 3 3 6 1]
+    ==
+    :*  ~[~[3 4 3 4] ~[2 1 1 0] ~[5 6 3 2] ~[3 2 4 4]]
+        0
+        ~[0 3 1 3 1]
+    ==
+    :*  ~[~[1 2] ~[2 4]]
+        0
+        ~[0 2 1]
+    ==
+    :*  ~[~[0 0 1] ~[1 0 0] ~[0 1 0]]
+        1
+        ~[6 0 0 1]
+    ==
+  ==
+++  cvecs-m6
+  ^-  (list [m=mmat d=@ud p=mol])
+  :~
+    :*  ~[~[0]]
+        0
+        ~[0 1]
+    ==
+    :*  ~[~[3 2] ~[0 3]]
+        3
+        ~[3 0 1]
+    ==
+    :*  ~[~[3 4 0] ~[3 1 4] ~[4 1 4]]
+        4
+        ~[2 3 4 1]
+    ==
+    :*  ~[~[3 5 1] ~[3 2 0] ~[0 2 1]]
+        3
+        ~[3 2 0 1]
+    ==
+    :*  ~[~[0 0 0 1] ~[1 3 4 4] ~[2 0 4 0] ~[0 4 2 5]]
+        2
+        ~[2 2 1 0 1]
+    ==
+    :*  ~[~[2 4 2 3] ~[2 1 0 0] ~[4 5 2 2] ~[3 1 4 3]]
+        4
+        ~[4 3 2 4 1]
+    ==
+    :*  ~[~[1 2] ~[2 4]]
+        0
+        ~[0 1 1]
+    ==
+    :*  ~[~[0 0 1] ~[1 0 0] ~[0 1 0]]
+        1
+        ~[5 0 0 1]
+    ==
+  ==
+::
+::  Milestone C: matrices over Z (+zm) and over Z/n (+mm).
+::
+::  The cheapest real check Milestone C affords is CROSS-RING agreement.
+::  Milestone A's Q arms are already trusted -- 80 green arms against a
+::  SymPy oracle -- so they serve as the oracle for the new rings with no
+::  external dependency at all: det:zm must agree with det:qm on the
+::  embedding, and det:mm with det:zm reduced.  Transcribed SymPy vectors
+::  back that up at fixed inputs, and F_2 and F_3 are done exhaustively.
+::
+::    +mats2:  every 2 x 2 matrix over Z/p
+++  mats2
+  |=  p=@ud
+  ^-  (list mmat)
+  %+  turn  (gulf 0 (dec (pow p 4)))
+  |=  i=@ud
+  ^-  mmat
+  :~  ~[(mod i p) (mod (div i p) p)]
+      ~[(mod (div i (mul p p)) p) (mod (div i (mul p (mul p p))) p)]
+  ==
+::    +zid:  a small integer matrix used throughout the C0 tests
+++  zid  `zmat`~[~[--1 --2 --3] ~[--4 --5 --6] ~[--7 --8 --10]]
+::
+++  test-c0-zm-shape
+  ;:  weld
+    %+  expect-eq  !>(`[r=@ud c=@ud]`[3 3])  !>((dims:zm zid))
+    %+  expect-eq  !>(`[r=@ud c=@ud]`[2 3])
+    !>((dims:zm ~[~[--1 --2 --3] ~[--4 --5 --6]]))
+    %-  expect  !>((is-square:zm zid))
+    %-  expect  !>(!(is-square:zm ~[~[--1 --2]]))
+    %+  expect-eq  !>(`@s`--6)   !>((get:zm zid 1 2))
+    %+  expect-eq  !>(`@s`-10)   !>((get:zm (put:zm zid 2 2 -10) 2 2))
+    %+  expect-eq  !>(`zvec`~[--4 --5 --6])  !>((row:zm zid 1))
+    %+  expect-eq  !>(`zvec`~[--3 --6 --10])  !>((col:zm zid 2))
+    ::  transpose is involutive, and swaps the off-diagonal entries
+    %+  expect-eq  !>(`zmat`zid)  !>((transpose:zm (transpose:zm zid)))
+    %+  expect-eq  !>(`@s`--4)    !>((get:zm (transpose:zm zid) 0 1))
+    %+  expect-eq  !>(`zmat`~[~[--1 --0] ~[--0 --1]])  !>((idn:zm 2))
+    %+  expect-eq  !>(`zmat`~[~[--0 --0 --0]])  !>((zeros:zm 1 3))
+  ==
+++  test-c0-zm-crash
+  ;:  weld
+    ::  every S8 index row, both sides
+    (expect-fail |.((get:zm zid 3 0)))
+    (expect-fail |.((get:zm zid 0 3)))
+    (expect-fail |.((put:zm zid 3 0 --1)))
+    (expect-fail |.((row:zm zid 3)))
+    (expect-fail |.((col:zm zid 3)))
+    (expect-success |.((get:zm zid 2 2)))
+    (expect-success |.((row:zm zid 2)))
+    ::  the empty matrix is not representable
+    (expect-fail |.((idn:zm 0)))
+    (expect-fail |.((zeros:zm 0 3)))
+    (expect-fail |.((zeros:zm 3 0)))
+    (expect-fail |.((dims:zm ~)))
+    (expect-success |.((idn:zm 1)))
+  ==
+++  test-c0-zm-arith
+  =/  a=zmat  ~[~[--1 --2] ~[--3 --4]]
+  =/  b=zmat  ~[~[--5 -6] ~[--0 --2]]
+  ;:  weld
+    %+  expect-eq  !>(`zmat`~[~[--6 -4] ~[--3 --6]])  !>((add:zm a b))
+    %+  expect-eq  !>(`zmat`~[~[-4 --8] ~[--3 --2]])  !>((sub:zm a b))
+    %+  expect-eq  !>(`zmat`~[~[-1 -2] ~[-3 -4]])     !>((neg:zm a))
+    %+  expect-eq  !>(`zmat`~[~[--3 --6] ~[--9 --12]])  !>((scale:zm a --3))
+    ::  a + (-a) is zero, and subtraction inverts addition
+    %+  expect-eq  !>((zeros:zm 2 2))  !>((add:zm a (neg:zm a)))
+    %+  expect-eq  !>(`zmat`a)         !>((sub:zm (add:zm a b) b))
+    ::  [1 2; 3 4] [5 -6; 0 2] = [5 -2; 15 -10]
+    %+  expect-eq  !>(`zmat`~[~[--5 -2] ~[--15 -10]])  !>((mul:zm a b))
+    ::  the identity is an identity on both sides
+    %+  expect-eq  !>(`zmat`a)  !>((mul:zm (idn:zm 2) a))
+    %+  expect-eq  !>(`zmat`a)  !>((mul:zm a (idn:zm 2)))
+    ::  powers agree with repeated multiplication, and m^0 is the identity
+    %+  expect-eq  !>((idn:zm 2))            !>((pow:zm a 0))
+    %+  expect-eq  !>(`zmat`a)               !>((pow:zm a 1))
+    %+  expect-eq  !>((mul:zm a a))          !>((pow:zm a 2))
+    %+  expect-eq  !>((mul:zm (mul:zm a a) a))  !>((pow:zm a 3))
+    %+  expect-eq  !>((mul:zm (pow:zm a 3) (pow:zm a 2)))  !>((pow:zm a 5))
+    ::  rectangular multiplication produces the outer shape
+    %+  expect-eq  !>(`[r=@ud c=@ud]`[2 4])
+    !>((dims:zm (mul:zm ~[~[--1 --2 --3] ~[--4 --5 --6]] (zeros:zm 3 4))))
+  ==
+++  test-c0-zm-crash-arith
+  =/  a=zmat  ~[~[--1 --2] ~[--3 --4]]
+  ;:  weld
+    (expect-fail |.((add:zm a (zeros:zm 2 3))))
+    (expect-fail |.((sub:zm a (zeros:zm 3 2))))
+    (expect-fail |.((mul:zm a (zeros:zm 3 2))))
+    (expect-fail |.((pow:zm ~[~[--1 --2 --3] ~[--4 --5 --6]] 2)))
+    (expect-fail |.((det:zm ~[~[--1 --2 --3] ~[--4 --5 --6]])))
+    (expect-fail |.((charpoly:zm ~[~[--1 --2 --3] ~[--4 --5 --6]])))
+    ::  the matching non-crash side
+    (expect-success |.((mul:zm a (zeros:zm 2 5))))
+    (expect-success |.((det:zm a)))
+  ==
+++  test-c0-zm-convert
+  =/  a=zmat  ~[~[--1 -2] ~[--3 --4]]
+  =/  q=qmat  ~[~[[--1 2] [--1 3]] ~[[--1 6] [--2 1]]]
+  ;:  weld
+    ::  the embedding is exact: every integer is the fraction x/1
+    %+  expect-eq  !>(`qmat`~[~[[--1 1] [-2 1]] ~[[--3 1] [--4 1]]])
+    !>((to-q:zm a))
+    ::  and clearing denominators inverts it
+    %+  expect-eq  !>(`[z=zmat d=@ud]`[a 1])  !>((of-q:zm (to-q:zm a)))
+    ::  lcm(2, 3, 6, 1) = 6, and the entries scale by it
+    %+  expect-eq  !>(`[z=zmat d=@ud]`[~[~[--3 --2] ~[--1 --12]] 6])
+    !>((of-q:zm q))
+    ::  of-q then scaling back by d recovers the original over Q
+    %+  expect-eq  !>(`qmat`q)
+    !>((scale:qm (to-q:zm z:(of-q:zm q)) (new:qq --1 d:(of-q:zm q))))
+  ==
+++  test-c1-zm-vectors
+  =/  vs  cvecs-z
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      ;:  weld
+        %+  expect-eq  !>(`@s`d.i.vs)    !>((det:zm m.i.vs))
+        %+  expect-eq  !>(`zol`p.i.vs)   !>((charpoly:zm m.i.vs))
+        %+  expect-eq  !>(`@ud`k.i.vs)   !>((rank:zm m.i.vs))
+        ::  the characteristic polynomial is monic of degree n
+        %+  expect-eq  !>(`@s`--1)       !>((rear (charpoly:zm m.i.vs)))
+        %+  expect-eq  !>(+((lent m.i.vs)))  !>((lent (charpoly:zm m.i.vs)))
+        ::  and its constant term is (-1)^n det
+        %+  expect-eq
+          !>(?:(=(0 (mod (lent m.i.vs) 2)) d.i.vs (dif:si --0 d.i.vs)))
+        !>((snag 0 (charpoly:zm m.i.vs)))
+      ==
+  ==
+++  test-c1-zm-crossring
+  =/  vs  cvecs-z
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  =/  m=zmat  m.i.vs
+  =/  q=qmat  (to-q:zm m)
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      ;:  weld
+        ::  Milestone A's Q arms are the oracle for Milestone C's Z arms
+        %+  expect-eq  !>(`frac`[(det:zm m) 1])  !>((det:qm q))
+        %+  expect-eq  !>(`@ud`(rank:zm m))      !>((rank:qm q))
+        ::  charpoly agrees across the embedding, coefficient by
+        ::  coefficient -- the strongest of these, since it exercises the
+        ::  Q interpolation path against the Z lift of its own answer
+        %+  expect-eq
+          !>((charpoly:qm q))
+        !>((turn (charpoly:zm m) |=(x=@s ^-(frac [x 1]))))
+        ::  det is multiplicative, and blind to transposition
+        %+  expect-eq
+          !>((det:zm (mul:zm m m)))
+        !>((pro:si (det:zm m) (det:zm m)))
+        %+  expect-eq  !>((det:zm m))  !>((det:zm (transpose:zm m)))
+      ==
+  ==
+++  test-c3-mm-shape
+  =/  d7  ~(. mm 7)
+  =/  a=mmat  ~[~[1 2 3] ~[4 5 6] ~[0 1 0]]
+  ;:  weld
+    %+  expect-eq  !>(`[r=@ud c=@ud]`[3 3])  !>((dims:d7 a))
+    %-  expect  !>((is-square:d7 a))
+    %+  expect-eq  !>(`@ud`6)  !>((get:d7 a 1 2))
+    %+  expect-eq  !>(`mvec`~[4 5 6])  !>((row:d7 a 1))
+    %+  expect-eq  !>(`mvec`~[3 6 0])  !>((col:d7 a 2))
+    %+  expect-eq  !>(`mmat`a)  !>((transpose:d7 (transpose:d7 a)))
+    %+  expect-eq  !>(`mmat`~[~[1 0] ~[0 1]])  !>((idn:d7 2))
+    %+  expect-eq  !>(`mmat`~[~[0 0]])         !>((zeros:d7 1 2))
+    ::  +canon has real work here, unlike over Z
+    %+  expect-eq  !>(`mmat`~[~[1 0] ~[3 6]])
+    !>((canon:d7 ~[~[8 7] ~[10 20]]))
+    ::  crash rows
+    (expect-fail |.((get:d7 a 3 0)))
+    (expect-fail |.((idn:d7 0)))
+    (expect-fail |.((dims:d7 ~)))
+  ==
+++  test-c3-mm-arith
+  =/  d7  ~(. mm 7)
+  =/  a=mmat  ~[~[1 2] ~[3 4]]
+  =/  b=mmat  ~[~[5 6] ~[0 2]]
+  ;:  weld
+    %+  expect-eq  !>(`mmat`~[~[6 1] ~[3 6]])  !>((add:d7 a b))
+    %+  expect-eq  !>(`mmat`~[~[3 3] ~[3 2]])  !>((sub:d7 a b))
+    %+  expect-eq  !>(`mmat`~[~[6 5] ~[4 3]])  !>((neg:d7 a))
+    %+  expect-eq  !>(`mmat`~[~[3 6] ~[2 5]])  !>((scale:d7 a 3))
+    %+  expect-eq  !>((zeros:d7 2 2))  !>((add:d7 a (neg:d7 a)))
+    %+  expect-eq  !>(`mmat`a)         !>((sub:d7 (add:d7 a b) b))
+    ::  [1 2; 3 4][5 6; 0 2] = [5 10; 15 26] = [5 3; 1 5] mod 7
+    %+  expect-eq  !>(`mmat`~[~[5 3] ~[1 5]])  !>((mul:d7 a b))
+    %+  expect-eq  !>(`mmat`a)  !>((mul:d7 (idn:d7 2) a))
+    %+  expect-eq  !>((idn:d7 2))    !>((pow:d7 a 0))
+    %+  expect-eq  !>((mul:d7 a a))  !>((pow:d7 a 2))
+    %+  expect-eq  !>((mul:d7 (pow:d7 a 3) (pow:d7 a 2)))  !>((pow:d7 a 5))
+    (expect-fail |.((add:d7 a (zeros:d7 2 3))))
+    (expect-fail |.((mul:d7 a (zeros:d7 3 2))))
+    (expect-fail |.((pow:d7 (zeros:d7 2 3) 2)))
+  ==
+++  test-c3-mm-convert
+  =/  d7  ~(. mm 7)
+  ;:  weld
+    %+  expect-eq  !>(`mmat`~[~[1 5] ~[0 6]])
+    !>((of-z:d7 ~[~[--8 -2] ~[--0 -1]]))
+    ::  to-z lifts to the symmetric window (-n/2, n/2]
+    %+  expect-eq  !>(`zmat`~[~[--1 -2] ~[--3 -1]])
+    !>((to-z:d7 ~[~[1 5] ~[3 6]]))
+    ::  of-z after to-z is the identity; the other order is not, which is
+    ::  what "representative" means
+    %+  expect-eq  !>(`mmat`~[~[1 5] ~[3 6]])
+    !>((of-z:d7 (to-z:d7 ~[~[1 5] ~[3 6]])))
+    %+  expect-eq  !>(`zmat`~[~[--1 -1]])
+    !>((to-z:d7 (of-z:d7 ~[~[--8 --6]])))
+  ==
+++  test-c3-mm-vectors-f7
+  =/  d7  ~(. mm 7)
+  =/  vs  cvecs-m7
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      ;:  weld
+        %+  expect-eq  !>(`@ud`d.i.vs)  !>((det:d7 m.i.vs))
+        %+  expect-eq  !>(`mol`p.i.vs)  !>((charpoly:d7 m.i.vs))
+        ::  and both agree with the integer answer reduced, which is the
+        ::  argument the lift-and-reduce implementation rests on.  The
+        ::  reduction runs through +of-z rather than being open-coded --
+        ::  +abs:si would drop the sign, and a negative determinant is the
+        ::  common case here
+        %+  expect-eq
+          !>(`@ud`d.i.vs)
+        !>((get:d7 (of-z:d7 ~[~[(det:zm (to-z:d7 m.i.vs))]]) 0 0))
+      ==
+  ==
+++  test-c3-mm-vectors-z6
+  =/  d6  ~(. mm 6)
+  =/  vs  cvecs-m6
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      ;:  weld
+        ::  a composite modulus: det and charpoly still work, because
+        ::  neither needs a field
+        %+  expect-eq  !>(`@ud`d.i.vs)  !>((det:d6 m.i.vs))
+        %+  expect-eq  !>(`mol`p.i.vs)  !>((charpoly:d6 m.i.vs))
+      ==
+  ==
+++  test-c3-mm-composite
+  ::  The Z/6 story, which is the whole reason +inv does not go through
+  ::  +rref.  [[2 1] [3 1]] has determinant -1 = 5, a unit mod 6, so it is
+  ::  invertible -- yet neither entry of its first column is a unit, so
+  ::  Gauss-Jordan with unit pivots cannot start.
+  =/  d6  ~(. mm 6)
+  =/  w=mmat  ~[~[2 1] ~[3 1]]
+  ;:  weld
+    %+  expect-eq  !>(`@ud`5)  !>((det:d6 w))
+    %+  expect-eq  !>(`@ud`1)  !>((gcd:nz (det:d6 w) 6))
+    ::  the adjugate inverts it exactly
+    %+  expect-eq  !>((idn:d6 2))  !>((mul:d6 w (inv:d6 w)))
+    %+  expect-eq  !>((idn:d6 2))  !>((mul:d6 (inv:d6 w) w))
+    ::  while +rref crashes on the very same matrix
+    (expect-fail |.((rref:d6 w)))
+    ::  +solve works, for the same reason +inv does
+    %+  expect-eq  !>(`(unit mmat)`[~ (idn:d6 2)])  !>((solve:d6 w w))
+    ::  a non-unit determinant is the singular case: 2 * 2 - 1 * 1 = 3
+    %+  expect-eq  !>(`@ud`3)  !>((det:d6 ~[~[2 1] ~[1 2]]))
+    (expect-fail |.((inv:d6 ~[~[2 1] ~[1 2]])))
+    %+  expect-eq  !>(`(unit mmat)`~)
+    !>((solve:d6 ~[~[2 1] ~[1 2]] (idn:d6 2)))
+    ::  rank and nullspace refuse a composite modulus outright
+    (expect-fail |.((rank:d6 w)))
+    (expect-fail |.((nullspace:d6 w)))
+    ::  and accept a prime one
+    (expect-success |.((rank:~(. mm 5) w)))
+  ==
+++  test-c3-mm-elimination
+  =/  d7  ~(. mm 7)
+  ::  [[1 2 3] [2 4 6]] has rank 1 over F_7; the second row is twice the
+  ::  first, so the RREF is [[1 2 3] [0 0 0]] with a single pivot at 0
+  =/  a=mmat  ~[~[1 2 3] ~[2 4 6]]
+  =/  rr  (rref:d7 a)
+  ;:  weld
+    %+  expect-eq  !>(`mmat`~[~[1 2 3] ~[0 0 0]])  !>(m.rr)
+    %+  expect-eq  !>(`(list @ud)`~[0])            !>(piv.rr)
+    %+  expect-eq  !>(`@ud`1)                      !>((rank:d7 a))
+    ::  the S7 basis convention, unchanged from +qm
+    %+  expect-eq  !>(`(list mvec)`~[~[5 1 0] ~[4 0 1]])  !>((nullspace:d7 a))
+    ::  rank-nullity
+    %+  expect-eq  !>(`@ud`3)
+    !>((add (rank:d7 a) (lent (nullspace:d7 a))))
+    ::  RREF is idempotent
+    %+  expect-eq  !>(`mmat`m.rr)  !>(m:(rref:d7 m.rr))
+    ::  full column rank gives an empty nullspace, and no crash
+    %+  expect-eq  !>(`(list mvec)`~)  !>((nullspace:d7 (idn:d7 3)))
+    (expect-success |.((nullspace:d7 (idn:d7 3))))
+    ::  a singular square matrix: det 0, no inverse, nonempty kernel
+    %+  expect-eq  !>(`@ud`0)  !>((det:d7 ~[~[1 2] ~[2 4]]))
+    (expect-fail |.((inv:d7 ~[~[1 2] ~[2 4]])))
+    %+  expect-eq  !>(`@ud`1)  !>((lent (nullspace:d7 ~[~[1 2] ~[2 4]])))
+    %+  expect-eq  !>(`(unit mmat)`~)
+    !>((solve:d7 ~[~[1 2] ~[2 4]] (idn:d7 2)))
+    ::  and +solve's crash rows are about SHAPE, not singularity
+    (expect-fail |.((solve:d7 ~[~[1 2 3] ~[2 4 6]] (idn:d7 2))))
+    (expect-fail |.((solve:d7 (idn:d7 2) (idn:d7 3))))
+  ==
+++  test-c3-f2-exhaustive  (exhaust-2x2 2)
+++  test-c3-f3-exhaustive  (exhaust-2x2 3)
+::    +exhaust-2x2:  every 2 x 2 matrix over F_p, checked completely
+::
+::  16 matrices at p = 2 and 81 at p = 3.  At that size trying everything
+::  is a better test than sampling, and it is the only way to be sure the
+::  singular cases are all reached.  The determinant is cross-checked
+::  against ad - bc, which is an independent formula: the library computes
+::  it by lifting to Z and running Bareiss.
+++  exhaust-2x2
+  |=  p=@ud
+  ^-  tang
+  =/  dr  ~(. mm p)
+  =/  fp  ~(. mx p)
+  =/  ms  (mats2 p)
+  =|  out=tang
+  |-  ^-  tang
+  ?~  ms  out
+  =/  m=mmat  i.ms
+  =/  dt=@ud  (det:dr m)
+  =/  ad=@ud
+    %+  csub:fp
+      (cmul:fp (get:dr m 0 0) (get:dr m 1 1))
+    (cmul:fp (get:dr m 0 1) (get:dr m 1 0))
+  =/  ns  (nullspace:dr m)
+  %=  $
+    ms  t.ms
+    out
+      %+  weld  out
+      %+  weld
+        ;:  weld
+          ::  Bareiss-on-the-lift against the closed form
+          %+  expect-eq  !>(`@ud`ad)  !>(`@ud`dt)
+          ::  rank-nullity, at every rank from 0 to 2
+          %+  expect-eq  !>(`@ud`2)  !>((add (rank:dr m) (lent ns)))
+          ::  det is blind to transposition, and multiplicative
+          %+  expect-eq  !>(`@ud`dt)  !>((det:dr (transpose:dr m)))
+          %+  expect-eq
+            !>((det:dr (mul:dr m m)))
+          !>((cmul:fp dt dt))
+          ::  the characteristic polynomial is monic of degree 2, with
+          ::  constant term det and x-coefficient -trace
+          %+  expect-eq  !>(`@ud`3)  !>((lent (charpoly:dr m)))
+          %+  expect-eq  !>(`@ud`dt)  !>((snag 0 (charpoly:dr m)))
+          %+  expect-eq
+            !>((cneg:fp (cadd:fp (get:dr m 0 0) (get:dr m 1 1))))
+          !>((snag 1 (charpoly:dr m)))
+          ::  over a field, invertible is exactly det nonzero
+          ?:  =(0 dt)
+            (expect-fail |.((inv:dr m)))
+          %+  expect-eq  !>((idn:dr 2))  !>((mul:dr m (inv:dr m)))
+        ==
+      ::  every kernel basis vector really is in the kernel
+      =/  vs  ns
+      |-  ^-  tang
+      ?~  vs  ~
+      %+  weld
+        %+  expect-eq
+          !>((zeros:dr 2 1))
+        !>((mul:dr m (transpose:dr ~[i.vs])))
+      $(vs t.vs)
+  ==
 --
