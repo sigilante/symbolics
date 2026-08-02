@@ -139,11 +139,26 @@
 ::
 ::  BEYOND cap ERRORS THE ANSWER MAY BE WRONG, not merely absent.  A word
 ::  far enough from every codeword can land nearer a DIFFERENT one, and the
-::  decoder will then return that other codeword with every syndrome
-::  satisfied.  This is inherent to the code, not a defect of this
-::  implementation: measured over 3000 random over-capacity corruptions,
-::  2974 were detected and 26 miscorrected.  A caller needing certainty
-::  that no such substitution occurred must carry its own integrity check.
+::  decoder returns that other codeword with every syndrome satisfied.
+::
+::  This cannot be fixed inside the decoder, and the point was measured
+::  rather than assumed.  The two consistency checks one would reach for --
+::  requiring every located position to have nonzero magnitude, and
+::  requiring deg(omega) < deg(lambda) -- change NOTHING: over 20.000
+::  trials at each of nsym = 2 and 4, adding either or both left the
+::  miscorrection count byte-identical.  That is the theory confirmed: a
+::  miscorrection is a genuine valid codeword, its error pattern entirely
+::  self-consistent relative to the wrong answer, so the information needed
+::  to reject it is not present in the received word.
+::
+::  What does work is policy, and the rate falls steeply with parity:
+::
+::      nsym = 2    426 / 20.000    2.1%
+::      nsym = 4      9 / 20.000    0.045%
+::
+::  So: spend two more parity symbols, use +decode-upto to trade correction
+::  power for detection, or carry an outer integrity check over the message.
+::  Only the last gives certainty.
 ::
 ::  The pipeline is the classical one: syndromes, then the key equation by
 ::  a PARTIAL extended Euclid, then Chien search for the error positions
@@ -216,4 +231,32 @@
   ::  this the decoder would happily return a word it merely guessed at.
   ?.  (levy (syndromes out) |=(s=@ud =(0 s)))  ~
   `out
+::    +decode-upto:  decode, refusing corrections beyond a chosen weight
+::
+::  [recv=(list @ud) maxerr=@ud] -> (unit (list @ud)).  As +decode, but
+::  produces ~ when the correction would alter more than .maxerr symbols.
+::
+::  This trades correction power for detection reliability.  Miscorrection
+::  happens when a word lands nearer some OTHER codeword, which requires
+::  the apparent error weight to be large; capping that weight below cap
+::  refuses exactly those decodes, at the cost of no longer correcting
+::  genuine error patterns that heavy.
+::
+::  With maxerr = cap this is identical to +decode.  With maxerr = 0 it is
+::  a pure integrity check: the word is returned only if already clean.
+++  decode-upto
+  |=  [recv=(list @ud) maxerr=@ud]
+  ^-  (unit (list @ud))
+  =/  got  (decode recv)
+  ?~  got  ~
+  =/  moved=@ud
+    =/  a=(list @ud)  recv
+    =/  b=(list @ud)  u.got
+    =/  acc=@ud       0
+    |-  ^-  @ud
+    ?~  a  acc
+    ?~  b  acc
+    $(a t.a, b t.b, acc ?:(=(i.a i.b) acc +(acc)))
+  ?:  (gth moved maxerr)  ~
+  got
 --

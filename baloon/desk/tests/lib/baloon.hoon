@@ -12,7 +12,7 @@
 ::  library arm they would otherwise be exercising.
 ::
 /-  *baloon, *racoon
-/+  *test, baloon, racoon, vec=baloon-vectors
+/+  *test, baloon, racoon, vec=baloon-vectors, fmt=baloon-fmt
 =/  qq  qq:racoon
 =/  qx  qx:racoon
 =/  qm  qm:baloon
@@ -1052,4 +1052,81 @@
   !>  %+  skip  eigen-vectors:vec
       |=  [a=qmat evs=(list [val=frac mult=@ud])]
       =(evs (eigen:qm a))
+::
++|  %fmt
+::  Rendering and parsing (/lib/baloon-fmt).  A consumer of the library, as
+::  racoon-fmt is to Racoon.  The parser buys a free property test: print
+::  then parse must be the identity over the whole generated corpus.
+::
+++  test-fmt-scalars
+  ;:  weld
+    %+  expect-eq  !>("3/4")   !>((shof:fmt [--3 4]))
+    %+  expect-eq  !>("-3/4")  !>((shof:fmt [-3 4]))
+    ::  an integral rational drops its denominator
+    %+  expect-eq  !>("3")     !>((shof:fmt [--3 1]))
+    %+  expect-eq  !>("0")     !>((shof:fmt [--0 1]))
+    %+  expect-eq  !>("-7")    !>((shof:fmt [-7 1]))
+  ==
+++  test-fmt-render
+  =/  m2=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
+  ;:  weld
+    ::  entries are right-aligned to a common width, so the grid reads
+    ::  squarely rather than raggedly
+    %+  expect-eq
+      !>(`(list tape)`~["[ 1 2 ]" "[ 3 4 ]"])
+    !>((shom:fmt m2))
+    ::  a wider entry widens every column
+    %+  expect-eq
+      !>(`(list tape)`~["[   1 -25 ]" "[ 3/4   4 ]"])
+    !>((shom:fmt ~[~[[--1 1] [-25 1]] ~[[--3 4] [--4 1]]]))
+    %+  expect-eq  !>("2 x 2")  !>((shod:fmt m2))
+    %+  expect-eq  !>("1 x 3")  !>((shod:fmt (zeros:qm 1 3)))
+    %+  expect-eq
+      !>("[1 2]")
+    !>((shov:fmt ~[[--1 1] [--2 1]]))
+  ==
+++  test-fmt-parse
+  ;:  weld
+    %+  expect-eq
+      !>(`(unit qmat)`[~ ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]])
+    !>((redm:fmt '[[1 2] [3 4]]'))
+    ::  commas and arbitrary whitespace are accepted
+    %+  expect-eq
+      !>((redm:fmt '[[1 2] [3 4]]'))
+    !>((redm:fmt '[[1, 2], [3, 4]]'))
+    ::  negative and fractional entries, canonicalized on the way in
+    %+  expect-eq
+      !>(`(unit qmat)`[~ ~[~[[--1 2] [-1 3]]]])
+    !>((redm:fmt '[[2/4, -1/3]]'))
+    ::  a ragged matrix is rejected: raggedness is outside the canonical
+    ::  form, and the parser is the right boundary to catch it
+    %+  expect-eq  !>(`(unit qmat)`~)  !>((redm:fmt '[[1 2] [3]]'))
+    ::  as is nonsense
+    %+  expect-eq  !>(`(unit qmat)`~)  !>((redm:fmt 'nonsense'))
+    %+  expect-eq  !>(`(unit qmat)`~)  !>((redm:fmt '[]'))
+  ==
+::  Property: parse . print is the identity on every matrix in the corpus.
+::  Several hundred distinct matrices across the arithmetic, elimination,
+::  and spectral families.
+++  test-fmt-roundtrip
+  =/  ms=(list qmat)
+    ;:  weld
+      (turn dims-vectors:vec |=([a=qmat r=@ud c=@ud] a))
+      (turn transpose-vectors:vec |=([a=qmat t=qmat] t))
+      (turn mul-vectors:vec |=([a=qmat b=qmat c=qmat] c))
+      (turn inv-vectors:vec |=([a=qmat c=qmat] c))
+      (turn rref-vectors:vec |=([a=qmat m=qmat piv=(list @ud)] m))
+    ==
+  %+  expect-eq  !>(~)
+  !>  ^-  (list qmat)
+  %+  skip  ms
+  |=  m=qmat
+  =/  txt=@t
+    %-  crip
+    =/  ls=(list tape)  (shom:fmt m)
+    =/  out=tape  "["
+    |-  ^-  tape
+    ?~  ls  (weld out "]")
+    $(ls t.ls, out (weld out i.ls))
+  =([~ m] (redm:fmt txt))
 --

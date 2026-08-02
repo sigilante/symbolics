@@ -239,7 +239,7 @@ alone. Do not read a trend into two points.
 -test /=base=/tests/lib/racoon ~
 ```
 
-189 arms, all green. Three kinds:
+190 arms, all green. Three kinds:
 
 - **Behavioral** — known values and adversarial families. `is-prime` gets eight
   Carmichael numbers and five strong pseudoprimes rather than random odds,
@@ -302,9 +302,29 @@ arithmetic unchanged.
 
 **Beyond capacity the answer may be wrong, not merely absent.** A word far
 enough from every codeword can land nearer a *different* one, and the decoder
-will return that with every syndrome satisfied. Measured over 3000 random
-over-capacity corruptions: 2974 detected, 26 miscorrected. This is inherent
-to the code, not a defect, and it is stated in the arm's own documentation.
+returns that with every syndrome satisfied.
+
+This cannot be fixed inside the decoder, and that was measured rather than
+assumed. The two consistency checks one would reach for — requiring every
+located position to have nonzero magnitude, and requiring `deg(Ω) < deg(Λ)` —
+change **nothing**: over 20,000 trials at each of `nsym = 2` and `4`, adding
+either or both left the miscorrection count byte-identical, while never
+losing a within-capacity correction. That is the theory confirmed. A
+miscorrection is a genuine valid codeword whose error pattern is entirely
+self-consistent relative to the wrong answer, so the information needed to
+reject it is not present in the received word.
+
+What works is policy, and the rate falls steeply with parity:
+
+| `nsym` | miscorrection rate |
+|---|---:|
+| 2 | 426 / 20,000 = 2.1% |
+| 4 | 9 / 20,000 = 0.045% |
+
+Three levers, in increasing order of certainty: spend two more parity
+symbols; use `decode-upto` to refuse corrections heavier than a chosen
+weight, trading correction power for detection; or carry an outer integrity
+check over the message. Only the last is certain.
 
 ## Decision log
 

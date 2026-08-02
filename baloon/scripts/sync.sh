@@ -45,9 +45,11 @@ fi
 files="
 sur/baloon.hoon
 lib/baloon.hoon
+lib/baloon-fmt.hoon
 lib/baloon-vectors.hoon
 tests/lib/baloon.hoon
 gen/baloon-bench.hoon
+gen/baloon-det.hoon
 "
 
 copied=0

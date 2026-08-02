@@ -2284,6 +2284,28 @@
     ::  a block longer than p - 1 would repeat evaluation points
     (expect-fail |.((encode:rs4 (reap 260 1))))
   ==
+::  +decode-upto trades correction power for detection reliability.  This
+::  is the only lever that reduces miscorrection without adding parity --
+::  the consistency checks one would reach for provably do not help, since
+::  a miscorrection is a genuine valid codeword.
+++  test-rs-decode-upto
+  =/  cw=(list @ud)  ~[1 2 3 122 50 19 138]
+  =/  one=(list @ud)  ~[1 7 3 122 50 19 138]
+  =/  two=(list @ud)  ~[8 2 3 222 50 19 138]
+  ;:  weld
+    ::  at maxerr = cap it agrees with +decode exactly
+    %+  expect-eq  !>((decode:rs4 two))  !>((decode-upto:rs4 two 2))
+    %+  expect-eq  !>((decode:rs4 one))  !>((decode-upto:rs4 one 2))
+    ::  capped below the weight of the correction, it refuses
+    %+  expect-eq  !>(`(unit (list @ud))`~)  !>((decode-upto:rs4 two 1))
+    ::  but still accepts a lighter one
+    %+  expect-eq
+      !>(`(unit (list @ud))`[~ cw])
+    !>((decode-upto:rs4 one 1))
+    ::  maxerr = 0 is a pure integrity check: clean words only
+    %+  expect-eq  !>(`(unit (list @ud))`[~ cw])  !>((decode-upto:rs4 cw 0))
+    %+  expect-eq  !>(`(unit (list @ud))`~)  !>((decode-upto:rs4 one 0))
+  ==
 ++  test-rs-nocrash
   ;:  weld
     ::  a single-symbol message is fine

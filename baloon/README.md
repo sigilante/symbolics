@@ -68,13 +68,37 @@ its argument order.
 -test /=base=/tests/lib/baloon ~
 ```
 
-76 arms, all green. Behavioral, property, crash-row, and vector-driven.
+80 arms, all green. Behavioral, property, crash-row, and vector-driven.
 §8 is treated as a two-sided contract: every crash row has a dedicated test
 and every non-crash boundary has a matching expected-success test.
 
 Property-test inputs are built by local helpers rather than by the library
 arm they would otherwise be exercising — the same discipline Racoon's suite
 uses.
+
+## Human surface
+
+`/lib/baloon-fmt` renders matrices as aligned grids and parses them back, so
+nothing has to be read as a nested list of ZigZag rationals. A consumer of
+the library, exactly as `racoon-fmt` is to Racoon.
+
+```
++baloon-det '[[1 2] [3 4]]'
+[ 1 2 ]
+[ 3 4 ]
+dims  2 x 2
+rank  2
+det   -2
+no rational eigenvalues
+```
+
+Entries are right-aligned to a common width — alignment is most of what
+makes a printed matrix legible. The parser accepts `[[1 2] [3 4]]` and
+`[[1, 2], [3, 4]]` alike, with any whitespace, and **rejects ragged input**:
+raggedness is outside the canonical form, and a parser is the right boundary
+to catch it rather than admit it.
+
+`parse . print` is asserted as an identity over the whole generated corpus.
 
 ## Benchmarks
 
@@ -115,14 +139,23 @@ asymptotic shape. Fraction-free elimination earns its keep.
 | — | `det` by Bareiss over ℤ, not Gauss–Jordan over ℚ | B4. Rational elimination swells denominators badly. Bareiss keeps every intermediate an exact integer — each division is exact by Sylvester's identity — so the arm clears denominators, eliminates over ℤ, then divides the scaling back out. Same discipline `gcd:qx` uses in delegating to `gcd:zx`. |
 | — | `rref` pivots on the first nonzero, not the largest | There is no rounding error to control, so magnitude-based partial pivoting buys nothing. That technique belongs to Lagoon's world. First-nonzero is deterministic and exact. |
 | — | Dimensions derived, not stored | Carrying `[r c data]` adds two invariants that can desync; deriving adds one, rectangularity. |
-| — | `idn` vectors number 12, not the §11.2 minimum of 40 | The arm is parameterized only by a dimension, so there is no input variety to sample; sizes 1–12 cover the structure exhaustively. Padding to 40 would be ceremony, and 40×40 identity literals would add ~200 KB to the corpus. **Proposed §11.2 amendment — see below.** |
+| — | `idn` vectors number 12, not 40 | The arm is parameterized only by a dimension, so there is no input variety to sample; sizes 1–12 cover the structure exhaustively. Padding to 40 would be ceremony, and 40×40 identity literals would add ~200 KB to the corpus. §11.2 was amended to permit this — see below. |
 
-### Open spec question
+### Resolved spec question
 
-§11.2 requires ≥ 40 vector cases per public arm. That fits arms with a rich
-input space and does not fit arms parameterized only by a dimension, where
-`idn` and `zeros` exhaust their structure in a dozen cases. Proposed
-amendment: *≥ 40 cases per public arm where the arm's input space warrants
-it; arms parameterized only by dimension may instead use exhaustive
-small-case coverage, documented in the decision log.* Not applied pending
-review — §11 is pinned material and silence is not acceptance.
+§11.2 originally required ≥ 40 vector cases per public arm without
+qualification. That fits arms with a rich input space and does not fit arms
+parameterized only by a dimension, where `idn` and `zeros` exhaust their
+structure in a dozen cases. The section now reads:
+
+> ≥ 40 cases per public arm **where the arm's input space warrants it**; an
+> arm parameterized only by a dimension may instead use exhaustive
+> small-case coverage, documented in the decision log.
+
+`idn` is the one arm relying on this. Every other family meets the 40
+minimum.
+
+A second concern raised at the same time turned out to be unfounded and
+needed no amendment: §11.5's benchmark sizes of 4/8/16 were expected to be
+impractical for interpreted exact arithmetic, but all three run comfortably
+— the largest, `inv` at n = 16, takes 364 ms.
