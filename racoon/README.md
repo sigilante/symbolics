@@ -18,7 +18,7 @@ and file name. Only the spec document spells it `raccoon`.
 |---|---|---|
 | **P0** | `nz`, `qq` — integers, number theory, rational scalars | **complete, frozen** |
 | P1 | `zx` — ℤ[x] arithmetic | **complete** |
-| P1 | `mx` — (ℤ/n)[x] arithmetic and ℤ/n scalars | not started |
+| P1 | `mx` — (ℤ/n)[x] arithmetic and ℤ/n scalars | **complete** |
 | P2 | division, GCD, resultants | not started |
 | P3 | factorization | not started |
 
@@ -97,7 +97,9 @@ python3 tools/genvec.py > desk/lib/racoon-vectors.hoon
 ```
 
 Deterministic: the PRNG seed is pinned in the script, so regeneration is
-byte-identical. 25 families, 44–64 cases each, against the §11.2 minimum of 40.
+byte-identical. 42 families, 44–64 cases each, against the §11.2 minimum of 40.
+Moduli cover §11.2's required set: `p = 2`, `p = 3`, a 61-bit prime, and the
+composites 6, 12, 100, and 256.
 
 Oracles are independent implementations — `math.gcd`, `math.isqrt`,
 `sympy.isprime`, `sympy.ntheory.modular.crt`, `fractions.Fraction`, and
@@ -144,23 +146,33 @@ per row unless noted. Per-call figures are derived, not measured directly.
 | `mul:qq` | | 1.045 ms | ~10.5 µs |
 | `div:qq` | | 1.476 ms | ~14.8 µs |
 | `cmp:qq` | | 529 µs | ~5.3 µs |
-| `add:zx` | degree 64 | 14.463 ms | ~145 µs |
-| `mul:zx` | degree 16 | 160.825 ms | ~1.61 ms |
-| `mul:zx` | degree 64 (10 iter) | 235.067 ms | ~23.5 ms |
-| `mul:zx` | degree 256 (1 iter) | 363.691 ms | ~364 ms |
+| `add:zx` | degree 64 | 15.032 ms | ~150 µs |
+| `mul:zx` | degree 16 | 156.787 ms | ~1.57 ms |
+| `mul:zx` | degree 64 (10 iter) | 238.026 ms | ~23.8 ms |
+| `mul:zx` | degree 256 (1 iter) | 388.148 ms | ~388 ms |
+| `mul:mx` | degree 16, 61-bit 𝔽p | 62.256 ms | ~623 µs |
+| `mul:mx` | degree 64, 61-bit 𝔽p (10 iter) | 84.885 ms | ~8.49 ms |
+| `mul:mx` | degree 256, 61-bit 𝔽p (1 iter) | 136.280 ms | ~136 ms |
 
-Two observations worth carrying into Milestone B:
+Observations worth carrying into Milestone B:
 
 - **`egcd` costs ~31× `gcd`** on identical inputs. Both run the same division
   sequence; the difference is the signed cofactor bookkeeping through `++si`,
   which allocates on every step. That ratio is the single most interesting
   number in this table, and `egcd` is a `pinned` arm, so a jet must reproduce
   the cofactors exactly rather than route around them.
-- **`mul:zx` is cleanly quadratic**: 1.61 ms → 23.5 ms → 364 ms across degrees
-  16/64/256 is 16× per 4× of degree, which is what classical convolution
-  should cost. That the measured curve matches the algorithm is the useful
-  fact here — it means the baseline is measuring what it claims to, and
-  Karatsuba/NTT in Milestone B have an honest curve to beat.
+- **Both `mul` arms are cleanly quadratic**: `mul:zx` runs 1.57 ms → 23.8 ms →
+  388 ms and `mul:mx` runs 0.62 ms → 8.49 ms → 136 ms across degrees
+  16/64/256, both close to 16× per 4× of degree, which is what classical
+  convolution should cost. That the measured curve matches the algorithm means
+  the baseline measures what it claims to, so Karatsuba/NTT in Milestone B have
+  an honest curve to beat.
+- **`mul:mx` is ~2.5× faster than `mul:zx`** at equal degree, despite doing a
+  modular reduction on every coefficient operation. The modular arithmetic is
+  plain `@ud` add/mul/mod, all jetted; `zx` routes every operation through
+  `++si`, whose ZigZag encode/decode allocates. This is the same effect the
+  `egcd`-vs-`gcd` row shows, and together the two say that in Milestone A the
+  dominant cost of signed work is `++si`, not the mathematics.
 - **The `is-prime` rows differ by 37×** between 20-bit and 61-bit inputs, but
   the 61-bit row deliberately feeds *primes*. A random 61-bit odd number is
   almost always rejected by trial division against the witness schedule, so
@@ -168,10 +180,10 @@ Two observations worth carrying into Milestone B:
   this table did exactly that and reported the 61-bit case as *faster* than the
   20-bit one.
 
-The §11.4 rows named by degree — `mul`/`gcd` over a 61-bit 𝔽p at 16/64/256,
-`gcd:zx` at degree 64, `factor:zx` at degree 32 — still require `mx` and the
-Phase 2–3 arms. Those are not faked; `+polynomial-rows` carries the `zx` rows
-that exist and will grow as the phases land.
+Of the §11.4 rows named by degree, `mul` over a 61-bit 𝔽p at 16/64/256 is now
+present. Still outstanding, because they need Phase 2–3 arms: `gcd:mx` at the
+same degrees, `gcd:zx` at degree 64, and `factor:zx` at degree 32. Those are
+not faked; `+polynomial-rows` grows as the phases land.
 
 ## Testing
 
@@ -179,7 +191,7 @@ that exist and will grow as the phases land.
 -test /=base=/tests/lib/racoon ~
 ```
 
-73 arms, all green. Three kinds:
+102 arms, all green. Three kinds:
 
 - **Behavioral** — known values and adversarial families. `is-prime` gets eight
   Carmichael numbers and five strong pseudoprimes rather than random odds,

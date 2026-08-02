@@ -26,6 +26,7 @@
 =/  nz  nz:racoon
 =/  qq  qq:racoon
 =/  zx  zx:racoon
+=/  mx  mx:racoon
 :-  %say
 |=  *
 :-  %noun
@@ -51,7 +52,7 @@
     =/  j  bench-qq-div
     =/  k  bench-qq-cmp
     ~&  '::'
-    ~&  '::  +zx  Z[x]  (mx/qx rows await Phases 1-3)'
+    ~&  '::  +zx and +mx polynomials  (gcd/factor rows await Phases 2-3)'
     =/  l  polynomial-rows
     ~&  '::'
     ::  consume every accumulator so nothing is elided
@@ -257,7 +258,46 @@
     (bench-zx-mul a64 b64 '  mul:zx            degree 64   (n/10)' (div n 10))
   =/  r  (bench-zx-mul a256 b256 '  mul:zx            degree 256  (1 iter)' 1)
   =/  s  (bench-zx-add a64 b64 '  add:zx            degree 64   (n iter)' n)
-  :(add p q r s)
+  ::  SPEC S11.4 names mul over a 61-bit F_p at degrees 16/64/256
+  =/  fp  2.305.843.009.213.693.951
+  =/  u16   (mpoly 16 0 fp)
+  =/  v16   (mpoly 16 7 fp)
+  =/  u64   (mpoly 64 0 fp)
+  =/  v64   (mpoly 64 7 fp)
+  =/  u256  (mpoly 256 0 fp)
+  =/  v256  (mpoly 256 7 fp)
+  =/  t
+    %^  bench-mx-mul  fp  [u16 v16]
+    ['  mul:mx            degree 16   61-bit F_p  (n iter)' n]
+  =/  u
+    %^  bench-mx-mul  fp  [u64 v64]
+    ['  mul:mx            degree 64   61-bit F_p  (n/10)' (div n 10)]
+  =/  v
+    %^  bench-mx-mul  fp  [u256 v256]
+    ['  mul:mx            degree 256  61-bit F_p  (1 iter)' 1]
+  :(add p q r s t u v)
+::
+::    +mpoly:  a canonical mol of the given degree, modulo m
+::
+::  Coefficients are drawn from [1, 1.000.001), which is strictly inside
+::  [0, m) for every modulus used here, so the leading coefficient is nonzero
+::  and the list is canonical without reduction.
+++  mpoly
+  |=  [d=@ud off=@ud m=@ud]
+  ^-  mol
+  (naturals-from +(d) +(off) 1.000.000)
+::
+++  bench-mx-mul
+  |=  [m=@ud [a=mol b=mol] label=@t count=@ud]
+  ^-  @
+  =/  dr  ~(. mx m)
+  ~&  label
+  ~>  %bout
+  =|  acc=@
+  =/  i=@ud  count
+  |-  ^-  @
+  ?:  =(0 i)  acc
+  $(i (dec i), acc (add acc (lent (mul:dr a b))))
 ::
 ++  bench-zx-mul
   |=  [a=zol b=zol label=@t count=@ud]

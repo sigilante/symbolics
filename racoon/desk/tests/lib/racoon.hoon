@@ -12,6 +12,11 @@
 =/  nz  nz:racoon
 =/  qq  qq:racoon
 =/  zx  zx:racoon
+=/  mx  mx:racoon
+::  doors at a prime, a composite, and the smallest modulus
+=/  m7   ~(. mx 7)
+=/  m6   ~(. mx 6)
+=/  m2   ~(. mx 2)
 |%
 +|  %seeds
 ::    +seed-nz:  pinned PRNG seed for the +nz property tests
@@ -62,6 +67,30 @@
   =/  rs=zol  (flop ss)
   ?~  rs  ~
   (flop [?:(=(--0 i.rs) --1 i.rs) t.rs])
+::    +to-mol:  reduce a zol into a canonical mol modulo n
+::
+::  Note that ++dul:si is NOT usable here: it computes (sub b +.c) for a
+::  negative operand, which underflows whenever the magnitude exceeds n, and
+::  the supply below reaches 20 against moduli as small as 2.  Reducing the
+::  magnitude first is what makes this total.
+::
+::  Trailing zeros are dropped locally rather than through +canon:mx, so the
+::  property tests do not depend on the arm they would be exercising.
+++  to-mol
+  |=  [a=zol n=@ud]
+  ^-  mol
+  =/  cs=(list @ud)
+    %+  turn  a
+    |=  c=@s
+    ^-  @ud
+    =/  m=@ud  (mod (abs:si c) n)
+    ?:  (syn:si c)  m
+    (mod (sub n m) n)
+  =/  r=(list @ud)  (flop cs)
+  |-  ^-  mol
+  ?~  r  ~
+  ?:  =(0 i.r)  $(r t.r)
+  (flop r)
 ::    +zols:  a deterministic supply of canonical polynomials
 ++  zols
   |=  [seed=@ count=@ud]
@@ -590,12 +619,220 @@
       |=(r=zol =(r (canon:zx r)))
   ==
 ::
++|  %p1-mx
+::  Phase 1: (Z/n)[x] and Z/n scalars.
+::
+::  Z/n is not an integral domain for composite n, so the tests that matter
+::  most here are the ones at n = 6 where a product of nonzero values is zero.
+::
+++  test-p1-mx-scalars
+  ;:  weld
+    %+  expect-eq  !>(`@ud`1)  !>((cadd:m7 3 5))
+    %+  expect-eq  !>(`@ud`4)  !>((csub:m7 2 5))
+    %+  expect-eq  !>(`@ud`1)  !>((cmul:m7 3 5))
+    %+  expect-eq  !>(`@ud`0)  !>((cneg:m7 0))
+    %+  expect-eq  !>(`@ud`4)  !>((cneg:m7 3))
+    %+  expect-eq  !>(`@ud`5)  !>((cinv:m7 3))
+    %+  expect-eq  !>(`@ud`1)  !>((cinv:m7 1))
+    %+  expect-eq  !>(`@ud`6)  !>((cinv:m7 6))
+    ::  5 is a unit mod 6 and is its own inverse
+    %+  expect-eq  !>(`@ud`5)  !>((cinv:m6 5))
+    ::  the smallest modulus
+    %+  expect-eq  !>(`@ud`1)  !>((cadd:m2 1 0))
+    %+  expect-eq  !>(`@ud`0)  !>((cadd:m2 1 1))
+    %+  expect-eq  !>(`@ud`1)  !>((cneg:m2 1))
+  ==
+::  S8: cpow(0, 0) = 1, pinned, no crash.
+++  test-p1-mx-cpow
+  ;:  weld
+    %+  expect-eq  !>(`@ud`1)  !>((cpow:m7 0 0))
+    %+  expect-eq  !>(`@ud`1)  !>((cpow:m7 3 0))
+    %+  expect-eq  !>(`@ud`0)  !>((cpow:m7 0 5))
+    %+  expect-eq  !>(`@ud`4)  !>((cpow:m7 3 4))
+    %+  expect-eq  !>(`@ud`2)  !>((cpow:m7 2 10))
+    %+  expect-eq  !>(`@ud`1)  !>((cpow:m6 0 0))
+    %+  expect-eq  !>(`@ud`1)  !>((cpow:m2 0 0))
+    ::  Fermat: a^(p-1) = 1 for a nonzero mod a prime
+    %+  expect-eq  !>(`@ud`1)  !>((cpow:m7 3 6))
+    %+  expect-eq  !>(`@ud`1)  !>((cpow:m7 5 6))
+  ==
+++  test-p1-mx-poly
+  ;:  weld
+    %+  expect-eq  !>(`mol`~[1])   !>((canon:m7 ~[1 0]))
+    %+  expect-eq  !>(`mol`~)      !>((canon:m7 ~[0 0]))
+    %+  expect-eq  !>(`@ud`2)      !>((deg:m7 ~[1 2 3]))
+    %+  expect-eq  !>(`@ud`3)      !>((lc:m7 ~[1 2 3]))
+    ::  3 + 4 = 0 mod 7: the sum vanishes entirely
+    %+  expect-eq  !>(`mol`~)      !>((add:m7 ~[3] ~[4]))
+    ::  and here only the leading term cancels
+    %+  expect-eq  !>(`mol`~[2])   !>((add:m7 ~[1 3] ~[1 4]))
+    %+  expect-eq  !>(`mol`~)      !>((sub:m7 ~[1 2] ~[1 2]))
+    %+  expect-eq
+      !>(`mol`~[6 5])
+    !>((neg:m7 ~[1 2]))
+    %+  expect-eq
+      !>(`mol`~[0 0 0 1 2])
+    !>((shift:m7 ~[1 2] 3))
+    %+  expect-eq  !>(`mol`~)      !>((shift:m7 ~ 4))
+    %+  expect-eq
+      !>(`mol`~[3 6])
+    !>((scale:m7 ~[1 2] 3))
+    %+  expect-eq  !>(`mol`~)      !>((scale:m7 ~[1 2] 0))
+    ::  1 + 2*3 = 7 = 0 mod 7
+    %+  expect-eq  !>(`@ud`0)      !>((eval:m7 ~[1 2] 3))
+    %+  expect-eq  !>(`@ud`0)      !>((eval:m7 ~ 5))
+    %+  expect-eq  !>(`ord`%lt)    !>((pcmp:m7 ~ ~[1]))
+    %+  expect-eq  !>(`ord`%lt)    !>((pcmp:m7 ~[1 2] ~[1 3]))
+  ==
+::  The zero-divisor cases.  Z/6 is not an integral domain, so a product of
+::  nonzero polynomials can be zero and +mul must canonicalize -- unlike
+::  +mul:zx, which cannot hit this.
+++  test-p1-mx-zero-divisors
+  ;:  weld
+    ::  (2x)(3x) = 6x^2 = 0 mod 6
+    %+  expect-eq  !>(`mol`~)       !>((mul:m6 ~[0 2] ~[0 3]))
+    ::  2 * 3 = 0 mod 6, so scaling annihilates
+    %+  expect-eq  !>(`mol`~)       !>((scale:m6 ~[3] 2))
+    ::  (1 + 2x)(1 + 3x) = 1 + 5x + 6x^2 = 1 + 5x mod 6: degree drops
+    %+  expect-eq  !>(`mol`~[1 5])  !>((mul:m6 ~[1 2] ~[1 3]))
+    ::  (3x)(4x) = 12x^2 = 0 mod 12
+    %+  expect-eq  !>(`mol`~)       !>((mul:~(. mx 12) ~[0 3] ~[0 4]))
+    ::  16^2 = 256 = 0 mod 256
+    %+  expect-eq  !>(`mol`~)       !>((mul:~(. mx 256) ~[0 16] ~[0 16]))
+    ::  over a prime this cannot happen: the degree always adds
+    %+  expect-eq
+      !>(`mol`~[1 2 1])
+    !>((mul:m7 ~[1 1] ~[1 1]))
+  ==
+::  Property: the commutative ring axioms of (Z/n)[x], sampled at a prime and
+::  at a composite modulus.
+++  test-p1-mx-axioms
+  =/  ns=(list @ud)  ~[2 3 6 7 97 100]
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol zol])
+  %+  skip  (ztriples (zols seed-zx 30))
+  |=  [x=zol y=zol z=zol]
+  %+  levy  ns
+  |=  n=@ud
+  =/  d  ~(. mx n)
+  =/  a  (to-mol x n)
+  =/  b  (to-mol y n)
+  =/  c  (to-mol z n)
+  ?&  =((add:d a b) (add:d b a))
+      =((mul:d a b) (mul:d b a))
+      =((add:d a (add:d b c)) (add:d (add:d a b) c))
+      =((mul:d a (mul:d b c)) (mul:d (mul:d a b) c))
+      =((mul:d a (add:d b c)) (add:d (mul:d a b) (mul:d a c)))
+      =(~ (add:d a (neg:d a)))
+      =(a (add:d a ~))
+      =(a (mul:d a ~[1]))
+      =(~ (mul:d a ~))
+      =((sub:d a b) (add:d a (neg:d b)))
+  ==
+::  Property: every +mx product is canonical, and coefficients stay in [0, n).
+++  test-p1-mx-canonical
+  =/  ns=(list @ud)  ~[2 3 6 7 12 97]
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol])
+  %+  skip  (zpairs (zols seed-zx 30))
+  |=  [x=zol y=zol]
+  %+  levy  ns
+  |=  n=@ud
+  =/  d  ~(. mx n)
+  =/  a  (to-mol x n)
+  =/  b  (to-mol y n)
+  =/  rs=(list mol)
+    :~  (add:d a b)  (sub:d a b)  (mul:d a b)  (neg:d a)
+        (shift:d a 3)  (scale:d a 2)  (canon:d a)
+    ==
+  ?&  =(a (canon:d a))
+      %+  levy  rs
+      |=  r=mol
+      ?&  =(r (canon:d r))
+          (levy r |=(c=@ud (lth c n)))
+      ==
+  ==
+::  Property: +cinv inverts every unit, and +cpow agrees with repeated +cmul.
+++  test-p1-mx-scalar-laws
+  =/  ns=(list @ud)  ~[2 3 5 6 7 12 97 100]
+  %+  expect-eq  !>(~)
+  !>  ^-  (list @ud)
+  %+  skip  (rng seed-zx 60 1.000)
+  |=  r=@ud
+  %+  levy  ns
+  |=  n=@ud
+  =/  d  ~(. mx n)
+  =/  a  (mod r n)
+  =/  e  (mod r 12)
+  ?&  ::  cpow by repeated multiplication
+      =((cpow:d a e) |-(?:(=(0 e) (mod 1 n) (cmul:d a $(e (dec e))))))
+      ::  additive inverse
+      =(0 (cadd:d a (cneg:d a)))
+      ::  multiplicative inverse, where one exists
+      ?|  ?!(=(1 (gcd:nz a n)))
+          =(1 (cmul:d a (cinv:d a)))
+      ==
+  ==
+::  Property: +eval is a ring homomorphism (Z/n)[x] -> Z/n.
+++  test-p1-mx-eval-homomorphism
+  =/  ns=(list @ud)   ~[2 3 6 7 97]
+  ::  the point list needs its (list @ud) face: +levy recurses through
+  ::  $(a t.a), which will not nest against a fixed-length tuple type
+  =/  pts=(list @ud)  ~[0 1 2]
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol])
+  %+  skip  (zpairs (zols seed-zx 30))
+  |=  [x=zol y=zol]
+  %+  levy  ns
+  |=  n=@ud
+  =/  d  ~(. mx n)
+  =/  a  (to-mol x n)
+  =/  b  (to-mol y n)
+  %+  levy  pts
+  |=  pt=@ud
+  =/  p  (mod pt n)
+  ?&  =((eval:d (add:d a b) p) (cadd:d (eval:d a p) (eval:d b p)))
+      =((eval:d (mul:d a b) p) (cmul:d (eval:d a p) (eval:d b p)))
+  ==
+::
 +|  %p1-crashes
 ::  S8: +deg and +lc crash on the zero polynomial.
 ++  test-p1-crash-zx-deg-zero
   (expect-fail |.((deg:zx ~)))
 ++  test-p1-crash-zx-lc-zero
   (expect-fail |.((lc:zx ~)))
+::  S8: +deg and +lc crash on ~ in every ring.
+++  test-p1-crash-mx-deg-zero
+  (expect-fail |.((deg:m7 ~)))
+++  test-p1-crash-mx-lc-zero
+  (expect-fail |.((lc:m7 ~)))
+::  S8: +cinv crashes on a non-unit, which includes 0.
+++  test-p1-crash-mx-cinv-non-unit
+  ;:  weld
+    (expect-fail |.((cinv:m7 0)))
+    (expect-fail |.((cinv:m6 0)))
+    ::  2, 3, and 4 all share a factor with 6
+    (expect-fail |.((cinv:m6 2)))
+    (expect-fail |.((cinv:m6 3)))
+    (expect-fail |.((cinv:m6 4)))
+    (expect-fail |.((cinv:m2 0)))
+  ==
+::  The +mx arms that must NOT crash.
+++  test-p1-nocrash-mx
+  ;:  weld
+    ::  S8: cpow(0, 0) returns 1 rather than crashing
+    (expect-success |.((cpow:m7 0 0)))
+    (expect-success |.((cpow:m6 0 0)))
+    ::  the units of Z/6 are exactly 1 and 5
+    (expect-success |.((cinv:m6 1)))
+    (expect-success |.((cinv:m6 5)))
+    (expect-success |.((canon:m7 ~)))
+    (expect-success |.((add:m7 ~ ~)))
+    (expect-success |.((mul:m7 ~ ~)))
+    (expect-success |.((neg:m7 ~)))
+    (expect-success |.((eval:m7 ~ 3)))
+    (expect-success |.((cneg:m7 0)))
+  ==
 ::  The arms that must NOT crash on the zero polynomial.
 ++  test-p1-nocrash-zx-zero
   ;:  weld
@@ -767,4 +1004,110 @@
   !>  %+  skip  zx-eval-vectors:vec
       |=  [a=zol x=@s y=@s]
       =(y (eval:zx a x))
+::
+::  +mx families.  Each case carries its own modulus, so the door is built
+::  per case.  The oracle computes over ZZ and reduces afterwards, which is
+::  independent of the Hoon's reduce-at-every-step convolution.
+::
+++  test-p1-vec-mx-cadd
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-cadd-vectors:vec
+      |=  [n=@ud a=@ud b=@ud c=@ud]
+      =(c (cadd:~(. mx n) a b))
+::
+++  test-p1-vec-mx-csub
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-csub-vectors:vec
+      |=  [n=@ud a=@ud b=@ud c=@ud]
+      =(c (csub:~(. mx n) a b))
+::
+++  test-p1-vec-mx-cmul
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-cmul-vectors:vec
+      |=  [n=@ud a=@ud b=@ud c=@ud]
+      =(c (cmul:~(. mx n) a b))
+::
+++  test-p1-vec-mx-cneg
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-cneg-vectors:vec
+      |=  [n=@ud a=@ud c=@ud]
+      =(c (cneg:~(. mx n) a))
+::
+++  test-p1-vec-mx-cinv
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-cinv-vectors:vec
+      |=  [n=@ud a=@ud c=@ud]
+      =(c (cinv:~(. mx n) a))
+::
+++  test-p1-vec-mx-cpow
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-cpow-vectors:vec
+      |=  [n=@ud a=@ud e=@ud c=@ud]
+      =(c (cpow:~(. mx n) a e))
+::
+++  test-p1-vec-mx-canon
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-canon-vectors:vec
+      |=  [n=@ud in=mol out=mol]
+      =(out (canon:~(. mx n) in))
+::
+++  test-p1-vec-mx-deg
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-deg-vectors:vec
+      |=  [n=@ud a=mol d=@ud]
+      =(d (deg:~(. mx n) a))
+::
+++  test-p1-vec-mx-lc
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-lc-vectors:vec
+      |=  [n=@ud a=mol c=@ud]
+      =(c (lc:~(. mx n) a))
+::
+++  test-p1-vec-mx-pcmp
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-pcmp-vectors:vec
+      |=  [n=@ud a=mol b=mol o=ord]
+      =(o (pcmp:~(. mx n) a b))
+::
+++  test-p1-vec-mx-add
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-add-vectors:vec
+      |=  [n=@ud a=mol b=mol c=mol]
+      =(c (add:~(. mx n) a b))
+::
+++  test-p1-vec-mx-sub
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-sub-vectors:vec
+      |=  [n=@ud a=mol b=mol c=mol]
+      =(c (sub:~(. mx n) a b))
+::
+++  test-p1-vec-mx-mul
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-mul-vectors:vec
+      |=  [n=@ud a=mol b=mol c=mol]
+      =(c (mul:~(. mx n) a b))
+::
+++  test-p1-vec-mx-neg
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-neg-vectors:vec
+      |=  [n=@ud a=mol c=mol]
+      =(c (neg:~(. mx n) a))
+::
+++  test-p1-vec-mx-shift
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-shift-vectors:vec
+      |=  [n=@ud a=mol k=@ud c=mol]
+      =(c (shift:~(. mx n) a k))
+::
+++  test-p1-vec-mx-scale
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-scale-vectors:vec
+      |=  [n=@ud a=mol c=@ud out=mol]
+      =(out (scale:~(. mx n) a c))
+::
+++  test-p1-vec-mx-eval
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-eval-vectors:vec
+      |=  [n=@ud a=mol x=@ud y=@ud]
+      =(y (eval:~(. mx n) a x))
 --

@@ -450,13 +450,222 @@
       ?~  r  acc
       $(r t.r, acc (sum:si (pro:si acc x) i.r))
     --
-  ::    +mx:  (Z/n)[x] and Z/n scalars; a door on the modulus.
+  ::    +mx:  (Z/n)[x] and Z/n scalars; a door on the modulus
   ::
-  ::  Precondition n >= 2 on all arms (SPEC S8).  Serves both Z/n and F_p;
-  ::  field-only arms assert primality at runtime.
+  ::  Scalars are @ud in [0, n); polynomials are dense little-endian with no
+  ::  trailing zero coefficient.  One door serves both Z/n and F_p; the
+  ::  field-only arms of Phase 3 assert primality at runtime.
+  ::
+  ::  Precondition n >= 2 on every arm.  Per SPEC S2.6 and S8 this is NOT
+  ::  asserted: n < 2 is outside the supported domain, where the Hoon
+  ::  computes whatever it deterministically computes and a Milestone B jet
+  ::  detects the violation and falls back.
+  ::
+  ::  Z/n is NOT an integral domain for composite n, so unlike +zx a product
+  ::  of nonzero values can be zero -- 2 * 3 = 0 mod 6.  Every arm that
+  ::  multiplies must therefore canonicalize its product.  This is the one
+  ::  place where the +zx and +mx implementations genuinely differ, rather
+  ::  than differing only in coefficient type.
+  ::
+  ::  Phase 1 arithmetic below.  Phase 2 adds divmod, gcd, egcd, and powmod;
+  ::  Phase 3 adds sqfree, ddf, edf, and factor.
   ++  mx
     ~/  %mx
     |_  n=@ud
+    ::    +cadd:  addition in Z/n
+    ::
+    ::  [a=@ud b=@ud] -> @ud in [0, n).  Never crashes.
+    ++  cadd
+      |=  [a=@ud b=@ud]
+      ^-  @ud
+      (mod (^add a b) n)
+    ::    +csub:  subtraction in Z/n
+    ::
+    ::  [a=@ud b=@ud] -> @ud in [0, n).  Adds n before subtracting, so the
+    ::  intermediate never underflows for canonical inputs.  Never crashes.
+    ++  csub
+      |=  [a=@ud b=@ud]
+      ^-  @ud
+      (mod (^sub (^add a n) b) n)
+    ::    +cmul:  multiplication in Z/n
+    ::
+    ::  [a=@ud b=@ud] -> @ud in [0, n).  Never crashes.
+    ++  cmul
+      |=  [a=@ud b=@ud]
+      ^-  @ud
+      (mod (^mul a b) n)
+    ::    +cneg:  additive inverse in Z/n
+    ::
+    ::  [a=@ud] -> @ud in [0, n).  cneg(0) = 0.  Never crashes.
+    ++  cneg
+      |=  a=@ud
+      ^-  @ud
+      (mod (^sub n a) n)
+    ::    +cinv:  multiplicative inverse in Z/n
+    ::
+    ::  [a=@ud] -> @ud in [0, n), the unique b with a*b = 1 mod n.
+    ::  Crashes on a non-unit, which includes 0 (SPEC S8): +egcd produces
+    ::  d = n for a = 0, and n >= 2, so the unit check rejects it.
+    ++  cinv
+      |=  a=@ud
+      ^-  @ud
+      =/  e  (egcd:nz a n)
+      ?>  =(1 d.e)
+      ::  u*a = 1 mod n; the EEA bound |u| <= n/2 keeps +dul safe
+      (dul:si u.e n)
+    ::    +cpow:  exponentiation in Z/n
+    ::
+    ::  [a=@ud e=@ud] -> @ud in [0, n).  Binary left-to-right
+    ::  square-and-multiply (S7).  0^0 = 1, pinned, no crash (S8).
+    ++  cpow
+      |=  [a=@ud e=@ud]
+      ^-  @ud
+      (powm:pv a e n)
+    ::    +canon:  impose the canonical form
+    ::
+    ::  [a=mol] -> mol.  Strips every trailing zero coefficient.  The only
+    ::  arm that accepts non-canonical input.  Never crashes.
+    ++  canon
+      |=  a=mol
+      ^-  mol
+      =/  r=mol  (flop a)
+      |-  ^-  mol
+      ?~  r  ~
+      ?:  =(0 i.r)  $(r t.r)
+      (flop r)
+    ::    +is-zero:  is this the zero polynomial?
+    ::
+    ::  [a=mol] -> ?.  Never crashes.
+    ++  is-zero
+      |=  a=mol
+      ^-  ?
+      =(~ a)
+    ::    +deg:  degree
+    ::
+    ::  [a=mol] -> @ud.  Crashes on ~ (SPEC S8).
+    ++  deg
+      |=  a=mol
+      ^-  @ud
+      ?~  a  !!
+      (dec (lent a))
+    ::    +lc:  leading coefficient
+    ::
+    ::  [a=mol] -> @ud, nonzero by the canonical form.  Crashes on ~ (S8).
+    ++  lc
+      |=  a=mol
+      ^-  @ud
+      ?~  a  !!
+      |-  ^-  @ud
+      ?~  t.a  i.a
+      $(a t.a)
+    ::    +pcmp:  total order on (Z/n)[x]
+    ::
+    ::  [a=mol b=mol] -> ord.  SPEC S7: shorter list first, so ~ is least;
+    ::  at equal length compare coefficients numerically from the highest
+    ::  index down.  Never crashes.
+    ++  pcmp
+      |=  [a=mol b=mol]
+      ^-  ord
+      =/  la=@ud  (lent a)
+      =/  lb=@ud  (lent b)
+      ?:  (lth la lb)  %lt
+      ?:  (gth la lb)  %gt
+      =/  ra=mol  (flop a)
+      =/  rb=mol  (flop b)
+      |-  ^-  ord
+      ?~  ra  %eq
+      ?~  rb  %eq
+      ?:  (lth i.ra i.rb)  %lt
+      ?:  (gth i.ra i.rb)  %gt
+      $(ra t.ra, rb t.rb)
+    ::    +add:  addition in (Z/n)[x]
+    ::
+    ::  [a=mol b=mol] -> mol.  Coefficientwise; canonicalized, since leading
+    ::  terms can cancel.  Never crashes.
+    ++  add
+      |=  [a=mol b=mol]
+      ^-  mol
+      %-  canon
+      |-  ^-  mol
+      ?~  a  b
+      ?~  b  a
+      [(cadd i.a i.b) $(a t.a, b t.b)]
+    ::    +neg:  additive inverse in (Z/n)[x]
+    ::
+    ::  [a=mol] -> mol.  For canonical input the leading coefficient is in
+    ::  (0, n), so its negation is too, and the canonical form is preserved.
+    ::  Never crashes.
+    ++  neg
+      |=  a=mol
+      ^-  mol
+      (turn a |=(c=@ud (cneg c)))
+    ::    +sub:  subtraction in (Z/n)[x]
+    ::
+    ::  [a=mol b=mol] -> mol.  Never crashes.
+    ++  sub
+      |=  [a=mol b=mol]
+      ^-  mol
+      (add a (neg b))
+    ::    +mul:  multiplication in (Z/n)[x]
+    ::
+    ::  [a=mol b=mol] -> mol.  Classical convolution, as a sum of shifted
+    ::  scalar multiples of b.  Unlike +mul:zx the product MUST be
+    ::  canonicalized: for composite n the leading coefficient can vanish,
+    ::  as (2x)(3x) = 0 mod 6.  +add and +scale each canonicalize, so the
+    ::  accumulator is canonical at every step.
+    ::  mul(~, b) = mul(a, ~) = ~.  Never crashes.
+    ++  mul
+      ~/  %mul
+      |=  [a=mol b=mol]
+      ^-  mol
+      ?~  a  ~
+      ?~  b  ~
+      =/  xs=mol   a
+      =/  acc=mol  ~
+      =/  k=@ud    0
+      |-  ^-  mol
+      ?~  xs  acc
+      %=  $
+        xs   t.xs
+        k    +(k)
+        acc  (add acc (shift (scale b i.xs) k))
+      ==
+    ::    +shift:  multiply by x^k
+    ::
+    ::  [a=mol k=@ud] -> mol, prepending k zero coefficients.
+    ::  shift(~, k) = ~.  Never crashes.
+    ++  shift
+      |=  [a=mol k=@ud]
+      ^-  mol
+      ?~  a  ~
+      =/  out=mol  a
+      =/  i=@ud    k
+      |-  ^-  mol
+      ?:  =(0 i)  out
+      $(i (dec i), out [0 out])
+    ::    +scale:  multiply by a scalar
+    ::
+    ::  [a=mol c=@ud] -> mol.  Canonicalized: c = 0 collapses to ~, and for
+    ::  composite n a nonzero c can still annihilate the leading
+    ::  coefficient.  Never crashes.
+    ++  scale
+      |=  [a=mol c=@ud]
+      ^-  mol
+      ?:  =(0 c)  ~
+      %-  canon
+      (turn a |=(d=@ud (cmul c d)))
+    ::    +eval:  evaluate at a point of Z/n
+    ::
+    ::  [a=mol x=@ud] -> @ud in [0, n).  Horner's rule, from the highest
+    ::  coefficient down.  eval(~, x) = 0.  Never crashes.
+    ++  eval
+      |=  [a=mol x=@ud]
+      ^-  @ud
+      =/  r=mol    (flop a)
+      =/  acc=@ud  0
+      |-  ^-  @ud
+      ?~  r  acc
+      $(r t.r, acc (cadd (cmul acc x) i.r))
     --
   ::    +qx:  Q[x].  Phase 2.
   ++  qx

@@ -75,6 +75,13 @@ def zol(c):
     return "~[%s]" % " ".join(sd(v) for v in c)
 
 
+def mol(c):
+    """Format a little-endian coefficient list as a $mol literal."""
+    if not c:
+        return "~"
+    return "~[%s]" % " ".join(ud(v) for v in c)
+
+
 def emit(name, hoon_type, rows, doc):
     """Emit one vector arm."""
     print("::    +%s:  %s" % (name, doc))
@@ -511,6 +518,200 @@ def zx_eval_rows(rng):
 
 
 # --------------------------------------------------------------------------
+# (Z/n)[x] -- Phase 1
+#
+# The oracle computes over ZZ with sympy and reduces afterwards, which is
+# independent of the Hoon's reduce-at-every-step convolution.  Reduction is a
+# ring homomorphism, so the two must agree.
+#
+# SPEC S11.2 requires p = 2, p = 3, a 61-bit prime, and composite n.  The
+# composite moduli are the interesting ones: Z/n is not an integral domain, so
+# a product of nonzero polynomials can be zero and +mul must canonicalize.
+# --------------------------------------------------------------------------
+
+MODULI = [2, 3, 5, 6, 7, 12, 97, 100, 256, MERSENNE_61]
+
+
+def mod_strip(c, n):
+    """Reduce coefficients mod n and drop trailing zeros."""
+    c = [v % n for v in c]
+    while c and c[-1] == 0:
+        c.pop()
+    return c
+
+
+def mx_poly(rng, n, maxdeg=6):
+    """A canonical (Z/n)[x] polynomial."""
+    d = rng.randrange(0, maxdeg + 1)
+    c = [rng.randrange(0, n) for _ in range(d)]
+    c.append(rng.randrange(1, n))     # nonzero lc keeps it canonical
+    return mod_strip(c, n)
+
+
+def mx_cases(rng, count):
+    """(modulus, poly, poly) triples cycling the modulus list."""
+    out = []
+    # the edge polynomials first, at the smallest and a composite modulus
+    for n in (2, 6):
+        out.append((n, [], []))
+        out.append((n, [1], []))
+        out.append((n, [], [1]))
+        out.append((n, [1], [1]))
+    # (2x)(3x) = 0 mod 6: the case that forces +mul to canonicalize
+    out.append((6, [0, 2], [0, 3]))
+    out.append((6, [3], [2]))
+    out.append((6, [1, 2], [1, 3]))
+    out.append((12, [0, 3], [0, 4]))
+    out.append((100, [0, 10], [0, 10]))
+    out.append((256, [0, 16], [0, 16]))
+    while len(out) < count:
+        n = MODULI[len(out) % len(MODULI)]
+        out.append((n, mx_poly(rng, n), mx_poly(rng, n)))
+    return out
+
+
+def mx_scalar_rows(rng, op, count=48):
+    """Binary Z/n scalar arms -- [n a b c]."""
+    rows = []
+    i = 0
+    while len(rows) < count:
+        n = MODULI[i % len(MODULI)]
+        i += 1
+        a = rng.randrange(0, n)
+        b = rng.randrange(0, n)
+        rows.append("[%s %s %s %s]"
+                    % (ud(n), ud(a), ud(b), ud(op(a, b, n))))
+    return rows
+
+
+def mx_cneg_rows(rng, count=48):
+    rows = []
+    for i in range(count):
+        n = MODULI[i % len(MODULI)]
+        a = 0 if i < len(MODULI) else rng.randrange(0, n)
+        rows.append("[%s %s %s]" % (ud(n), ud(a), ud((-a) % n)))
+    return rows
+
+
+def mx_cinv_rows(rng, count=48):
+    """+cinv:mx -- [n a c].  Only units; non-units crash (SPEC S8)."""
+    rows = []
+    i = 0
+    while len(rows) < count:
+        n = MODULI[i % len(MODULI)]
+        i += 1
+        a = 1 if i <= len(MODULI) else rng.randrange(1, n)
+        if math.gcd(a, n) != 1:
+            continue
+        c = pow(a, -1, n)
+        assert (a * c) % n == 1
+        rows.append("[%s %s %s]" % (ud(n), ud(a), ud(c)))
+    return rows
+
+
+def mx_cpow_rows(rng, count=48):
+    """+cpow:mx -- [n a e c].  0^0 = 1 is pinned (SPEC S8)."""
+    rows = [
+        "[%s %s %s %s]" % (ud(n), ud(0), ud(0), ud(1))
+        for n in MODULI
+    ]
+    rows += ["[%s %s %s %s]" % (ud(n), ud(0), ud(5), ud(0)) for n in MODULI]
+    i = 0
+    while len(rows) < count:
+        n = MODULI[i % len(MODULI)]
+        i += 1
+        a = rng.randrange(0, n)
+        e = rng.randrange(0, 40)
+        rows.append("[%s %s %s %s]" % (ud(n), ud(a), ud(e), ud(pow(a, e, n))))
+    return rows
+
+
+def mx_canon_rows(rng, count=48):
+    rows = []
+    for i, (n, a, _) in enumerate(mx_cases(rng, count)):
+        k = (i % 3) + 1
+        rows.append("[%s %s %s]" % (ud(n), mol(a + [0] * k), mol(a)))
+    return rows
+
+
+def mx_deg_rows(rng, count=52):
+    rows = []
+    for n, a, _ in mx_cases(rng, count):
+        if not a:
+            continue
+        rows.append("[%s %s %s]" % (ud(n), mol(a), ud(len(a) - 1)))
+    return rows
+
+
+def mx_lc_rows(rng, count=52):
+    rows = []
+    for n, a, _ in mx_cases(rng, count):
+        if not a:
+            continue
+        rows.append("[%s %s %s]" % (ud(n), mol(a), ud(a[-1])))
+    return rows
+
+
+def mx_pcmp_rows(rng, count=48):
+    rows = []
+    for n, a, b in mx_cases(rng, count):
+        rows.append("[%s %s %s %s]" % (ud(n), mol(a), mol(b),
+                                       pinned_pcmp(a, b)))
+    return rows
+
+
+def mx_binop_rows(rng, op, count=48):
+    rows = []
+    for n, a, b in mx_cases(rng, count):
+        c = mod_strip(of_poly(op(to_poly(a), to_poly(b))), n)
+        rows.append("[%s %s %s %s]" % (ud(n), mol(a), mol(b), mol(c)))
+    return rows
+
+
+def mx_neg_rows(rng, count=48):
+    rows = []
+    for n, a, _ in mx_cases(rng, count):
+        c = mod_strip([-v for v in a], n)
+        rows.append("[%s %s %s]" % (ud(n), mol(a), mol(c)))
+    return rows
+
+
+def mx_shift_rows(rng, count=48):
+    rows = []
+    for i, (n, a, _) in enumerate(mx_cases(rng, count)):
+        k = i % 6
+        c = mod_strip(([0] * k + a) if a else [], n)
+        rows.append("[%s %s %s %s]" % (ud(n), mol(a), ud(k), mol(c)))
+    return rows
+
+
+def mx_scale_rows(rng, count=48):
+    """+scale:mx -- [n a c out].  Includes zero and zero-divisor scalars."""
+    rows = []
+    for i, (n, a, _) in enumerate(mx_cases(rng, count)):
+        s = 0 if i % 7 == 0 else rng.randrange(0, n)
+        c = mod_strip([v * s for v in a], n)
+        rows.append("[%s %s %s %s]" % (ud(n), mol(a), ud(s), mol(c)))
+    return rows
+
+
+def mx_eval_rows(rng, count=48):
+    """+eval:mx -- [n a x y].
+
+    Evaluated over ZZ and reduced afterwards, NOT by Horner mod n.  Repeating
+    the Hoon's own algorithm here would check the transcription and nothing
+    else; going through ZZ makes this an independent oracle, valid because
+    reduction mod n is a ring homomorphism.
+    """
+    rows = []
+    for n, a, _ in mx_cases(rng, count):
+        x = rng.randrange(0, n)
+        y = 0 if not a else int(to_poly(a).eval(x)) % n
+        rows.append("[%s %s %s %s]" % (ud(n), mol(a), ud(x), ud(y)))
+    return rows
+
+
+# --------------------------------------------------------------------------
 
 
 def main():
@@ -594,6 +795,47 @@ def main():
          "+scale:zx, oracle sympy.Poly over ZZ")
     emit("zx-eval-vectors", "(list [a=zol x=@s y=@s])", zx_eval_rows(rng),
          "+eval:zx, oracle sympy Poly.eval")
+
+    mt = "(list [n=@ud a=mol b=mol c=mol])"
+    ms = "(list [n=@ud a=@ud b=@ud c=@ud])"
+    emit("mx-cadd-vectors", ms,
+         mx_scalar_rows(rng, lambda a, b, n: (a + b) % n),
+         "+cadd:mx")
+    emit("mx-csub-vectors", ms,
+         mx_scalar_rows(rng, lambda a, b, n: (a - b) % n),
+         "+csub:mx")
+    emit("mx-cmul-vectors", ms,
+         mx_scalar_rows(rng, lambda a, b, n: (a * b) % n),
+         "+cmul:mx")
+    emit("mx-cneg-vectors", "(list [n=@ud a=@ud c=@ud])", mx_cneg_rows(rng),
+         "+cneg:mx")
+    emit("mx-cinv-vectors", "(list [n=@ud a=@ud c=@ud])", mx_cinv_rows(rng),
+         "+cinv:mx; units only, since non-units crash")
+    emit("mx-cpow-vectors", "(list [n=@ud a=@ud e=@ud c=@ud])",
+         mx_cpow_rows(rng), "+cpow:mx; includes the pinned 0^0 = 1")
+    emit("mx-canon-vectors", "(list [n=@ud in=mol out=mol])",
+         mx_canon_rows(rng), "+canon:mx; inputs carry trailing zeros")
+    emit("mx-deg-vectors", "(list [n=@ud a=mol d=@ud])", mx_deg_rows(rng),
+         "+deg:mx; the zero polynomial crashes, so it is excluded")
+    emit("mx-lc-vectors", "(list [n=@ud a=mol c=@ud])", mx_lc_rows(rng),
+         "+lc:mx; the zero polynomial crashes, so it is excluded")
+    emit("mx-pcmp-vectors", "(list [n=@ud a=mol b=mol o=ord])",
+         mx_pcmp_rows(rng), "+pcmp:mx, the pinned SPEC S7 order")
+    emit("mx-add-vectors", mt, mx_binop_rows(rng, lambda p, q: p + q),
+         "+add:mx, oracle sympy over ZZ then reduced")
+    emit("mx-sub-vectors", mt, mx_binop_rows(rng, lambda p, q: p - q),
+         "+sub:mx, oracle sympy over ZZ then reduced")
+    emit("mx-mul-vectors", mt, mx_binop_rows(rng, lambda p, q: p * q),
+         "+mul:mx, oracle sympy over ZZ then reduced")
+    emit("mx-neg-vectors", "(list [n=@ud a=mol c=mol])", mx_neg_rows(rng),
+         "+neg:mx")
+    emit("mx-shift-vectors", "(list [n=@ud a=mol k=@ud c=mol])",
+         mx_shift_rows(rng), "+shift:mx")
+    emit("mx-scale-vectors", "(list [n=@ud a=mol c=@ud out=mol])",
+         mx_scale_rows(rng),
+         "+scale:mx; includes zero and zero-divisor scalars")
+    emit("mx-eval-vectors", "(list [n=@ud a=mol x=@ud y=@ud])",
+         mx_eval_rows(rng), "+eval:mx, oracle sympy over ZZ then reduced")
 
     print("--")
 
