@@ -6,7 +6,7 @@
 
 The Urbit symbolics stack covers the mathematics of:
 
-* $ℤ$ represents the set of integers (e.g., ${-2, -1, 0, 1, 2, ...}$).
+* $ℤ$ represents the set of integers (e.g., $\{-2, -1, 0, 1, 2, ...\}$).
 * $ℚ$ denotes the set of rational numbers, which are quotients of integers (fractions like $\frac{1}{2}$ or $-\frac{7}{3}$), including all integers as a subset.
 * $𝔽p$ (also written as $Z/pZ$ or $GF(p)$) is a finite field consisting of integers modulo a prime number $p$; it is used in modular arithmetic where addition and multiplication wrap around after reaching $p$. 
 * $ℤ/n$ (standardly written as $ℤ/nℤ$ or $ℤ/(n)$) represents the ring of integers modulo $n$, containing $n$ residue classes ${0, 1, ..., n-1}$ where operations are performed by taking the remainder of division by $n$.
