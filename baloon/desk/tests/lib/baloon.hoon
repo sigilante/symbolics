@@ -1,7 +1,7 @@
   ::  /tests/lib/baloon
 ::::  Baloon test suite
 ::
-::  Phases 0 through 2: shape, arithmetic, and elimination.
+::  Phases 0 through 3: shape, arithmetic, elimination, spectra.
 ::
 ::  Naming: ++test-p0-*, ++test-p1-*, and so on.  Every crash row in SPEC
 ::  S8 gets a dedicated ++test-*-crash-* arm, and every non-crash row a
@@ -14,6 +14,7 @@
 /-  *baloon, *racoon
 /+  *test, baloon, racoon, vec=baloon-vectors
 =/  qq  qq:racoon
+=/  qx  qx:racoon
 =/  qm  qm:baloon
 |%
 +|  %seeds
@@ -868,4 +869,187 @@
   !>  %+  skip  nullspace-vectors:vec
       |=  [a=qmat ns=(list qvec)]
       =(ns (nullspace:qm a))
+::
++|  %p3-spectral
+++  test-p3-charpoly
+  =/  ma=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
+  =/  md=qmat  ~[~[[--2 1] [--0 1]] ~[[--0 1] [--3 1]]]
+  =/  mr=qmat  ~[~[[--0 1] [-1 1]] ~[[--1 1] [--0 1]]]
+  =/  mj=qmat  ~[~[[--5 1] [--1 1]] ~[[--0 1] [--5 1]]]
+  =/  mt=qmat
+    :~  ~[[--1 1] [--2 1] [--3 1]]
+        ~[[--4 1] [--5 1] [--6 1]]
+        ~[[--7 1] [--8 1] [--10 1]]
+    ==
+  ;:  weld
+    ::  x^2 - 5x - 2
+    %+  expect-eq
+      !>(`qol`~[[-2 1] [-5 1] [--1 1]])
+    !>((charpoly:qm ma))
+    ::  a diagonal matrix: (x-2)(x-3) = x^2 - 5x + 6
+    %+  expect-eq
+      !>(`qol`~[[--6 1] [-5 1] [--1 1]])
+    !>((charpoly:qm md))
+    ::  a rotation: x^2 + 1, irreducible over Q
+    %+  expect-eq
+      !>(`qol`~[[--1 1] [--0 1] [--1 1]])
+    !>((charpoly:qm mr))
+    ::  a Jordan block: (x-5)^2 = x^2 - 10x + 25
+    %+  expect-eq
+      !>(`qol`~[[--25 1] [-10 1] [--1 1]])
+    !>((charpoly:qm mj))
+    ::  odd dimension, where det(xI - A) and det(A - xI) finally differ
+    %+  expect-eq
+      !>(`qol`~[[--3 1] [-12 1] [-16 1] [--1 1]])
+    !>((charpoly:qm mt))
+    ::  a 1x1 matrix [c] has characteristic polynomial x - c
+    %+  expect-eq
+      !>(`qol`~[[-7 1] [--1 1]])
+    !>((charpoly:qm ~[~[[--7 1]]]))
+  ==
+++  test-p3-eigen
+  =/  md=qmat  ~[~[[--2 1] [--0 1]] ~[[--0 1] [--3 1]]]
+  =/  mr=qmat  ~[~[[--0 1] [-1 1]] ~[[--1 1] [--0 1]]]
+  =/  mj=qmat  ~[~[[--5 1] [--1 1]] ~[[--0 1] [--5 1]]]
+  =/  ma=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
+  ;:  weld
+    ::  a diagonal matrix: its diagonal, ascending
+    %+  expect-eq
+      !>(`(list [val=frac mult=@ud])`~[[[--2 1] 1] [[--3 1] 1]])
+    !>((eigen:qm md))
+    ::  a repeated eigenvalue keeps its multiplicity
+    %+  expect-eq
+      !>(`(list [val=frac mult=@ud])`~[[[--5 1] 2]])
+    !>((eigen:qm mj))
+    ::  a rotation has NO rational eigenvalues -- the honest answer is ~,
+    ::  not an approximation
+    %+  expect-eq  !>(`(list [val=frac mult=@ud])`~)  !>((eigen:qm mr))
+    ::  irrational eigenvalues are likewise absent
+    %+  expect-eq  !>(`(list [val=frac mult=@ud])`~)  !>((eigen:qm ma))
+    ::  a 1x1 matrix has its entry as its eigenvalue
+    %+  expect-eq
+      !>(`(list [val=frac mult=@ud])`~[[[-3 4] 1]])
+    !>((eigen:qm ~[~[[-3 4]]]))
+    ::  fractional eigenvalues come out exact
+    %+  expect-eq
+      !>(`(list [val=frac mult=@ud])`~[[[-1 3] 1] [[--1 2] 1]])
+    !>((eigen:qm ~[~[[--1 2] [--0 1]] ~[[--0 1] [-1 3]]]))
+  ==
+::
++|  %p3-properties
+::  Property: the characteristic polynomial is monic of degree n.
+++  test-p3-prop-charpoly-monic
+  %+  expect-eq  !>(~)
+  !>  ^-  (list qmat)
+  %+  skip  (qsquares seed-qm 24)
+  |=  m=qmat
+  =/  n   r:(dims:qm m)
+  =/  cp  (charpoly:qm m)
+  ?&  =(+(n) (lent cp))
+      =(one:qq (rear cp))
+  ==
+::  Property: the constant term of det(xI - A) is (-1)^n det(A), and the
+::  x^(n-1) coefficient is -trace(A).  Both are standard identities and
+::  both would break under the det(A - xI) convention.
+++  test-p3-prop-charpoly-coeffs
+  %+  expect-eq  !>(~)
+  !>  ^-  (list qmat)
+  %+  skip  (qsquares seed-qm 24)
+  |=  m=qmat
+  =/  n   r:(dims:qm m)
+  =/  cp  (charpoly:qm m)
+  =/  tr=frac
+    =/  i=@ud     0
+    =/  acc=frac  zero:qq
+    |-  ^-  frac
+    ?:  (gte i n)  acc
+    $(i +(i), acc (add:qq acc (get:qm m i i)))
+  =/  d=frac  (det:qm m)
+  ?&  ::  constant term
+      =/  k=frac  (snag 0 `qol`cp)
+      =(k ?:(=(0 (mod n 2)) d (neg:qq d)))
+      ::  the next-to-leading coefficient
+      =(=(0 n) %.n)
+      =/  s=frac  (snag (dec n) `qol`cp)
+      =(s (neg:qq tr))
+  ==
+::  Property: every rational eigenvalue really is a root of the
+::  characteristic polynomial, and total multiplicity never exceeds n.
+++  test-p3-prop-eigen-roots
+  %+  expect-eq  !>(~)
+  !>  ^-  (list qmat)
+  %+  skip  (qsquares seed-qm 24)
+  |=  m=qmat
+  =/  n    r:(dims:qm m)
+  =/  cp   (charpoly:qm m)
+  =/  evs  (eigen:qm m)
+  ?&  %+  levy  evs
+      |=([val=frac mult=@ud] =(zero:qq (eval:qx cp val)))
+      ::  multiplicities are positive and sum to at most n
+      (levy evs |=([val=frac mult=@ud] (gth mult 0)))
+      =/  tot=@ud
+        =/  es=(list [val=frac mult=@ud])  evs
+        =/  acc=@ud  0
+        |-  ^-  @ud
+        ?~  es  acc
+        $(es t.es, acc (add acc mult.i.es))
+      (lte tot n)
+  ==
+::  Property: an eigenvalue makes A - lambda*I singular, which is the
+::  defining property and is checked independently of how it was found.
+++  test-p3-prop-eigen-singular
+  %+  expect-eq  !>(~)
+  !>  ^-  (list qmat)
+  %+  skip  (qsquares seed-qm 24)
+  |=  m=qmat
+  =/  n  r:(dims:qm m)
+  %+  levy  (eigen:qm m)
+  |=  [val=frac mult=@ud]
+  =/  shifted  (sub:qm m (scale:qm (idn:qm n) val))
+  ?&  =(zero:qq (det:qm shifted))
+      ::  and so has a nonempty kernel
+      (gth (lent (nullspace:qm shifted)) 0)
+  ==
+::  Property: eigenvalues are strictly ascending, hence sorted and distinct.
+++  test-p3-prop-eigen-sorted
+  %+  expect-eq  !>(~)
+  !>  ^-  (list qmat)
+  %+  skip  (qsquares seed-qm 24)
+  |=  m=qmat
+  =/  es=(list [val=frac mult=@ud])  (eigen:qm m)
+  |-  ^-  ?
+  ?~  es  %.y
+  ?~  t.es  %.y
+  ?&(=(%lt (cmp:qq val.i.es val.i.t.es)) $(es t.es))
+::
++|  %p3-crashes
+::  S8: +charpoly requires square input.
+++  test-p3-crash-charpoly-nonsquare
+  =/  w=qmat  ~[~[[--1 1] [--2 1] [--3 1]]]
+  ;:  weld
+    (expect-fail |.((charpoly:qm w)))
+    (expect-fail |.((eigen:qm w)))
+  ==
+++  test-p3-nocrash
+  =/  mr=qmat  ~[~[[--0 1] [-1 1]] ~[[--1 1] [--0 1]]]
+  ;:  weld
+    ::  no rational eigenvalues produces ~, not a crash
+    (expect-success |.((eigen:qm mr)))
+    (expect-success |.((eigen:qm (zeros:qm 3 3))))
+    (expect-success |.((charpoly:qm (zeros:qm 3 3))))
+    (expect-success |.((charpoly:qm ~[~[[--7 1]]])))
+  ==
+::
++|  %p3-vectors
+++  test-p3-vec-charpoly
+  %+  expect-eq  !>(~)
+  !>  %+  skip  charpoly-vectors:vec
+      |=  [a=qmat cp=qol]
+      =(cp (charpoly:qm a))
+::
+++  test-p3-vec-eigen
+  %+  expect-eq  !>(~)
+  !>  %+  skip  eigen-vectors:vec
+      |=  [a=qmat evs=(list [val=frac mult=@ud])]
+      =(evs (eigen:qm a))
 --

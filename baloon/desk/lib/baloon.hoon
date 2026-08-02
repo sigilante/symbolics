@@ -13,16 +13,19 @@
 ::  uniqueness needs help, as with the nullspace basis, SPEC S7 pins a
 ::  CONVENTION rather than an algorithm.
 ::
-::  Phases 0 through 2: shape, arithmetic, and elimination.
+::  Phases 0 through 3: shape, arithmetic, elimination, and spectra.
 ::
 ::  Jet registration follows /lib/racoon, which follows urbit/numerics
 ::  /lib/math.hoon: one root ~% under %non, then ~/ per nested core.
 ::
 /-  *baloon, *racoon
 /+  racoon
-::  Racoon's cores.  +qx is bound when Phase 3's +charpoly lands.
+::  Racoon's cores.  +qx carries the characteristic polynomial; +zx
+::  factors it, which is how the rational eigenvalues come out exact.
 =/  qq  qq:racoon
 =/  nz  nz:racoon
+=/  zx  zx:racoon
+=/  qx  qx:racoon
 =<  baloon
 ~%  %non  ..part  ~
 |%
@@ -121,6 +124,34 @@
     ?~  x  zero:qq
     ?~  y  zero:qq
     (add:qq (mul:qq i.x i.y) $(x t.x, y t.y))
+  ::    +lagrange:  the unique polynomial through a set of points
+  ::
+  ::  [(list [x=frac y=frac])] -> qol, of degree below the point count.
+  ::  The x values must be pairwise distinct, which the caller guarantees
+  ::  by sampling at 0, 1, ..., n.
+  ::
+  ::  Sum over i of y_i times the basis polynomial that is 1 at x_i and 0
+  ::  at every other node.  Built with +qx arithmetic, so every
+  ::  coefficient stays an exact rational.
+  ++  lagrange
+    |=  pts=(list [x=frac y=frac])
+    ^-  qol
+    =/  all=(list [x=frac y=frac])  pts
+    =/  rest=(list [x=frac y=frac])  pts
+    =|  acc=qol
+    |-  ^-  qol
+    ?~  rest  acc
+    ::  basis_i(t) = prod over j /= i of (t - x_j) / (x_i - x_j)
+    =/  basis=qol
+      =/  js=(list [x=frac y=frac])  all
+      =/  b=qol  ~[one:qq]
+      |-  ^-  qol
+      ?~  js  b
+      ?:  =(x.i.js x.i.rest)  $(js t.js)
+      =/  den=frac  (sub:qq x.i.rest x.i.js)
+      =/  lin=qol   ~[(neg:qq (div:qq x.i.js den)) (inv:qq den)]
+      $(js t.js, b (mul:qx b lin))
+    $(rest t.rest, acc (add:qx acc (scale:qx basis y.i.rest)))
   ::    +zat:  index into a row of integers
   ++  zat
     |=  [v=(list @s) i=@ud]
@@ -215,7 +246,7 @@
   ::  outside the supported domain: the Hoon computes deterministically and
   ::  a Milestone B jet detects the violation and falls back.
   ::
-  ::  Phases 0 through 2 below.  Phase 3 adds charpoly and eigen.
+  ::  All four phases below.
   ++  qm
     ~/  %qm
     |%
@@ -597,6 +628,73 @@
         $(ps t.ps, i +(i))
       ?~  at  zero:qq
       (neg:qq (vat:pv (mrow:pv m.rr u.at) j))
+    ::    +charpoly:  the characteristic polynomial
+    ::
+    ::  [m=qmat] -> qol, monic of degree n.  Crashes on a non-square input
+    ::  (SPEC S8).
+    ::
+    ::  det(xI - A), NOT det(A - xI).  The two differ by (-1)^n and agree
+    ::  only in even dimension, so a 2x2 test cannot tell them apart; the
+    ::  convention is pinned in S7 and was verified against the definition
+    ::  at odd dimension before being written down.
+    ::
+    ::  Computed by interpolation: the polynomial has degree n, so its
+    ::  values at n+1 distinct points determine it.  Each value is a
+    ::  determinant, which +det already computes fraction-free.  Lagrange
+    ::  interpolation then recovers the coefficients.  The product is
+    ::  canonical either way, so this arm is `free` like every other.
+    ++  charpoly
+      ~/  %charpoly
+      |=  m=qmat
+      ^-  qol
+      =/  d  (dims m)
+      ?>  =(r.d c.d)
+      =/  n=@ud  r.d
+      ::  sample det(tI - A) at t = 0, 1, ..., n
+      =/  pts=(list [x=frac y=frac])
+        %+  turn  (gulf 0 n)
+        |=  k=@ud
+        ^-  [x=frac y=frac]
+        =/  t=frac  (new:qq (sun:si k) 1)
+        :-  t
+        (det (sub (scale (idn n) t) m))
+      (lagrange:pv pts)
+    ::    +eigen:  the RATIONAL eigenvalues, with multiplicities
+    ::
+    ::  [m=qmat] -> (list [val=frac mult=@ud]), ascending by +cmp:qq.
+    ::  Crashes on a non-square input, through +charpoly.
+    ::
+    ::  IRRATIONAL AND COMPLEX EIGENVALUES ARE ABSENT, not approximated.
+    ::  A rotation matrix produces ~, and that is the honest answer: this
+    ::  library has no way to name sqrt(2) or i, and inventing a float
+    ::  would betray the whole premise.  Callers wanting to know whether
+    ::  anything was omitted should compare the total multiplicity here
+    ::  against the dimension.
+    ::
+    ::  The characteristic polynomial is cleared of denominators and
+    ::  factored over Z through +factor:zx; each LINEAR factor ax + b
+    ::  contributes the root -b/a with its multiplicity.  Factors of higher
+    ::  degree are irreducible over Q and so have no rational root.
+    ++  eigen
+      |=  m=qmat
+      ^-  (list [val=frac mult=@ud])
+      =/  cp=qol  (charpoly m)
+      ?~  cp  ~
+      =/  zp=zol  (clear:qx cp)
+      ?~  zp  ~
+      =/  fc  (factor:zx zp)
+      =/  out=(list [val=frac mult=@ud])
+        %+  murn  fs.fc
+        |=  [p=zol mult=@ud]
+        ^-  (unit [val=frac mult=@ud])
+        ::  only a linear factor has a rational root
+        ?.  =(2 (lent p))  ~
+        =/  b=@s  (snag 0 `zol`p)
+        =/  a=@s  (snag 1 `zol`p)
+        `[(neg:qq (new:qq b (abs:si a))) mult]
+      %+  sort  out
+      |=  [x=[val=frac mult=@ud] y=[val=frac mult=@ud]]
+      ?!(=(%gt (cmp:qq val.x val.y)))
     --
   +|  %reserved
   ::    +zm:  matrices over Z.  Milestone C.

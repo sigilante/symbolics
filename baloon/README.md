@@ -17,7 +17,7 @@ Racoon's single `c`.
 | **P0** | shape and construction | **complete** |
 | **P1** | arithmetic | **complete** |
 | **P2** | elimination — rref, rank, det, inv, solve, nullspace | **complete** |
-| P3 | spectral — charpoly, eigen | not started |
+| **P3** | spectral — charpoly, eigen | **complete** |
 
 Milestone A is **ℚ only**. `+zm` (ℤ) and `+mm` (ℤ/n, which also serves 𝔽p)
 are declared empty and reserved for Milestone C — declaring them up front
@@ -68,13 +68,43 @@ its argument order.
 -test /=base=/tests/lib/baloon ~
 ```
 
-65 arms, all green. Behavioral, property, crash-row, and vector-driven.
+76 arms, all green. Behavioral, property, crash-row, and vector-driven.
 §8 is treated as a two-sided contract: every crash row has a dedicated test
 and every non-crash boundary has a matching expected-success test.
 
 Property-test inputs are built by local helpers rather than by the library
 arm they would otherwise be exercising — the same discipline Racoon's suite
 uses.
+
+## Benchmarks
+
+```
++baloon-bench
+```
+
+No performance gates in Milestone A; these are the denominator for
+Milestone B speedup claims. Vere 4.6, `%zuse` 409, fake `~zod`, `--loom 33`,
+Darwin arm64. One measurement each.
+
+| Arm | n = 4 | n = 8 | n = 16 |
+|---|---:|---:|---:|
+| `mul:qm` | 1.348 ms | 9.748 ms | 79.071 ms |
+| `det:qm` | 373 µs | 3.289 ms | 34.040 ms |
+| `rref:qm` | 1.479 ms | 13.633 ms | 150.946 ms |
+| `inv:qm` | 2.817 ms | 29.903 ms | 364.358 ms |
+| `charpoly:qm` | — | 63.032 ms | — |
+
+`mul` runs almost exactly 8× per doubling — cubic, which is what the triply
+nested product should cost, and a sign the baseline measures what it claims
+to. `det` tracks it closely; Bareiss is cubic in arithmetic operations, and
+the slight excess over 8× is the integer entries growing as elimination
+proceeds. `rref` and `inv` grow faster than cubic because their entries are
+rationals whose numerators and denominators both grow — which is exactly the
+swell B4 warns about, and exactly why `det` avoids it by working over ℤ.
+
+That contrast is the most useful number here: **`det` at n = 16 costs 34 ms
+against `inv`'s 364 ms**, an order of magnitude, for work of the same
+asymptotic shape. Fraction-free elimination earns its keep.
 
 ## Decision log
 

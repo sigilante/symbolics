@@ -120,6 +120,23 @@ def selfcheck():
     assert Q[0, 0] == Rational(1, 3)
     assert (Q * 3)[0, 0] == 1
 
+    # charpoly is det(xI - A), NOT det(A - xI).  The two differ by (-1)^n
+    # and agree only in even dimension, so this must be checked at ODD n or
+    # it proves nothing.
+    C = Matrix([[1, 2, 0], [3, 4, 1], [0, 1, 2]])
+    assert C.charpoly(X).as_expr().expand() == (X * eye(3) - C).det().expand()
+    assert C.charpoly(X).as_expr().expand() != (C - X * eye(3)).det().expand()
+    # and it is monic of degree n
+    cc = list(reversed(C.charpoly(X).all_coeffs()))
+    assert cc[-1] == 1 and len(cc) == 4
+
+    # eigenvals returns a value -> multiplicity map, and .is_rational
+    # distinguishes the eigenvalues this library can actually represent
+    assert Matrix([[2, 0], [0, 3]]).eigenvals() == {2: 1, 3: 1}
+    assert Matrix([[5, 1], [0, 5]]).eigenvals() == {5: 2}
+    rot = Matrix([[0, -1], [1, 0]]).eigenvals()
+    assert all(not v.is_rational for v in rot)
+
 
 # --------------------------------------------------------------------------
 # Matrix supply
@@ -399,6 +416,68 @@ def nullspace_rows(rng, count=48):
     return rows
 
 
+
+# --------------------------------------------------------------------------
+# Phase 3 families
+# --------------------------------------------------------------------------
+
+
+def spectral_supply(rng, count):
+    """Square matrices, weighted toward ones with rational spectra."""
+    out = [
+        [[Rational(1)]],
+        [[Rational(0)]],
+        [[Rational(-3, 4)]],
+        [[Rational(2), Rational(0)], [Rational(0), Rational(3)]],   # diagonal
+        [[Rational(5), Rational(1)], [Rational(0), Rational(5)]],   # repeated
+        [[Rational(1), Rational(2)], [Rational(3), Rational(4)]],   # irrational
+        [[Rational(0), Rational(-1)], [Rational(1), Rational(0)]],  # complex
+        [[Rational(1), Rational(0)], [Rational(0), Rational(1)]],
+        [[Rational(1), Rational(2), Rational(3)],
+         [Rational(4), Rational(5), Rational(6)],
+         [Rational(7), Rational(8), Rational(10)]],
+        # upper triangular: the spectrum is the diagonal
+        [[Rational(1), Rational(9)], [Rational(0), Rational(-2)]],
+        [[Rational(2), Rational(1), Rational(3)],
+         [Rational(0), Rational(-1), Rational(4)],
+         [Rational(0), Rational(0), Rational(7)]],
+        [[Rational(1, 2), Rational(0)], [Rational(0), Rational(-1, 3)]],
+    ]
+    while len(out) < count:
+        n = rng.randrange(1, 4)
+        out.append(rand_qmat(rng, n, n, denom=3, span=4))
+    return out
+
+
+def charpoly_rows(rng, count=48):
+    rows = []
+    for m in spectral_supply(rng, count):
+        M = Matrix(m)
+        cs = [Rational(c) for c in reversed(M.charpoly(X).all_coeffs())]
+        assert cs[-1] == 1                       # monic
+        assert len(cs) == M.rows + 1             # degree n
+        rows.append("[%s %s]" % (qmat(m), qvec(cs)))
+    return rows
+
+
+def eigen_rows(rng, count=48):
+    """+eigen:qm -- [m evs].  RATIONAL eigenvalues only, ascending."""
+    rows = []
+    for m in spectral_supply(rng, count):
+        M = Matrix(m)
+        ev = [(Rational(v), int(k)) for v, k in M.eigenvals().items()
+              if v.is_rational]
+        ev.sort(key=lambda t: t[0])
+        # each really is a root of the characteristic polynomial
+        for v, _ in ev:
+            assert M.charpoly(X).as_expr().subs(X, v) == 0
+        body = ("~" if not ev
+                else "~[%s]" % " ".join("[%s %s]" % (frac(v), ud(k))
+                                        for v, k in ev))
+        rows.append("[%s %s]" % (qmat(m), body))
+    return rows
+
+
 # --------------------------------------------------------------------------
 
 
@@ -463,6 +542,13 @@ def main():
     emit("nullspace-vectors", "(list [a=qmat ns=(list qvec)])",
          nullspace_rows(rng),
          "+nullspace:qm, the pinned SPEC S7 basis; rank-nullity asserted")
+
+    # Phase 3
+    emit("charpoly-vectors", "(list [a=qmat cp=qol])", charpoly_rows(rng),
+         "+charpoly:qm, det(xI - A); monic of degree n, asserted")
+    emit("eigen-vectors", "(list [a=qmat evs=(list [val=frac mult=@ud])])",
+         eigen_rows(rng),
+         "+eigen:qm, RATIONAL eigenvalues only, ascending; roots asserted")
 
     print("--")
 
