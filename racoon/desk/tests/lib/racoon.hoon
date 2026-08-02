@@ -8,7 +8,7 @@
 ::  ++og from the pinned literal seeds recorded below.
 ::
 /-  *racoon
-/+  *test, racoon
+/+  *test, racoon, vec=racoon-vectors
 =/  nz  nz:racoon
 =/  qq  qq:racoon
 |%
@@ -45,14 +45,10 @@
   ^-  ?
   ?:  =(0 a)  =(0 b)
   =(0 (mod b a))
-::    +sfrac:  a $frac as an exact rational, for oracle comparisons
-::
-::  Cross-multiplied comparison is what +cmp:qq does, so tests that need an
-::  independent check compare against ++si arithmetic directly.
-++  sfrac
-  |=  a=frac
-  ^-  [p=@s q=@ud]
-  [p.a q.a]
+::  Vector-driven arms below all follow one shape: +skip the cases whose
+::  computed value matches the oracle's, then expect the empty list.  A
+::  regression therefore names every failing case, rather than stopping at
+::  the first one.
 ::
 +|  %p0-nz-gcd
 ++  test-p0-gcd-small
@@ -403,4 +399,93 @@
     (expect-success |.((ratrec:nz 5 97 2 2)))
     (expect-success |.((ratrec:nz 0 2 0 0)))
   ==
+::
++|  %p0-vectors
+::  Generated reference vectors (SPEC deliverable 3).  The oracle is SymPy and
+::  the Python standard library; see tools/genvec.py.  These are the arms that
+::  would have caught a wrong hand-written expectation.
+::
+++  test-p0-vec-gcd
+  %+  expect-eq  !>(~)
+  !>  %+  skip  gcd-vectors:vec
+      |=  [a=@ud b=@ud g=@ud]
+      =(g (gcd:nz a b))
+::
+++  test-p0-vec-egcd
+  %+  expect-eq  !>(~)
+  !>  %+  skip  egcd-vectors:vec
+      |=  [a=@ud b=@ud d=@ud u=@s v=@s]
+      =([d u v] (egcd:nz a b))
+::
+++  test-p0-vec-isqrt
+  %+  expect-eq  !>(~)
+  !>  %+  skip  isqrt-vectors:vec
+      |=  [a=@ud r=@ud]
+      =(r (isqrt:nz a))
+::
+++  test-p0-vec-is-prime
+  %+  expect-eq  !>(~)
+  !>  %+  skip  is-prime-vectors:vec
+      |=  [n=@ud p=?]
+      =(p (is-prime:nz n))
+::
+++  test-p0-vec-crt
+  %+  expect-eq  !>(~)
+  !>  %+  skip  crt-vectors:vec
+      |=  [in=(list [r=@ud m=@ud]) r=@ud m=@ud]
+      =([r m] (crt:nz in))
+::
+++  test-p0-vec-ratrec
+  %+  expect-eq  !>(~)
+  !>  %+  skip  ratrec-vectors:vec
+      |=  [u=@ud m=@ud nb=@ud db=@ud out=(unit frac)]
+      =(out (ratrec:nz u m nb db))
+::
+++  test-p0-vec-qq-add
+  %+  expect-eq  !>(~)
+  !>  %+  skip  qq-add-vectors:vec
+      |=  [a=frac b=frac c=frac]
+      =(c (add:qq a b))
+::
+++  test-p0-vec-qq-sub
+  %+  expect-eq  !>(~)
+  !>  %+  skip  qq-sub-vectors:vec
+      |=  [a=frac b=frac c=frac]
+      =(c (sub:qq a b))
+::
+++  test-p0-vec-qq-mul
+  %+  expect-eq  !>(~)
+  !>  %+  skip  qq-mul-vectors:vec
+      |=  [a=frac b=frac c=frac]
+      =(c (mul:qq a b))
+::
+++  test-p0-vec-qq-div
+  %+  expect-eq  !>(~)
+  !>  %+  skip  qq-div-vectors:vec
+      |=  [a=frac b=frac c=frac]
+      =(c (div:qq a b))
+::
+++  test-p0-vec-qq-cmp
+  %+  expect-eq  !>(~)
+  !>  %+  skip  qq-cmp-vectors:vec
+      |=  [a=frac b=frac o=ord]
+      =(o (cmp:qq a b))
+::
+++  test-p0-vec-qq-new
+  %+  expect-eq  !>(~)
+  !>  %+  skip  qq-new-vectors:vec
+      |=  [p=@s q=@ud c=frac]
+      =(c (new:qq p q))
+::
+++  test-p0-vec-qq-neg
+  %+  expect-eq  !>(~)
+  !>  %+  skip  qq-neg-vectors:vec
+      |=  [a=frac c=frac]
+      =(c (neg:qq a))
+::
+++  test-p0-vec-qq-inv
+  %+  expect-eq  !>(~)
+  !>  %+  skip  qq-inv-vectors:vec
+      |=  [a=frac c=frac]
+      =(c (inv:qq a))
 --
