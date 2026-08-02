@@ -10,8 +10,6 @@ This repository organizes the core symbolic computing apparatus for Urbit:
 
 ℤ represents the set of integers (e.g., ${-2, -1, 0, 1, 2, ...}$), with the name derived from the German word Zahlen meaning "numbers". 
 
-ℤ* represents the set of unsigned integers (e.g., ${0, 1, 2, ...}$), or natural numbers. 
-
 ℚ denotes the set of rational numbers, which are quotients of integers (fractions like $1/2$ or $-7/3$), including all integers as a subset. 
 
 𝔽p (also written as Z/pZ or GF(p)) is a finite field consisting of integers modulo a prime number $p$; it is used in modular arithmetic where addition and multiplication wrap around after reaching $p$. 
