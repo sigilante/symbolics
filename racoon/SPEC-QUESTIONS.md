@@ -84,6 +84,35 @@ normal by the reviewer ~2026.8.1; do not chase it.
 
 ---
 
+## Q5 — R6's freeze is not achievable for `%racoon` one phase at a time
+
+**Status:** open. **Blocks:** nothing immediately; matters at the B boundary.
+**Implemented pending review.**
+
+R6 freezes a hinted core's arm set and order once its phase gate closes. That
+works for `%nz` and `%qq`, which are complete. It cannot work for `%racoon`
+itself: adding an arm to a Hoon core changes the battery axes of the arms
+already in it, so introducing `+zx`, `+mx`, and `+qx` as their phases land
+would move the `%racoon` battery at every gate — and `%racoon` is the parent
+axis each sub-core jet resolves against. Freezing `%nz` internally while the
+axis at which `%nz` itself lives keeps moving buys nothing for a jet author.
+
+Milestone A has no jets, so nothing is broken today. But §10 is titled
+jet-readiness, and this is the obligation it exists to create.
+
+**Proposed resolution (implemented):** declare all five sub-core arms now, in
+§6's order — `nz`, `qq` under `+|  %scalars`; `zx`, `mx`, `qx` under
+`+|  %polynomials` — with the three unbuilt cores empty. The `%racoon` battery
+is then fixed for the milestone, and each sub-core's own layout freezes at its
+own gate. Cost is nine lines of empty core; `+|` chapters are included because
+they also partition the battery.
+
+The alternative reading — that R6 binds only sub-cores, and `%racoon` is
+expected to churn until P3 closes — is defensible and costs nothing now.
+Say so and I will revert the reservation.
+
+---
+
 ## Notes (delegated, recorded not escalated)
 
 - **Spelling.** §3 spells every path `raccoon`; the repository directory and

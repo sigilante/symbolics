@@ -16,10 +16,15 @@ and file name. Only the spec document spells it `raccoon`.
 
 | Phase | Contents | State |
 |---|---|---|
-| **P0** | `nz`, `qq` — integers, number theory, rational scalars | complete |
+| **P0** | `nz`, `qq` — integers, number theory, rational scalars | **complete, frozen** |
 | P1 | `zx`/`mx` polynomial arithmetic | not started |
 | P2 | division, GCD, resultants | not started |
 | P3 | factorization | not started |
+
+`%nz` and `%qq` are frozen under R6: arm sets and order are fixed for
+Milestone A, and no reordering, renaming, or insertion happens without
+escalation. `%racoon` itself is frozen at five arms — see Q5 in the decision
+log.
 
 ## Layout
 
@@ -186,6 +191,7 @@ file.
 | Q2 | `+cmp:qq` produces `$ord` | Same three-valued result as `+pcmp`; `+pcmp` on `qol` delegates to it rather than reimplementing the cross-multiplication. |
 | Q3 | Add a §8 crash row: `+new:qq` on `q = 0` | No product respects the `$frac` invariant — `gcd(|p|, 0) = |p|` reduces to `q' = 0` — and R5 forbids downstream arms from re-canonicalizing, so a bad value would propagate silently. |
 | Q4 | Jet registration follows `/lib/math.hoon`, not §10's prose | §10 demands mirroring that file "exactly" while also describing "nested `~%` per sub-core"; the file and Lagoon both use one root `~%` under `%non` and plain `~/` below. Followed the file, per §10's operative instruction. |
+| Q5 | Reserve all five sub-core slots now; `%nz`/`%qq` frozen at the P0 gate | R6 freezes a hinted core once its phase closes, but adding an arm to a Hoon core moves the battery axes of the arms already there. Introducing `zx`/`mx`/`qx` as their phases land would shift the `%racoon` battery at every gate — and that is the parent axis each sub-core jet resolves against, so freezing `%nz` internally would buy a jet author nothing. Declaring all five arms now fixes `%racoon` for the milestone; each sub-core freezes at its own gate. |
 | — | Private helpers live in `+pv`, outside the `%racoon` core | Helper churn cannot disturb the battery layout of a hinted core when the R6 freeze lands, and `=<` keeps them genuinely private. |
 | — | `sync.sh` copies an explicit file list, not a blanket `rsync` | `%base` carries the kernel; being explicit means a stray file here can never shadow a `sys/` file there. |
 

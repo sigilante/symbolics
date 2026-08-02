@@ -71,6 +71,9 @@
   |%
   +|  %scalars
   ::    +nz:  integers and elementary number theory
+  ::
+  ::  FROZEN at the P0 gate (R6).  Arm set and order are fixed for Milestone
+  ::  A; no reordering, renaming, or insertion without escalation.
   ++  nz
     ~/  %nz
     |%
@@ -215,6 +218,9 @@
   ++  qq
     ~/  %qq
     |%
+    ::  FROZEN at the P0 gate (R6).  Arm set and order are fixed for
+    ::  Milestone A; no reordering, renaming, or insertion without escalation.
+    ::
     ::    +zero:  the additive identity of Q
     ++  zero  ^-(frac [--0 1])
     ::    +one:  the multiplicative identity of Q
@@ -277,6 +283,34 @@
       ?:  =(--0 c)  %eq
       ?:  (syn:si c)  %gt
       %lt
+    --
+  +|  %polynomials
+  ::  Slot reservation, not dead code.  Adding an arm to a core changes the
+  ::  battery axes of the arms already in it, so if +zx, +mx, and +qx were
+  ::  introduced when their phases land, the %racoon battery -- and with it
+  ::  the parent axis every sub-core jet resolves against -- would shift at
+  ::  each gate.  R6's freeze would then mean nothing above the sub-core
+  ::  level.  Declaring all five arms now fixes the %racoon battery for the
+  ::  milestone; each sub-core's own layout freezes at its own phase gate.
+  ::  See SPEC-QUESTIONS Q5.
+  ::
+  ::    +zx:  Z[x].  Phase 1 arithmetic, Phase 2 division and GCD.
+  ++  zx
+    ~/  %zx
+    |%
+    --
+  ::    +mx:  (Z/n)[x] and Z/n scalars; a door on the modulus.
+  ::
+  ::  Precondition n >= 2 on all arms (SPEC S8).  Serves both Z/n and F_p;
+  ::  field-only arms assert primality at runtime.
+  ++  mx
+    ~/  %mx
+    |_  n=@ud
+    --
+  ::    +qx:  Q[x].  Phase 2.
+  ++  qx
+    ~/  %qx
+    |%
     --
   --
 --
