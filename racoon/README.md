@@ -19,7 +19,7 @@ and file name. Only the spec document spells it `raccoon`.
 | **P0** | `nz`, `qq` — integers, number theory, rational scalars | **complete, frozen** |
 | P1 | `zx` — ℤ[x] arithmetic | **complete** |
 | P1 | `mx` — (ℤ/n)[x] arithmetic and ℤ/n scalars | **complete** |
-| P2 | division, GCD, resultants | not started |
+| **P2** | division, GCD, resultants; `qx` | **complete** |
 | P3 | factorization | not started |
 
 `%nz` and `%qq` are frozen under R6: arm sets and order are fixed for
@@ -97,18 +97,28 @@ python3 tools/genvec.py > desk/lib/racoon-vectors.hoon
 ```
 
 Deterministic: the PRNG seed is pinned in the script, so regeneration is
-byte-identical. 42 families, 44–64 cases each, against the §11.2 minimum of 40.
+byte-identical. 58 families, 44–64 cases each, against the §11.2 minimum of 40.
 Moduli cover §11.2's required set: `p = 2`, `p = 3`, a 61-bit prime, and the
 composites 6, 12, 100, and 256.
 
 Oracles are independent implementations — `math.gcd`, `math.isqrt`,
 `sympy.isprime`, `sympy.ntheory.modular.crt`, `fractions.Fraction`, and
-`sympy.Poly` over `ZZ` for ℤ[x]. For the two arms where §9 pins the
-*algorithm* rather than the value (`egcd`, `ratrec`),
-the pinned algorithm is transcribed in Python and cross-checked against an
-independent invariant — the Bézout identity against `math.gcd`, and the
-congruence `q*u ≡ p (mod m)`. That keeps the vectors a check on the Hoon
+`sympy.Poly` over `ZZ`, `GF(p)`, and `QQ` for the polynomial rings. For the
+two arms where §9 pins the *algorithm* rather than the value (`egcd`,
+`ratrec`), the pinned algorithm is transcribed in Python and cross-checked
+against an independent invariant — the Bézout identity against `math.gcd`, and
+the congruence `q*u ≡ p (mod m)`. Identity-defined arms (`pdiv`, `divmod`,
+`pp`) are likewise checked against their defining identity rather than a
+reimplementation of the loop. That keeps the vectors a check on the Hoon
 transcription rather than a copy of it.
+
+**`res` does not use `sympy.resultant`.** SymPy normalizes its two arguments
+by degree, so when `deg a < deg b` it returns `res(b, a)` — which differs in
+sign whenever both degrees are odd. On a random sample it disagreed with the
+definition on 19 of 300 pairs, every one of them `deg a < deg b`. The oracle is
+the determinant of the Sylvester matrix instead: it is the definition, it
+satisfies `res(a, b) = (-1)^(deg a · deg b) · res(b, a)` exactly, and it
+reproduces §9's degree-0 convention `lc(a)^(deg b)` for free.
 
 This is not ceremony. A hand-written `isqrt` expectation in the first draft of
 the test suite was wrong (`isqrt(4.294.836.224)` is 65.534, not 65.535); the
@@ -152,7 +162,11 @@ per row unless noted. Per-call figures are derived, not measured directly.
 | `mul:zx` | degree 256 (1 iter) | 388.148 ms | ~388 ms |
 | `mul:mx` | degree 16, 61-bit 𝔽p | 62.256 ms | ~623 µs |
 | `mul:mx` | degree 64, 61-bit 𝔽p (10 iter) | 84.885 ms | ~8.49 ms |
-| `mul:mx` | degree 256, 61-bit 𝔽p (1 iter) | 136.280 ms | ~136 ms |
+| `mul:mx` | degree 256, 61-bit 𝔽p (1 iter) | 128.047 ms | ~128 ms |
+| `gcd:mx` | degree 16, 61-bit 𝔽p (10 iter) | 90.318 ms | ~9.03 ms |
+| `gcd:mx` | degree 64, 61-bit 𝔽p (1 iter) | 42.234 ms | ~42.2 ms |
+| `gcd:zx` | degree 64 (1 iter) | 104.967 ms | ~105 ms |
+| `res:zx` | degree 16 (1 iter) | 4.727 ms | ~4.73 ms |
 
 Observations worth carrying into Milestone B:
 
@@ -162,7 +176,7 @@ Observations worth carrying into Milestone B:
   number in this table, and `egcd` is a `pinned` arm, so a jet must reproduce
   the cofactors exactly rather than route around them.
 - **Both `mul` arms are cleanly quadratic**: `mul:zx` runs 1.57 ms → 23.8 ms →
-  388 ms and `mul:mx` runs 0.62 ms → 8.49 ms → 136 ms across degrees
+  388 ms and `mul:mx` runs 0.62 ms → 8.49 ms → 128 ms across degrees
   16/64/256, both close to 16× per 4× of degree, which is what classical
   convolution should cost. That the measured curve matches the algorithm means
   the baseline measures what it claims to, so Karatsuba/NTT in Milestone B have
@@ -180,10 +194,14 @@ Observations worth carrying into Milestone B:
   this table did exactly that and reported the 61-bit case as *faster* than the
   20-bit one.
 
-Of the §11.4 rows named by degree, `mul` over a 61-bit 𝔽p at 16/64/256 is now
-present. Still outstanding, because they need Phase 2–3 arms: `gcd:mx` at the
-same degrees, `gcd:zx` at degree 64, and `factor:zx` at degree 32. Those are
-not faked; `+polynomial-rows` grows as the phases land.
+Every §11.4 row named by degree is now present except `factor:zx` at degree
+32, which awaits Phase 3 and is not faked.
+
+`gcd:mx` at degree 64 costs *less* than at degree 16 (42 ms against 90 ms for
+ten runs, so ~42 ms against ~9 ms per call — the per-call figures are the ones
+to compare). Both are single measurements of one input pair, and Euclid's cost
+depends on how fast the remainder degrees collapse, not on the starting degree
+alone. Do not read a trend into two points.
 
 ## Testing
 
@@ -191,7 +209,7 @@ not faked; `+polynomial-rows` grows as the phases land.
 -test /=base=/tests/lib/racoon ~
 ```
 
-102 arms, all green. Three kinds:
+151 arms, all green. Three kinds:
 
 - **Behavioral** — known values and adversarial families. `is-prime` gets eight
   Carmichael numbers and five strong pseudoprimes rather than random odds,
@@ -221,6 +239,8 @@ file.
 | Q3 | Add a §8 crash row: `+new:qq` on `q = 0` | No product respects the `$frac` invariant — `gcd(|p|, 0) = |p|` reduces to `q' = 0` — and R5 forbids downstream arms from re-canonicalizing, so a bad value would propagate silently. |
 | Q4 | Jet registration follows `/lib/math.hoon`, not §10's prose | §10 demands mirroring that file "exactly" while also describing "nested `~%` per sub-core"; the file and Lagoon both use one root `~%` under `%non` and plain `~/` below. Followed the file, per §10's operative instruction. |
 | Q5 | Reserve all five sub-core slots now; `%nz`/`%qq` frozen at the P0 gate | R6 freezes a hinted core once its phase closes, but adding an arm to a Hoon core moves the battery axes of the arms already there. Introducing `zx`/`mx`/`qx` as their phases land would shift the `%racoon` battery at every gate — and that is the parent axis each sub-core jet resolves against, so freezing `%nz` internally would buy a jet author nothing. Declaring all five arms now fixes `%racoon` for the milestone; each sub-core freezes at its own gate. |
+| — | `res` oracle is the Sylvester determinant, not `sympy.resultant` | SymPy normalizes argument order by degree and so loses the sign when `deg a < deg b` and both degrees are odd; it disagreed with the definition on 19/300 sampled pairs. The determinant is definitional and self-consistent. The library correspondingly swaps to `deg a >= deg b` with the `(-1)^(mn)` sign, which the subresultant recurrence requires. |
+| — | `gcd:qx` clears denominators and delegates to `gcd:zx` | Running Euclid over `$frac` directly invites rational coefficient swell — the classic failure mode. Delegating inherits both `gcd:zx`'s modular algorithm and its trial-division certification. |
 | — | Private helpers live in `+pv`, outside the `%racoon` core | Helper churn cannot disturb the battery layout of a hinted core when the R6 freeze lands, and `=<` keeps them genuinely private. |
 | — | `sync.sh` copies an explicit file list, not a blanket `rsync` | `%base` carries the kernel; being explicit means a stray file here can never shadow a `sys/` file there. |
 

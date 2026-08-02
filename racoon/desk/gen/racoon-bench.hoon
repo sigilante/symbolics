@@ -16,10 +16,9 @@
 ::  Read a row as: the label line, then the "took" line the runtime slogs for
 ::  it.  Divide by the iteration count for per-call cost.
 ::
-::  SPEC S11.4 also names polynomial rows -- mul/gcd over a 61-bit F_p at
-::  degrees 16/64/256, gcd:zx at degree 64, factor:zx at degree 32.  Those
-::  arms do not exist until Phases 1-3; +polynomial-rows below is where they
-::  land, and it is deliberately left empty rather than faked.
+::  SPEC S11.4 names polynomial rows -- mul/gcd over a 61-bit F_p at degrees
+::  16/64/256, gcd:zx at degree 64, factor:zx at degree 32.  Phases 1 and 2
+::  supply all but factor:zx, which awaits Phase 3 and is not faked here.
 ::
 /-  *racoon
 /+  racoon
@@ -52,7 +51,7 @@
     =/  j  bench-qq-div
     =/  k  bench-qq-cmp
     ~&  '::'
-    ~&  '::  +zx and +mx polynomials  (gcd/factor rows await Phases 2-3)'
+    ~&  '::  +zx and +mx polynomials  (factor row awaits Phase 3)'
     =/  l  polynomial-rows
     ~&  '::'
     ::  consume every accumulator so nothing is elided
@@ -241,10 +240,8 @@
 ::
 ::    +polynomial-rows:  the SPEC S11.4 polynomial timings
 ::
-::  Phase 1 supplies +zx arithmetic, timed below.  The rows S11.4 names by
-::  degree -- mul:mx and gcd:mx at 16/64/256 over a 61-bit F_p, gcd:zx at
-::  degree 64, factor:zx at degree 32 -- need arms from Phases 1-3 that do
-::  not exist yet, and are not faked here.
+::  Phases 1 and 2 supply mul and gcd over both rings, timed below.  Only
+::  factor:zx at degree 32 still awaits Phase 3.
 ++  polynomial-rows
   ^-  @
   =/  a16   (zpoly 16 0)
@@ -275,7 +272,50 @@
   =/  v
     %^  bench-mx-mul  fp  [u256 v256]
     ['  mul:mx            degree 256  61-bit F_p  (1 iter)' 1]
-  :(add p q r s t u v)
+  ::  Phase 2: the S11.4 gcd rows, plus the Z[x] resultant
+  =/  w
+    %^  bench-mx-gcd  fp  [u16 v16]
+    ['  gcd:mx            degree 16   61-bit F_p  (n/10)' (div n 10)]
+  =/  y
+    %^  bench-mx-gcd  fp  [u64 v64]
+    ['  gcd:mx            degree 64   61-bit F_p  (1 iter)' 1]
+  =/  z   (bench-zx-gcd a64 b64 '  gcd:zx            degree 64   (1 iter)' 1)
+  =/  zz  (bench-zx-res a16 b16 '  res:zx            degree 16   (1 iter)' 1)
+  :(add p q r s t u v w y z zz)
+::
+++  bench-mx-gcd
+  |=  [m=@ud [a=mol b=mol] label=@t count=@ud]
+  ^-  @
+  =/  dr  ~(. mx m)
+  ~&  label
+  ~>  %bout
+  =|  acc=@
+  =/  i=@ud  count
+  |-  ^-  @
+  ?:  =(0 i)  acc
+  $(i (dec i), acc (add acc (lent (gcd:dr a b))))
+::
+++  bench-zx-gcd
+  |=  [a=zol b=zol label=@t count=@ud]
+  ^-  @
+  ~&  label
+  ~>  %bout
+  =|  acc=@
+  =/  i=@ud  count
+  |-  ^-  @
+  ?:  =(0 i)  acc
+  $(i (dec i), acc (add acc (lent (gcd:zx a b))))
+::
+++  bench-zx-res
+  |=  [a=zol b=zol label=@t count=@ud]
+  ^-  @
+  ~&  label
+  ~>  %bout
+  =|  acc=@
+  =/  i=@ud  count
+  |-  ^-  @
+  ?:  =(0 i)  acc
+  $(i (dec i), acc (add acc (abs:si (res:zx a b))))
 ::
 ::    +mpoly:  a canonical mol of the given degree, modulo m
 ::

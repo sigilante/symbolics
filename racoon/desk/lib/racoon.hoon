@@ -48,6 +48,71 @@
     |-  ^-  [d=@ud s=@ud]
     ?:  =(1 (end 0 n))  [n s]
     $(n (rsh 0 n), s +(s))
+  ::    +pows:  exponentiation over Z
+  ::
+  ::  [b=@s e=@ud] -> @s.  Binary left-to-right square-and-multiply (SPEC
+  ::  S7).  b^0 = --1 for every b, including --0.
+  ++  pows
+    |=  [b=@s e=@ud]
+    ^-  @s
+    ?:  =(0 e)  --1
+    =/  k=@ud    (dec (met 0 e))
+    =/  acc=@s   b
+    |-  ^-  @s
+    ?:  =(0 k)  acc
+    =/  nk=@ud  (dec k)
+    =/  sq=@s   (pro:si acc acc)
+    %=  $
+      k    nk
+      acc  ?:(=(1 (cut 0 [nk 1] e)) (pro:si sq b) sq)
+    ==
+  ::    +zdiv:  exact scalar division of a Z[x] polynomial
+  ::
+  ::  [a=zol d=@s] -> zol.  The caller guarantees d divides every
+  ::  coefficient exactly; ++fra:si truncates, so an inexact call would
+  ::  silently produce a wrong answer rather than crashing.  Every use in
+  ::  this library is a division the subresultant theory proves exact.
+  ++  zdiv
+    |=  [a=zol d=@s]
+    ^-  zol
+    (turn a |=(c=@s (fra:si c d)))
+  ::    +zderiv:  formal derivative in Z[x]
+  ::
+  ::  [a=zol] -> zol.  deriv(~) = ~ and deriv(c) = ~ for constant c.  The
+  ::  product stays canonical: for deg a >= 1 the top coefficient becomes
+  ::  n*c_n with n >= 1 and c_n nonzero, hence nonzero over Z.
+  ++  zderiv
+    |=  a=zol
+    ^-  zol
+    ?~  a  ~
+    =/  cs=zol  t.a
+    =/  k=@ud   1
+    =|  out=zol
+    |-  ^-  zol
+    ?~  cs  (flop out)
+    $(cs t.cs, k +(k), out [(pro:si (sun:si k) i.cs) out])
+  ::    +zmod:  reduce a Z[x] polynomial into (Z/p)[x]
+  ::
+  ::  [a=zol p=@ud] -> mol.  Trailing zeros are stripped, so the degree can
+  ::  drop when p divides the leading coefficient.
+  ::
+  ::  ++dul:si is deliberately not used: it computes (sub b +.c) for a
+  ::  negative operand, which underflows whenever the magnitude exceeds p.
+  ++  zmod
+    |=  [a=zol p=@ud]
+    ^-  mol
+    =/  cs=(list @ud)
+      %+  turn  a
+      |=  c=@s
+      ^-  @ud
+      =/  m=@ud  (mod (abs:si c) p)
+      ?:  (syn:si c)  m
+      (mod (sub p m) p)
+    =/  r=(list @ud)  (flop cs)
+    |-  ^-  mol
+    ?~  r  ~
+    ?:  =(0 i.r)  $(r t.r)
+    (flop r)
   ::    +mr:  one Miller-Rabin round
   ::
   ::  [n=@ud a=@ud d=@ud s=@ud] -> ?, where n - 1 = d * 2^s, d odd, s >= 1.
@@ -449,6 +514,277 @@
       |-  ^-  @s
       ?~  r  acc
       $(r t.r, acc (sum:si (pro:si acc x) i.r))
+    ::    +pdiv:  pseudo-division in Z[x]
+    ::
+    ::  [a=zol b=zol] -> [q=zol r=zol] satisfying the pseudo-division
+    ::  identity lc(b)^(deg a - deg b + 1) * a = q*b + r, with r = ~ or
+    ::  deg r < deg b.  Z is not a field, so exact division is unavailable;
+    ::  premultiplying by that power of lc(b) makes every step divisible.
+    ::
+    ::  The exponent is pinned to exactly (deg a - deg b + 1) (SPEC S9), and
+    ::  the identity then determines q and r uniquely, which is what makes
+    ::  the arm `free` despite the pinned scaling.
+    ::
+    ::  For deg a < deg b the exponent is 0, so the identity reads a = r and
+    ::  the product is [~ a].
+    ::
+    ::  Crashes on b = ~ (SPEC S8).
+    ++  pdiv
+      ~/  %pdiv
+      |=  [a=zol b=zol]
+      ^-  [q=zol r=zol]
+      ?~  b  !!
+      =/  db=@ud  (deg b)
+      =/  lb=@s   (lc b)
+      ?~  a  [~ ~]
+      =/  da=@ud  (deg a)
+      ?:  (lth da db)  [~ a]
+      ::  premultiply once, up front, by the pinned power
+      =/  e=@ud   +((^sub da db))
+      =/  q=zol   ~
+      =/  r=zol   (scale a (pows:pv lb e))
+      =/  i=@ud   e
+      |-  ^-  [q=zol r=zol]
+      ?~  r  [q ~]
+      =/  dr=@ud  (deg r)
+      ?:  (lth dr db)  [q r]
+      ::  every coefficient of r still carries a factor of lb^i, so this
+      ::  division is exact; the loop runs at most e times
+      ?:  =(0 i)  [q r]
+      =/  k=@ud   (^sub dr db)
+      =/  c=@s    (fra:si (lc r) lb)
+      %=  $
+        i  (dec i)
+        q  (add q (shift ~[c] k))
+        r  (sub r (shift (scale b c) k))
+      ==
+    ::    +content:  the content of a Z[x] polynomial
+    ::
+    ::  [a=zol] -> @ud.  SPEC S7: content(~) = 0; otherwise the gcd of the
+    ::  absolute values of the coefficients, always >= 0.  Never crashes.
+    ++  content
+      |=  a=zol
+      ^-  @ud
+      =/  cs=zol  a
+      =/  g=@ud   0
+      |-  ^-  @ud
+      ?~  cs  g
+      $(cs t.cs, g (gcd:nz g (abs:si i.cs)))
+    ::    +pp:  the primitive part of a Z[x] polynomial
+    ::
+    ::  [a=zol] -> zol.  SPEC S7: pp(~) = ~, and content * pp = input
+    ::  exactly, so pp carries the input's sign.  Never crashes.
+    ++  pp
+      |=  a=zol
+      ^-  zol
+      ?~  a  ~
+      (zdiv:pv a (sun:si (content a)))
+    ::    +gcd:  greatest common divisor in Z[x]
+    ::
+    ::  [a=zol b=zol] -> zol.  SPEC S7: gcd(cont a, cont b) * G, where G is
+    ::  the primitive gcd with positive leading coefficient.  gcd(~, ~) = ~;
+    ::  gcd(a, ~) = a normalized to positive lc.
+    ::
+    ::  Spec procedure pinned by SPEC S9 (modular, small-primes / Brown):
+    ::  strip content, scan odd primes ascending skipping those dividing
+    ::  lc(a')*lc(b'), take the monic image gcd in +mx p, track minimal
+    ::  degree and restart accumulation on a strictly smaller one, CRT
+    ::  coefficientwise with a symmetric lift, scale to gcd(lc a', lc b')
+    ::  before lifting (Brown's correction), take pp, force lc > 0.
+    ::
+    ::  The result is CERTIFIED by trial division into both primitive parts,
+    ::  looping with more primes until it divides both.  Certification is
+    ::  what makes this `free` rather than pinned: the product is the true
+    ::  gcd regardless of which primes a jet happens to choose.
+    ++  gcd
+      ~/  %gcd
+      |=  [a=zol b=zol]
+      ^-  zol
+      ::  The zero polynomial is the additive identity of the gcd.  SPEC S7
+      ::  fixes gcd(a, ~) = a normalized to positive lc -- the WHOLE
+      ::  polynomial, not its primitive part: content(~) = 0, so
+      ::  gcd(cont a, 0) = cont a, and cont a * pp a is a again.
+      ?~  a
+        ?~  b  ~
+        ?:((syn:si (lc b)) b (neg b))
+      ?~  b
+        ?:((syn:si (lc a)) a (neg a))
+      =/  ca=@ud  (content a)
+      =/  cb=@ud  (content b)
+      =/  cg=@ud  (gcd:nz ca cb)
+      =/  ap=zol  (pp a)
+      =/  bp=zol  (pp b)
+      =/  la=@s   (lc ap)
+      =/  lb=@s   (lc bp)
+      ::  Brown's leading-coefficient correction target
+      =/  lg=@ud  (gcd:nz (abs:si la) (abs:si lb))
+      =/  bound=@ud  (min (deg ap) (deg bp))
+      ::  accumulator: CRT modulus, the lifted candidate, and its degree
+      =/  m=@ud      0
+      =/  acc=zol    ~
+      =/  best=@ud   +(bound)
+      =/  p=@ud      3
+      |-  ^-  zol
+      ::  a gcd of degree 0 is a unit, so the answer is the content alone
+      ?:  ?&(!=(0 m) =(0 best))  (scale ~[--1] (sun:si cg))
+      ?.  (is-prime:nz p)  $(p (^add p 2))
+      ?:  =(0 (mod (abs:si (pro:si la lb)) p))  $(p (^add p 2))
+      =/  dr  ~(. mx p)
+      =/  ga=mol  (zmod:pv ap p)
+      =/  gb=mol  (zmod:pv bp p)
+      =/  gi=mol  (gcd:dr ga gb)
+      ::  an image gcd of ~ cannot happen: both images are nonzero here
+      ?~  gi  $(p (^add p 2))
+      =/  di=@ud  (dec (lent gi))
+      ::  scale the monic image to Brown's target leading coefficient
+      =/  gs=mol  (scale:dr gi (mod lg p))
+      ?:  (gth di best)
+        ::  unlucky prime: its image degree is too large, discard it
+        $(p (^add p 2))
+      =/  nm=@ud   ?:((lth di best) p (^mul m p))
+      =/  na=zol   ?:((lth di best) (lift gs p) (crt-lift acc m gs p))
+      =/  cand=zol
+        =/  q=zol  (pp na)
+        ?:((syn:si (lc q)) q (neg q))
+      ?:  ?&  ?!(=(~ cand))
+              =(~ r:(pdiv ap cand))
+              =(~ r:(pdiv bp cand))
+          ==
+        (scale cand (sun:si cg))
+      $(p (^add p 2), m nm, acc na, best di)
+    ::    +lift:  symmetric lift of a (Z/m)[x] polynomial into Z[x]
+    ::
+    ::  [a=mol m=@ud] -> zol, each coefficient mapped into (-m/2, m/2].
+    ++  lift
+      |=  [a=mol m=@ud]
+      ^-  zol
+      %-  canon
+      %+  turn  a
+      |=  c=@ud
+      ^-  @s
+      ?:  (gth (^mul 2 c) m)  (dif:si --0 (sun:si (^sub m c)))
+      (sun:si c)
+    ::    +crt-lift:  merge a new image into the CRT accumulator
+    ::
+    ::  [acc=zol m=@ud gs=mol p=@ud] -> zol, the symmetric lift of the
+    ::  coefficientwise CRT of .acc modulo .m with .gs modulo .p.
+    ++  crt-lift
+      |=  [acc=zol m=@ud gs=mol p=@ud]
+      ^-  zol
+      =/  mm=@ud  (^mul m p)
+      =/  xs=zol  acc
+      =/  ys=mol  gs
+      =|  out=zol
+      |-  ^-  zol
+      ?:  ?&(=(~ xs) =(~ ys))  (canon (flop out))
+      =/  x=@s    ?~(xs --0 i.xs)
+      =/  y=@ud   ?~(ys 0 i.ys)
+      ::  reduce the accumulated coefficient into [0, m) before combining
+      =/  xr=@ud
+        =/  v=@ud  (mod (abs:si x) m)
+        ?:((syn:si x) v (mod (^sub m v) m))
+      =/  c  (crt:nz ~[[xr m] [y p]])
+      =/  z=@s
+        ?:  (gth (^mul 2 r.c) mm)  (dif:si --0 (sun:si (^sub mm r.c)))
+        (sun:si r.c)
+      $(xs ?~(xs ~ t.xs), ys ?~(ys ~ t.ys), out [z out])
+    ::    +res:  resultant in Z[x]
+    ::
+    ::  [a=zol b=zol] -> @s.  Subresultant PRS (vzGG S6.10-6.11).
+    ::  SPEC S9: res is --0 if either argument is ~; for deg a = 0 the
+    ::  convention res(a, b) = lc(a)^(deg b) is pinned, and symmetrically.
+    ::  Never crashes.
+    ++  res
+      ~/  %res
+      |=  [a=zol b=zol]
+      ^-  @s
+      ?~  a  --0
+      ?~  b  --0
+      =/  da=@ud  (deg a)
+      =/  db=@ud  (deg b)
+      ?:  =(0 da)  (pows:pv (lc a) db)
+      ?:  =(0 db)  (pows:pv (lc b) da)
+      ::  The subresultant recurrence below requires deg r0 >= deg r1, which
+      ::  the loop then maintains.  Restore it here with the Sylvester
+      ::  identity res(a, b) = (-1)^(deg a * deg b) * res(b, a); the sign is
+      ::  -1 exactly when both degrees are odd.
+      ::
+      ::  NOTE: sympy.resultant does NOT satisfy this -- it normalizes its
+      ::  arguments by degree, so it returns res(b, a) unchanged when
+      ::  deg a < deg b.  The Sylvester determinant is the definition and is
+      ::  what tools/genvec.py uses.
+      ?:  (lth da db)
+        =/  r=@s  $(a b, b a)
+        ?:  ?&(=(1 (mod da 2)) =(1 (mod db 2)))  (dif:si --0 r)
+        r
+      =/  r0=zol  a
+      =/  r1=zol  b
+      =/  g=@s    --1
+      =/  h=@s    --1
+      =/  s=@s    --1
+      |-  ^-  @s
+      =/  d0=@ud  (deg r0)
+      =/  d1=@ud  (deg r1)
+      =/  k=@ud   (^sub d0 d1)
+      ::  sign flip from swapping the arguments, per the Euclidean identity
+      =/  sn=@s
+        ?:  ?&(=(1 (mod d0 2)) =(1 (mod d1 2)))  (dif:si --0 s)
+        s
+      =/  pr  (pdiv r0 r1)
+      =/  r2=zol  r.pr
+      ?~  r2  --0
+      =/  d2=@ud  (deg r2)
+      ::  subresultant reduction: divide out g*h^k, exact by the theory
+      =/  den=@s  (pro:si g (pows:pv h k))
+      =/  r3=zol  (zdiv:pv r2 den)
+      =/  ng=@s   (lc r1)
+      =/  nh=@s
+        ?:  =(0 k)  h
+        (fra:si (pows:pv ng k) (pows:pv h (dec k)))
+      ?:  =(0 d2)
+        ::  the last nonzero remainder is a constant: finish the recurrence
+        =/  e=@ud  d1
+        =/  c=@s   (lc r3)
+        ?:  =(1 e)  (pro:si sn c)
+        (pro:si sn (fra:si (pows:pv c e) (pows:pv nh (dec e))))
+      %=  $
+        r0  r1
+        r1  r3
+        g   ng
+        h   nh
+        s   sn
+      ==
+    ::    +disc:  discriminant in Z[x]
+    ::
+    ::  [a=zol] -> @s, equal to (-1)^(n(n-1)/2) * res(a, a') / lc(a) with
+    ::  n = deg a.  The division is exact.  Crashes on deg a < 1 (SPEC S9),
+    ::  which includes the zero polynomial through +deg.
+    ++  disc
+      |=  a=zol
+      ^-  @s
+      =/  n=@ud  (deg a)
+      ?>  (gte n 1)
+      =/  r=@s   (res a (zderiv:pv a))
+      =/  q=@s   (fra:si r (lc a))
+      ?:  =(0 (mod (^div (^mul n (dec n)) 2) 2))  q
+      (dif:si --0 q)
+    ::    +mig:  Landau-Mignotte factor-coefficient bound
+    ::
+    ::  [a=zol] -> @ud.  Pinned formula (SPEC S7): for f of degree n with
+    ::  maximum absolute coefficient A, B(f) = 2^n * (isqrt(n+1) + 1) * A.
+    ::  Sufficient, not tight.  mig(~) = 0.
+    ++  mig
+      |=  a=zol
+      ^-  @ud
+      ?~  a  0
+      =/  n=@ud  (deg a)
+      =/  m=@ud
+        =/  cs=zol  a
+        =/  x=@ud   0
+        |-  ^-  @ud
+        ?~  cs  x
+        $(cs t.cs, x (max x (abs:si i.cs)))
+      (^mul (^mul (bex n) +((isqrt:nz +(n)))) m)
     --
   ::    +mx:  (Z/n)[x] and Z/n scalars; a door on the modulus
   ::
@@ -666,11 +1002,316 @@
       |-  ^-  @ud
       ?~  r  acc
       $(r t.r, acc (cadd (cmul acc x) i.r))
+    ::    +divmod:  division with remainder in (Z/n)[x]
+    ::
+    ::  [a=mol b=mol] -> [q=mol r=mol] with a = q*b + r and either r = ~ or
+    ::  deg r < deg b.  Schoolbook division, scaling through cinv(lc b).
+    ::
+    ::  Crashes on b = ~, and on lc(b) not a unit mod n (SPEC S8).  The
+    ::  second crash is +cinv's, and it is taken BEFORE the early return for
+    ::  deg a < deg b, so that a non-unit divisor crashes unconditionally
+    ::  rather than only when the division would do work.
+    ::
+    ::  Termination: the scaling factor is lc(r)*cinv(lc b), so the leading
+    ::  terms cancel exactly and deg r strictly decreases each round.  That
+    ::  factor is never 0 -- cinv(lc b) is a unit, so lc(r)*cinv(lc b) = 0
+    ::  would force lc(r) = 0, which the canonical form forbids.
+    ++  divmod
+      ~/  %divmod
+      |=  [a=mol b=mol]
+      ^-  [q=mol r=mol]
+      ?~  b  !!
+      =/  bi=@ud  (cinv (lc b))
+      =/  db=@ud  (deg b)
+      =/  q=mol   ~
+      =/  r=mol   a
+      |-  ^-  [q=mol r=mol]
+      ?~  r  [q ~]
+      =/  dr=@ud  (deg r)
+      ?:  (lth dr db)  [q r]
+      ::  ^sub: bare `sub` is this core's polynomial subtraction
+      =/  k=@ud   (^sub dr db)
+      =/  c=@ud   (cmul (lc r) bi)
+      %=  $
+        q  (add q (shift ~[c] k))
+        r  (sub r (shift (scale b c) k))
+      ==
+    ::    +gcd:  greatest common divisor in (Z/n)[x]
+    ::
+    ::  [a=mol b=mol] -> mol.  Euclid, with monic normalization at the end.
+    ::  SPEC S7: gcd(~, ~) = ~ and gcd(a, ~) = monic(a).
+    ::
+    ::  Well defined over a field.  For composite n the Euclidean algorithm
+    ::  is not: it crashes through +divmod as soon as a remainder has a
+    ::  non-unit leading coefficient.
+    ++  gcd
+      ~/  %gcd
+      |=  [a=mol b=mol]
+      ^-  mol
+      =/  x=mol  a
+      =/  y=mol  b
+      |-  ^-  mol
+      ?~  y
+        ?~  x  ~
+        (scale x (cinv (lc x)))
+      $(x y, y r:(divmod x y))
+    ::    +egcd:  extended Euclidean algorithm in (Z/n)[x]
+    ::
+    ::  [a=mol b=mol] -> [g=mol u=mol v=mol] with g = u*a + v*b, g monic.
+    ::  Algorithm pinned (SPEC S7): textbook EEA, with the cofactors scaled
+    ::  by the inverse of the final remainder's leading coefficient.
+    ::
+    ::  egcd(~, ~) = [~ ~[1] ~]: there is no final remainder to invert, so
+    ::  the cofactors are left unscaled.  The identity still holds.
+    ++  egcd
+      ~/  %egcd
+      |=  [a=mol b=mol]
+      ^-  [g=mol u=mol v=mol]
+      =/  r0=mol  a     =/  r1=mol  b
+      =/  s0=mol  ~[1]  =/  s1=mol  ~
+      =/  t0=mol  ~     =/  t1=mol  ~[1]
+      |-  ^-  [g=mol u=mol v=mol]
+      ?^  r1
+        =/  dm  (divmod r0 r1)
+        %=  $
+          r0  r1
+          r1  r.dm
+          s0  s1
+          s1  (sub s0 (mul q.dm s1))
+          t0  t1
+          t1  (sub t0 (mul q.dm t1))
+        ==
+      ?~  r0  [~ s0 t0]
+      =/  c=@ud  (cinv (lc r0))
+      [(scale r0 c) (scale s0 c) (scale t0 c)]
+    ::    +powmod:  modular exponentiation in (Z/n)[x]
+    ::
+    ::  [a=mol e=@ud f=mol] -> mol, the class of a^e modulo f.  Reduces a
+    ::  mod f first, then squares and multiplies with a reduction at every
+    ::  step, so intermediate degrees stay below deg f.
+    ::
+    ::  Crashes on f = ~ and on deg f < 1 (SPEC S8).
+    ++  powmod
+      ~/  %powmod
+      |=  [a=mol e=@ud f=mol]
+      ^-  mol
+      ?~  f  !!
+      ?>  (gte (deg f) 1)
+      =/  bb=mol  r:(divmod a f)
+      ?:  =(0 e)  r:(divmod ~[1] f)
+      =/  k=@ud    (dec (met 0 e))
+      =/  acc=mol  bb
+      |-  ^-  mol
+      ?:  =(0 k)  acc
+      =/  nk=@ud  (dec k)
+      =/  sq=mol  r:(divmod (mul acc acc) f)
+      %=  $
+        k    nk
+        acc  ?:(=(1 (cut 0 [nk 1] e)) r:(divmod (mul sq bb) f) sq)
+      ==
     --
-  ::    +qx:  Q[x].  Phase 2.
+  ::    +qx:  Q[x]
+  ::
+  ::  Dense little-endian polynomials over the rationals, coefficients
+  ::  canonical $frac, no trailing zero coefficient.  Q is a field, so
+  ::  division is exact and +gcd is monic.
+  ::
+  ::  Phase 2.  Where SPEC S9 allows it, the heavy arms clear denominators
+  ::  and delegate to +zx rather than running Euclid over $frac directly:
+  ::  rational coefficient swell is the classic failure mode, and +gcd:zx
+  ::  is modular and certified.
   ++  qx
     ~/  %qx
     |%
+    ::    +canon:  impose the canonical form
+    ::
+    ::  [a=qol] -> qol.  Strips every trailing zero coefficient.  The only
+    ::  arm that accepts non-canonical input.  Never crashes.
+    ++  canon
+      |=  a=qol
+      ^-  qol
+      =/  r=qol  (flop a)
+      |-  ^-  qol
+      ?~  r  ~
+      ?:  =(--0 p.i.r)  $(r t.r)
+      (flop r)
+    ::    +is-zero:  is this the zero polynomial?
+    ++  is-zero
+      |=  a=qol
+      ^-  ?
+      =(~ a)
+    ::    +deg:  degree.  Crashes on ~ (SPEC S8).
+    ++  deg
+      |=  a=qol
+      ^-  @ud
+      ?~  a  !!
+      (dec (lent a))
+    ::    +lc:  leading coefficient.  Crashes on ~ (SPEC S8).
+    ++  lc
+      |=  a=qol
+      ^-  frac
+      ?~  a  !!
+      |-  ^-  frac
+      ?~  t.a  i.a
+      $(a t.a)
+    ::    +pcmp:  total order on Q[x]
+    ::
+    ::  [a=qol b=qol] -> ord.  SPEC S7: shorter list first, so ~ is least;
+    ::  at equal length compare from the highest index down, delegating to
+    ::  +cmp:qq rather than reimplementing the cross-multiplication.
+    ++  pcmp
+      |=  [a=qol b=qol]
+      ^-  ord
+      =/  la=@ud  (lent a)
+      =/  lb=@ud  (lent b)
+      ?:  (lth la lb)  %lt
+      ?:  (gth la lb)  %gt
+      =/  ra=qol  (flop a)
+      =/  rb=qol  (flop b)
+      |-  ^-  ord
+      ?~  ra  %eq
+      ?~  rb  %eq
+      =/  c=ord  (cmp:qq i.ra i.rb)
+      ?:  =(%eq c)  $(ra t.ra, rb t.rb)
+      c
+    ::    +add:  addition in Q[x].  Canonicalized: terms can cancel.
+    ++  add
+      |=  [a=qol b=qol]
+      ^-  qol
+      %-  canon
+      |-  ^-  qol
+      ?~  a  b
+      ?~  b  a
+      [(add:qq i.a i.b) $(a t.a, b t.b)]
+    ::    +neg:  additive inverse in Q[x]
+    ::
+    ::  Negation preserves the canonical form: a nonzero frac negates to a
+    ::  nonzero frac.
+    ++  neg
+      |=  a=qol
+      ^-  qol
+      (turn a neg:qq)
+    ::    +sub:  subtraction in Q[x]
+    ++  sub
+      |=  [a=qol b=qol]
+      ^-  qol
+      (add a (neg b))
+    ::    +mul:  multiplication in Q[x]
+    ::
+    ::  Classical convolution.  Q is a field, hence an integral domain, so
+    ::  the leading term cannot cancel and no canonicalization is needed --
+    ::  as in +zx, and unlike +mx over composite n.
+    ++  mul
+      ~/  %mul
+      |=  [a=qol b=qol]
+      ^-  qol
+      ?~  a  ~
+      ?~  b  ~
+      =/  xs=qol   a
+      =/  acc=qol  ~
+      =/  k=@ud    0
+      |-  ^-  qol
+      ?~  xs  acc
+      %=  $
+        xs   t.xs
+        k    +(k)
+        acc  (add acc (shift (scale b i.xs) k))
+      ==
+    ::    +shift:  multiply by x^k
+    ++  shift
+      |=  [a=qol k=@ud]
+      ^-  qol
+      ?~  a  ~
+      =/  out=qol  a
+      =/  i=@ud    k
+      |-  ^-  qol
+      ?:  =(0 i)  out
+      $(i (dec i), out [zero:qq out])
+    ::    +scale:  multiply by a scalar.  scale(a, 0) = ~.
+    ++  scale
+      |=  [a=qol c=frac]
+      ^-  qol
+      ?:  =(--0 p.c)  ~
+      (turn a |=(d=frac (mul:qq c d)))
+    ::    +eval:  evaluate at a rational point, by Horner's rule
+    ++  eval
+      |=  [a=qol x=frac]
+      ^-  frac
+      =/  r=qol     (flop a)
+      =/  acc=frac  zero:qq
+      |-  ^-  frac
+      ?~  r  acc
+      $(r t.r, acc (add:qq (mul:qq acc x) i.r))
+    ::    +divmod:  division with remainder in Q[x]
+    ::
+    ::  [a=qol b=qol] -> [q=qol r=qol] with a = q*b + r and r = ~ or
+    ::  deg r < deg b.  Schoolbook, dividing through by lc(b), which is
+    ::  always invertible since Q is a field.
+    ::
+    ::  Crashes on b = ~ (SPEC S8), through +lc.
+    ++  divmod
+      ~/  %divmod
+      |=  [a=qol b=qol]
+      ^-  [q=qol r=qol]
+      ?~  b  !!
+      =/  bi=frac  (inv:qq (lc b))
+      =/  db=@ud   (deg b)
+      =/  q=qol    ~
+      =/  r=qol    a
+      |-  ^-  [q=qol r=qol]
+      ?~  r  [q ~]
+      =/  dr=@ud  (deg r)
+      ?:  (lth dr db)  [q r]
+      =/  k=@ud    (^sub dr db)
+      =/  c=frac   (mul:qq (lc r) bi)
+      %=  $
+        q  (add q (shift ~[c] k))
+        r  (sub r (shift (scale b c) k))
+      ==
+    ::    +gcd:  greatest common divisor in Q[x]
+    ::
+    ::  [a=qol b=qol] -> qol, monic.  SPEC S7/S9: clear denominators, reduce
+    ::  to the primitive gcd in Z[x], and rescale to monic.
+    ::
+    ::  Delegating to +gcd:zx rather than running Euclid over $frac is the
+    ::  point: the Z[x] gcd is modular and trial-division certified, so this
+    ::  arm inherits both the certification and the control over coefficient
+    ::  swell.  gcd(~, ~) = ~.
+    ++  gcd
+      ~/  %gcd
+      |=  [a=qol b=qol]
+      ^-  qol
+      ?:  ?&(=(~ a) =(~ b))  ~
+      =/  g=zol  (gcd:zx (clear a) (clear b))
+      ?~  g  ~
+      =/  q=qol  (embed g)
+      (scale q (inv:qq (lc q)))
+    ::    +clear:  clear denominators, mapping Q[x] into Z[x]
+    ::
+    ::  [a=qol] -> zol.  Multiplies through by the lcm of the denominators.
+    ::  The scaling factor is discarded, which is exactly right for +gcd:
+    ::  the product is used only up to a rational unit, and the caller
+    ::  rescales to monic.
+    ++  clear
+      |=  a=qol
+      ^-  zol
+      ?~  a  ~
+      =/  l=@ud
+        =/  cs=qol  a
+        =/  x=@ud   1
+        |-  ^-  @ud
+        ?~  cs  x
+        $(cs t.cs, x (^div (^mul x q.i.cs) (gcd:nz x q.i.cs)))
+      %-  canon:zx
+      %+  turn  a
+      |=  c=frac
+      ^-  @s
+      (pro:si p.c (sun:si (^div l q.c)))
+    ::    +embed:  the canonical injection of Z[x] into Q[x]
+    ++  embed
+      |=  a=zol
+      ^-  qol
+      (turn a |=(c=@s ^-(frac [c 1])))
     --
   --
 --

@@ -20,7 +20,8 @@ keeps this file a check on the Hoon transcription rather than a copy of it.
 import math
 from fractions import Fraction
 
-from sympy import Poly, ZZ, isprime, symbols
+from sympy import GF, Poly, QQ, ZZ, discriminant, isprime, symbols
+from sympy.matrices import zeros
 from sympy.ntheory.modular import crt as sympy_crt
 
 import random
@@ -712,6 +713,364 @@ def mx_eval_rows(rng, count=48):
 
 
 # --------------------------------------------------------------------------
+# Phase 2 -- division, GCD, resultants
+# --------------------------------------------------------------------------
+
+
+def qol(c):
+    """Format a list of Fractions as a $qol literal."""
+    if not c:
+        return "~"
+    return "~[%s]" % " ".join(frac(v) for v in c)
+
+
+def zx_pdiv_rows(rng, count=48):
+    """+pdiv:zx -- [a b q r].
+
+    The oracle asserts the pinned pseudo-division identity
+    lc(b)^(deg a - deg b + 1) * a = q*b + r rather than reimplementing the
+    loop, so the vectors check the identity SPEC S9 actually pins.
+    """
+    rows = []
+    for a, b in zx_pairs(rng, count + 12):
+        if not b:
+            continue                      # b = ~ crashes
+        pa, pb = to_poly(a), to_poly(b)
+        da = len(a) - 1 if a else -1
+        db = len(b) - 1
+        e = da - db + 1 if (a and da >= db) else 0
+        scaled = pa * Poly(b[-1] ** e, X, domain=ZZ)
+        q, r = (scaled.div(pb) if a else (to_poly([]), to_poly([])))
+        qc, rc = of_poly(q), of_poly(r)
+        assert of_poly(scaled) == of_poly(to_poly(qc) * pb + to_poly(rc))
+        rows.append("[%s %s %s %s]" % (zol(a), zol(b), zol(qc), zol(rc)))
+        if len(rows) == count:
+            break
+    return rows
+
+
+def zx_content_rows(rng, count=48):
+    rows = []
+    for p in zx_polys(rng, count):
+        g = 0
+        for v in p:
+            g = math.gcd(g, abs(v))
+        rows.append("[%s %s]" % (zol(p), ud(g)))
+    return rows
+
+
+def zx_pp_rows(rng, count=48):
+    rows = []
+    for p in zx_polys(rng, count):
+        if not p:
+            rows.append("[~ ~]")
+            continue
+        g = 0
+        for v in p:
+            g = math.gcd(g, abs(v))
+        pp = [v // g for v in p]
+        assert [g * v for v in pp] == p     # content * pp = input, exactly
+        rows.append("[%s %s]" % (zol(p), zol(pp)))
+    return rows
+
+
+def zx_gcd_rows(rng, count=48):
+    """+gcd:zx -- [a b g].  Oracle sympy.gcd over ZZ, per SPEC S7."""
+    cases = [
+        ([], []), ([-2, 4], []), ([], [-2, 4]), ([2, -4], []),
+        ([-1, 0, 1], [-1, 1]), ([1, 0, 1], [1, 1]),
+        ([2, 4], [4, 8]), ([6, 0, 0, 2], [3, 3]),
+        ([1, 1], [1, 1]), ([1, 2, 1], [1, 1]),
+        # a common factor times two coprime cofactors
+        ([-1, 0, 1], [-2, 1, 1]),
+        # cyclotomic-flavoured: x^4-1 and x^2-1
+        ([-1, 0, 0, 0, 1], [-1, 0, 1]),
+        ([-1, 0, 0, 0, 0, 0, 1], [-1, 0, 0, 1]),
+    ]
+    seen = {(tuple(a), tuple(b)) for a, b in cases}
+    for a, b in zx_pairs(rng, count * 2):
+        if (tuple(a), tuple(b)) in seen:
+            continue
+        seen.add((tuple(a), tuple(b)))
+        cases.append((a, b))
+        if len(cases) >= count:
+            break
+    rows = []
+    for a, b in cases:
+        if not a and not b:
+            g = []
+        elif not a or not b:
+            c = a or b
+            g = c if c[-1] > 0 else [-v for v in c]
+        else:
+            g = of_poly(to_poly(a).gcd(to_poly(b)))
+            if g and g[-1] < 0:
+                g = [-v for v in g]
+        rows.append("[%s %s %s]" % (zol(a), zol(b), zol(g)))
+    return rows
+
+
+def sylvester_res(a, b):
+    """The resultant of two Z[x] polynomials, from the definition.
+
+    The determinant of the Sylvester matrix.  This is used INSTEAD of
+    sympy.resultant, which normalizes its arguments by degree and therefore
+    returns res(b, a) when deg a < deg b: for a = -3 - 3x and
+    b = -7 + 4x + 4x^2 - 7x^3 - 2x^4 - 3x^5 it reports 243 where the
+    definition gives -243.  The Sylvester determinant satisfies
+    res(a, b) = (-1)^(deg a * deg b) res(b, a) exactly, and it reproduces
+    the SPEC S9 degree-0 convention res(a, b) = lc(a)^(deg b) for free.
+    """
+    m, n = len(a) - 1, len(b) - 1
+    if m < 0 or n < 0:
+        return 0
+    A, B = list(reversed(a)), list(reversed(b))
+    N = m + n
+    if N == 0:
+        return 1
+    M = zeros(N, N)
+    for i in range(n):
+        for j, c in enumerate(A):
+            M[i, i + j] = c
+    for i in range(m):
+        for j, c in enumerate(B):
+            M[n + i, i + j] = c
+    return int(M.det())
+
+
+def zx_res_rows(rng, count=48):
+    """+res:zx -- [a b r].  Oracle: the Sylvester determinant."""
+    cases = [
+        ([], [1]), ([1], []), ([], []),
+        ([5], [1, 1]), ([1, 1], [3]),
+        ([-1, 0, 1], [-1, 1]), ([1, 0, 1], [1, 1]), ([-2, 0, 1], [0, 1]),
+        ([1, 2, 3, 4, 5], [5, 4, 3, 2, 1]),
+        ([-1, 0, 0, 0, 0, 0, 1], [1, 1, 1, 1, 1]),
+        ([-5, 2, 8, -3, -3, 0, 1, 0, 1], [21, -9, -4, 0, 5, 0, 3]),
+        ([1, 0, -1, 0, 1, 0, 0, 1], [2, 3, 0, 5, 1]),
+    ]
+    for a, b in zx_pairs(rng, count * 2):
+        if not a or not b:
+            continue
+        cases.append((a, b))
+        if len(cases) >= count:
+            break
+    rows = []
+    for a, b in cases:
+        if not a or not b:
+            r = 0                       # SPEC S9 pins this; not a determinant
+        else:
+            r = sylvester_res(a, b)
+            # cross-check the antisymmetry the library relies on
+            m, n = len(a) - 1, len(b) - 1
+            assert r == (-1) ** (m * n) * sylvester_res(b, a), (a, b)
+        rows.append("[%s %s %s]" % (zol(a), zol(b), sd(r)))
+    return rows
+
+
+def zx_disc_rows(rng, count=48):
+    """+disc:zx -- [a d].  Degree must be >= 1; lower degrees crash."""
+    cases = [[-1, 0, 1], [1, 0, 1], [1, 2, 1], [2, 3, 1], [6, 11, 6, 1],
+             [-2, 0, 1], [1, 1], [1, 0, 0, 1], [-1, 0, 0, 0, 1]]
+    for p in zx_polys(rng, count * 2):
+        if len(p) < 2:
+            continue
+        cases.append(p)
+        if len(cases) >= count:
+            break
+    rows = []
+    for p in cases:
+        rows.append("[%s %s]" % (zol(p), sd(int(discriminant(to_poly(p))))))
+    return rows
+
+
+def zx_mig_rows(rng, count=48):
+    """+mig:zx -- [a b].  The bound is a pinned formula (SPEC S7)."""
+    rows = []
+    for p in zx_polys(rng, count):
+        if not p:
+            rows.append("[~ 0]")
+            continue
+        n = len(p) - 1
+        a = max(abs(v) for v in p)
+        rows.append("[%s %s]" % (zol(p), ud(2 ** n * (math.isqrt(n + 1) + 1) * a)))
+    return rows
+
+
+def mx_field_cases(rng, count):
+    """(prime, poly, poly) triples.  Division and GCD need a FIELD."""
+    primes = [2, 3, 5, 7, 97, MERSENNE_61]
+    out = [
+        (7, [6, 0, 1], [6, 1]),
+        (7, [1, 0, 1], [1, 1]),
+        (7, [1], [1, 1]),
+        (7, [], [1, 1]),
+        (7, [1, 0, 1], [0, 2]),
+        (2, [1, 1, 1], [1, 1]),
+        (2, [1, 0, 1], [1, 1]),
+        (3, [2, 0, 1], [1, 1]),
+    ]
+    while len(out) < count:
+        p = primes[len(out) % len(primes)]
+        out.append((p, mx_poly(rng, p), mx_poly(rng, p)))
+    return out
+
+
+def mx_divmod_rows(rng, count=48):
+    """+divmod:mx -- [n a b q r].  Verified by a = q*b + r over the field."""
+    rows = []
+    for p, a, b in mx_field_cases(rng, count + 12):
+        if not b:
+            continue
+        pa = Poly(list(reversed(a)) or [0], X, domain=GF(p))
+        pb = Poly(list(reversed(b)), X, domain=GF(p))
+        q, r = pa.div(pb)
+        qc = mod_strip([int(v) for v in reversed(q.all_coeffs())], p)
+        rc = mod_strip([int(v) for v in reversed(r.all_coeffs())], p)
+        # independent check of the defining identity
+        chk = mod_strip(
+            of_poly(to_poly(qc) * to_poly(b) + to_poly(rc)), p)
+        assert chk == mod_strip(a, p), (p, a, b)
+        rows.append("[%s %s %s %s %s]"
+                    % (ud(p), mol(a), mol(b), mol(qc), mol(rc)))
+        if len(rows) == count:
+            break
+    return rows
+
+
+def mx_gcd_rows(rng, count=48):
+    """+gcd:mx -- [n a b g], monic (SPEC S7)."""
+    rows = []
+    for p, a, b in mx_field_cases(rng, count):
+        if not a and not b:
+            g = []
+        else:
+            pa = Poly(list(reversed(a)) or [0], X, domain=GF(p))
+            pb = Poly(list(reversed(b)) or [0], X, domain=GF(p))
+            g = mod_strip(
+                [int(v) for v in reversed(pa.gcd(pb).all_coeffs())], p)
+        if g:
+            inv = pow(g[-1], -1, p)
+            g = mod_strip([v * inv for v in g], p)
+        rows.append("[%s %s %s %s]" % (ud(p), mol(a), mol(b), mol(g)))
+    return rows
+
+
+def mx_powmod_rows(rng, count=48):
+    """+powmod:mx -- [n a e f c].  Modulus f needs deg >= 1."""
+    rows = []
+    for p, a, f in mx_field_cases(rng, count * 2):
+        if len(f) < 2:
+            continue
+        e = rng.randrange(0, 24)
+        pa = Poly(list(reversed(a)) or [0], X, domain=GF(p))
+        pf = Poly(list(reversed(f)), X, domain=GF(p))
+        acc = Poly(1, X, domain=GF(p))
+        base = pa.rem(pf)
+        for _ in range(e):
+            acc = (acc * base).rem(pf)
+        c = mod_strip([int(v) for v in reversed(acc.all_coeffs())], p)
+        rows.append("[%s %s %s %s %s]"
+                    % (ud(p), mol(a), ud(e), mol(f), mol(c)))
+        if len(rows) == count:
+            break
+    return rows
+
+
+def qx_polys(rng, n):
+    """Canonical Q[x] polynomials, edges first."""
+    out = [
+        [],
+        [Fraction(1)], [Fraction(-1, 2)],
+        [Fraction(1, 2), Fraction(1)],
+        [Fraction(-1), Fraction(0), Fraction(1)],
+        [Fraction(-1, 2), Fraction(0), Fraction(1, 2)],
+        [Fraction(-1, 3), Fraction(1, 3)],
+        [Fraction(1, 6), Fraction(5, 6), Fraction(1)],
+    ]
+    while len(out) < n:
+        d = rng.randrange(0, 5)
+        c = [Fraction(rng.randrange(-20, 21), rng.randrange(1, 13))
+             for _ in range(d)]
+        lead = 0
+        while lead == 0:
+            lead = rng.randrange(-20, 21)
+        c.append(Fraction(lead, rng.randrange(1, 13)))
+        out.append(c)
+    return out
+
+
+def qx_pairs(rng, n):
+    ps = qx_polys(rng, n + 1)
+    return [(ps[i], ps[i + 1]) for i in range(n)]
+
+
+def qpoly(c):
+    if not c:
+        return Poly(0, X, domain=QQ)
+    return Poly(list(reversed(c)), X, domain=QQ)
+
+
+def of_qpoly(p):
+    c = [Fraction(int(v.p), int(v.q)) for v in reversed(p.all_coeffs())]
+    while c and c[-1] == 0:
+        c.pop()
+    return c
+
+
+def qx_binop_rows(rng, op, count=48):
+    rows = []
+    for a, b in qx_pairs(rng, count):
+        c = of_qpoly(op(qpoly(a), qpoly(b)))
+        rows.append("[%s %s %s]" % (qol(a), qol(b), qol(c)))
+    return rows
+
+
+def qx_divmod_rows(rng, count=48):
+    rows = []
+    for a, b in qx_pairs(rng, count + 12):
+        if not b:
+            continue
+        q, r = qpoly(a).div(qpoly(b))
+        qc, rc = of_qpoly(q), of_qpoly(r)
+        assert of_qpoly(qpoly(qc) * qpoly(b) + qpoly(rc)) == a
+        rows.append("[%s %s %s %s]" % (qol(a), qol(b), qol(qc), qol(rc)))
+        if len(rows) == count:
+            break
+    return rows
+
+
+def qx_gcd_rows(rng, count=48):
+    """+gcd:qx -- [a b g], monic (SPEC S7)."""
+    rows = []
+    for a, b in qx_pairs(rng, count):
+        if not a and not b:
+            g = []
+        else:
+            g = of_qpoly(qpoly(a).gcd(qpoly(b)))
+            if g:
+                lead = g[-1]
+                g = [v / lead for v in g]
+        rows.append("[%s %s %s]" % (qol(a), qol(b), qol(g)))
+    return rows
+
+
+def qx_eval_rows(rng, count=48):
+    rows = []
+    pts = [Fraction(0), Fraction(1), Fraction(-1), Fraction(1, 2),
+           Fraction(-2, 3), Fraction(3)]
+    for i, p in enumerate(qx_polys(rng, count)):
+        x = pts[i % len(pts)]
+        if not p:
+            y = Fraction(0)
+        else:
+            v = qpoly(p).eval(x)
+            y = Fraction(int(v.p), int(v.q))
+        rows.append("[%s %s %s]" % (qol(p), frac(x), frac(y)))
+    return rows
+
+
+# --------------------------------------------------------------------------
 
 
 def main():
@@ -836,6 +1195,44 @@ def main():
          "+scale:mx; includes zero and zero-divisor scalars")
     emit("mx-eval-vectors", "(list [n=@ud a=mol x=@ud y=@ud])",
          mx_eval_rows(rng), "+eval:mx, oracle sympy over ZZ then reduced")
+
+    # Phase 2
+    emit("zx-pdiv-vectors", "(list [a=zol b=zol q=zol r=zol])",
+         zx_pdiv_rows(rng),
+         "+pdiv:zx, checked against the pinned pseudo-division identity")
+    emit("zx-content-vectors", "(list [a=zol c=@ud])", zx_content_rows(rng),
+         "+content:zx, oracle math.gcd over |coefficients|")
+    emit("zx-pp-vectors", "(list [a=zol c=zol])", zx_pp_rows(rng),
+         "+pp:zx, checked against content * pp = input")
+    emit("zx-gcd-vectors", "(list [a=zol b=zol g=zol])", zx_gcd_rows(rng),
+         "+gcd:zx, oracle sympy gcd over ZZ, normalized to positive lc")
+    emit("zx-res-vectors", "(list [a=zol b=zol r=@s])", zx_res_rows(rng),
+         "+res:zx, oracle sympy.resultant")
+    emit("zx-disc-vectors", "(list [a=zol d=@s])", zx_disc_rows(rng),
+         "+disc:zx, oracle sympy.discriminant; deg >= 1, lower crashes")
+    emit("zx-mig-vectors", "(list [a=zol b=@ud])", zx_mig_rows(rng),
+         "+mig:zx, the pinned SPEC S7 bound formula")
+    emit("mx-divmod-vectors", "(list [n=@ud a=mol b=mol q=mol r=mol])",
+         mx_divmod_rows(rng),
+         "+divmod:mx over GF(p), checked against a = q*b + r")
+    emit("mx-gcd-vectors", "(list [n=@ud a=mol b=mol g=mol])",
+         mx_gcd_rows(rng), "+gcd:mx over GF(p), monic")
+    emit("mx-powmod-vectors", "(list [n=@ud a=mol e=@ud f=mol c=mol])",
+         mx_powmod_rows(rng),
+         "+powmod:mx, oracle repeated multiplication mod f")
+    qt = "(list [a=qol b=qol c=qol])"
+    emit("qx-add-vectors", qt, qx_binop_rows(rng, lambda p, q: p + q),
+         "+add:qx, oracle sympy over QQ")
+    emit("qx-sub-vectors", qt, qx_binop_rows(rng, lambda p, q: p - q),
+         "+sub:qx, oracle sympy over QQ")
+    emit("qx-mul-vectors", qt, qx_binop_rows(rng, lambda p, q: p * q),
+         "+mul:qx, oracle sympy over QQ")
+    emit("qx-divmod-vectors", "(list [a=qol b=qol q=qol r=qol])",
+         qx_divmod_rows(rng), "+divmod:qx, checked against a = q*b + r")
+    emit("qx-gcd-vectors", "(list [a=qol b=qol g=qol])", qx_gcd_rows(rng),
+         "+gcd:qx, oracle sympy gcd over QQ, monic")
+    emit("qx-eval-vectors", "(list [a=qol x=frac y=frac])", qx_eval_rows(rng),
+         "+eval:qx, oracle sympy Poly.eval over QQ")
 
     print("--")
 

@@ -1,4 +1,4 @@
-# RACCOON — Real AlgebraiCs in hOON
+# RACOON — Real AlgebraiCs in hOON
 
 **Engineering Specification v0.1 — Milestone A: the Hoon-normative kernel**
 
@@ -27,24 +27,24 @@ Milestone A delivers the **Hoon library as authoritative specification**, with t
 
 | # | Path | Contents |
 |---|------|----------|
-| 1 | `desk/sur/raccoon.hoon` | Shared types (§6) |
-| 2 | `desk/lib/raccoon.hoon` | The library. Single file, nested cores (§6) |
-| 3 | `desk/lib/raccoon-vectors.hoon` | Generated reference vectors. Never hand-edited |
-| 4 | `desk/tests/lib/raccoon.hoon` | Test suite (§11) |
-| 5 | `desk/gen/raccoon-bench.hoon` | Benchmark generator: timing table, no perf gates |
+| 1 | `desk/sur/racoon.hoon` | Shared types (§6) |
+| 2 | `desk/lib/racoon.hoon` | The library. Single file, nested cores (§6) |
+| 3 | `desk/lib/racoon-vectors.hoon` | Generated reference vectors. Never hand-edited |
+| 4 | `desk/tests/lib/racoon.hoon` | Test suite (§11) |
+| 5 | `desk/gen/racoon-bench.hoon` | Benchmark generator: timing table, no perf gates |
 | 6 | `tools/genvec.py` | SymPy-based vector generator emitting deliverable 3 |
 | 7 | `README.md` | Setup, test loop, pinned versions, recorded baselines, decision log |
 
 Repository layout:
 
 ```
-raccoon/
+racoon/
   desk/
-    sur/raccoon.hoon
-    lib/raccoon.hoon
-    lib/raccoon-vectors.hoon
-    tests/lib/raccoon.hoon
-    gen/raccoon-bench.hoon
+    sur/racoon.hoon
+    lib/racoon.hoon
+    lib/racoon-vectors.hoon
+    tests/lib/racoon.hoon
+    gen/racoon-bench.hoon
   tools/genvec.py
   tools/requirements.txt        :: pinned sympy version
   scripts/sync.sh               :: rsync desk/ into the pier
@@ -64,16 +64,16 @@ raccoon/
    - `|mount %base` (once, in dojo)
    - `scripts/sync.sh` — copy `desk/*` over `zod/base/`
    - `|commit %base`
-   - `-test /=base=/tests/lib/raccoon ~`
+   - `-test /=base=/tests/lib/racoon ~`
 5. All tests run **inside the ship** via the standard `/lib/test` framework: arms named `++test-*`, product `tang`, using `++expect-eq` and the framework's crash-expectation helper. If `-test`, `|commit`, or `/lib/test` misbehave in ways you cannot resolve from `%base` source, escalate (§14). Do not build a bespoke harness.
-6. `tools/genvec.py` runs on the host (Python 3 + SymPy, versions pinned in `tools/requirements.txt`) and regenerates `lib/raccoon-vectors.hoon` deterministically (fixed PRNG seed inside the script). The ship never shells out; vectors are Hoon constants.
-7. Dojo is available for interactive debugging: `=r -build-file /=base=/lib/raccoon/hoon` then poke at arms.
+6. `tools/genvec.py` runs on the host (Python 3 + SymPy, versions pinned in `tools/requirements.txt`) and regenerates `lib/racoon-vectors.hoon` deterministically (fixed PRNG seed inside the script). The ship never shells out; vectors are Hoon constants.
+7. Dojo is available for interactive debugging: `=r -build-file /=base=/lib/racoon/hoon` then poke at arms.
 
 ## 5. Design invariants (restated as rules)
 
 - **R1.** Canonical value or pinned algorithm, per arm. No third option.
 - **R2.** All crash conditions enumerated (§8) and tested.
-- **R3.** No `~|` (crash-trace hints) anywhere in `lib/raccoon.hoon`. Trace payloads are observable under virtualization; keeping them out keeps the jet contract to bare crash-vs-value. Use plain `?>` / `!!`.
+- **R3.** No `~|` (crash-trace hints) anywhere in `lib/racoon.hoon`. Trace payloads are observable under virtualization; keeping them out keeps the jet contract to bare crash-vs-value. Use plain `?>` / `!!`.
 - **R4.** Modular-first for ℤ[x] algorithms, with mandatory certification steps (trial division) so outputs are algorithm-independent.
 - **R5.** Canonical inputs are the supported domain (§7); no defensive normalization inside arms.
 - **R6.** After a phase gate closes, the battery layout of hinted cores is frozen (§10). No arm reordering, renaming, insertion into frozen cores without escalation.
@@ -82,7 +82,7 @@ raccoon/
 
 ## 6. Types and library structure
 
-`desk/sur/raccoon.hoon`:
+`desk/sur/racoon.hoon`:
 
 ```hoon
 |%
@@ -110,12 +110,12 @@ raccoon/
 --
 ```
 
-`desk/lib/raccoon.hoon` skeleton:
+`desk/lib/racoon.hoon` skeleton:
 
 ```hoon
-/-  *raccoon
+/-  *racoon
 ::  Jet registration: mirror the registration structure of
-::  urbit/numerics /lib/math.hoon exactly (root ~% hint named %raccoon,
+::  urbit/numerics /lib/math.hoon exactly (root ~% hint named %racoon,
 ::  nested ~% per sub-core, per-arm ~/ per §10). Copy the working pattern
 ::  from that file; do not invent a variant.
 ::
@@ -254,9 +254,11 @@ All Phase 1 arms: **free** (canonical outputs). The classical spec algorithms ex
 
 Known cost cliff: Zassenhaus recombination is exponential in the worst case. Swinnerton–Dyer `SD_3` must pass in the test suite; `SD_4`+ is explicitly out of scope until a van Hoeij milestone (see §13).
 
+Also, at this point move /lib/racoon-vectors.hoon into /tests/lib and update any path references in the test file. The vectors are now part of the test suite, not the library.
+
 ## 10. Jet-readiness obligations (Milestone A)
 
-- Registration mirrors `urbit/numerics` `/lib/math.hoon` **exactly**: root `~%` named `%raccoon`, nested `~%` per sub-core (`%nz`, `%qq`, `%zx`, `%mx`, `%qx`), per-arm `~/` hints. Read that file first; copy the working parent-axis pattern; do not improvise.
+- Registration mirrors `urbit/numerics` `/lib/math.hoon` **exactly**: root `~%` named `%racoon`, nested `~%` per sub-core (`%nz`, `%qq`, `%zx`, `%mx`, `%qx`), per-arm `~/` hints. Read that file first; copy the working parent-axis pattern; do not improvise.
 - Arms carrying `~/` hints: `nz`: `gcd egcd crt is-prime`; `zx`: `mul gcd pdiv res factor`; `mx`: `mul divmod gcd egcd powmod factor`; `qx`: `mul divmod gcd`.
 - Battery freeze (R6): once a phase gate closes, hinted cores' arm sets and order are frozen for the milestone.
 - Keep the canonical-form check O(1): non-emptiness plus trailing coefficient nonzero. This is the check B-jets will use to decide native-vs-fallback. Do not choose representations that make it more expensive.
@@ -264,9 +266,9 @@ Known cost cliff: Zassenhaus recombination is exponential in the worst case. Swi
 ## 11. Testing requirements
 
 1. **Framework.** `/lib/test`, arms `++test-p0-*`, `++test-p1-*`, etc. Every §8 crash row has a dedicated expected-crash test.
-2. **Reference vectors.** `tools/genvec.py` (SymPy as oracle: `sympy.gcd`, `sympy.resultant`, `sympy.factor_list`, `GF(p)` polys, `QQ`/`ZZ` domains) emits `lib/raccoon-vectors.hoon` as typed constants, ≥ 40 cases per public arm, deterministic (fixed seed in script). Include adversarial families: zero and degree-0/1 polys; `x`, `x^k`; negative leading coefficients; non-primitive inputs; non-monic divisors; repeated factors; `p = 2`, `p = 3`, and a 61-bit prime; composite `n` for the mx arms that permit it; `gcd(0, 0)`; cyclotomics Φ₁…Φ₂₀ and `x^k - 1` for `k ≤ 24`; Mignotte-adjacent tight cases; Swinnerton–Dyer `SD_2` and `SD_3` for `factor:zx`.
+2. **Reference vectors.** `tools/genvec.py` (SymPy as oracle: `sympy.gcd`, `sympy.resultant`, `sympy.factor_list`, `GF(p)` polys, `QQ`/`ZZ` domains) emits `lib/racoon-vectors.hoon` as typed constants, ≥ 40 cases per public arm, deterministic (fixed seed in script). Include adversarial families: zero and degree-0/1 polys; `x`, `x^k`; negative leading coefficients; non-primitive inputs; non-monic divisors; repeated factors; `p = 2`, `p = 3`, and a 61-bit prime; composite `n` for the mx arms that permit it; `gcd(0, 0)`; cyclotomics Φ₁…Φ₂₀ and `x^k - 1` for `k ≤ 24`; Mignotte-adjacent tight cases; Swinnerton–Dyer `SD_2` and `SD_3` for `factor:zx`.
 3. **Property tests**, in-ship, `++og` with pinned literal seeds recorded in the test file. Sizes bounded (degree ≤ 32, coefficients < 2^64) to keep interpreted runtime tolerable. Minimum properties: ring axioms sampled (associativity, commutativity, distributivity); `eval` is a homomorphism; `divmod` reconstruction `a = q*b + r` with the degree bound; `egcd` Bézout identity and §7 cofactor bounds; constructed-gcd checks (`gcd(g*a, g*b)` is divisible by the normalized `g`); `res(a, b) = 0` iff `gcd` nonconstant (sampled); `factor` **exact reconstruction** — reassembled product equals input noun-for-noun. Reconstruction is the load-bearing factorization test; irreducibility of individual factors is certified by the SymPy vectors, not in-ship.
-4. **Benchmarks.** `gen/raccoon-bench` times `mul`/`gcd` at degrees 16/64/256 over a 61-bit 𝔽p, `gcd:zx` at degree 64 with 64-bit coefficients, `factor:zx` at degree 32. Output a plain table. No performance gates in Milestone A; record baselines in `README.md` — they are the denominator for Milestone B speedup claims.
+4. **Benchmarks.** `gen/racoon-bench` times `mul`/`gcd` at degrees 16/64/256 over a 61-bit 𝔽p, `gcd:zx` at degree 64 with 64-bit coefficients, `factor:zx` at degree 32. Output a plain table. No performance gates in Milestone A; record baselines in `README.md` — they are the denominator for Milestone B speedup claims.
 
 ## 12. Phase gates
 

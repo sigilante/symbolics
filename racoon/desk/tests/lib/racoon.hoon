@@ -13,6 +13,7 @@
 =/  qq  qq:racoon
 =/  zx  zx:racoon
 =/  mx  mx:racoon
+=/  qx  qx:racoon
 ::  doors at a prime, a composite, and the smallest modulus
 =/  m7   ~(. mx 7)
 =/  m6   ~(. mx 6)
@@ -90,6 +91,38 @@
   |-  ^-  mol
   ?~  r  ~
   ?:  =(0 i.r)  $(r t.r)
+  (flop r)
+::    +ipow:  integer power, for checking the pseudo-division identity
+::
+::  The library's own +pows lives in the private +pv core, which is not
+::  reachable from here -- correctly, since it is not public API.  Repeated
+::  multiplication is the honest check anyway: it shares no code with the
+::  square-and-multiply the library uses.
+++  ipow
+  |=  [b=@s e=@ud]
+  ^-  @s
+  ?:  =(0 e)  --1
+  (pro:si b $(e (dec e)))
+::    +to-qol:  embed a zol into Q[x] with varied denominators
+::
+::  Denominators are derived from the coefficient index, so the supply
+::  exercises genuine fractions rather than integers-as-rationals.  Uses
+::  +new:qq to canonicalize, which is a Phase 0 arm and so not under test
+::  here; trailing zeros are dropped locally rather than via +canon:qx.
+++  to-qol
+  |=  a=zol
+  ^-  qol
+  =/  cs=(list frac)
+    =/  xs=zol  a
+    =/  i=@ud   1
+    =|  out=(list frac)
+    |-  ^-  (list frac)
+    ?~  xs  (flop out)
+    $(xs t.xs, i +(i), out [(new:qq i.xs (add 1 (mod i 5))) out])
+  =/  r=(list frac)  (flop cs)
+  |-  ^-  qol
+  ?~  r  ~
+  ?:  =(--0 p.i.r)  $(r t.r)
   (flop r)
 ::    +zols:  a deterministic supply of canonical polynomials
 ++  zols
@@ -847,6 +880,396 @@
     (expect-success |.((pcmp:zx ~ ~)))
   ==
 ::
++|  %p2-mx
+::  Phase 2: division, GCD, and modular exponentiation over a field.
+::
+++  test-p2-mx-divmod
+  ;:  weld
+    ::  (x^2 - 1) / (x - 1) = x + 1, exactly
+    %+  expect-eq
+      !>([q=`mol`~[1 1] r=`mol`~])
+    !>((divmod:m7 ~[6 0 1] ~[6 1]))
+    ::  deg a < deg b: the quotient is empty and a is the remainder
+    %+  expect-eq
+      !>([q=`mol`~ r=`mol`~[1]])
+    !>((divmod:m7 ~[1] ~[1 1]))
+    %+  expect-eq
+      !>([q=`mol`~ r=`mol`~])
+    !>((divmod:m7 ~ ~[1 1]))
+    ::  non-monic divisor: x^2 + 1 = (4x)(2x) + 1 over F_7, since 8 = 1
+    %+  expect-eq
+      !>([q=`mol`~[0 4] r=`mol`~[1]])
+    !>((divmod:m7 ~[1 0 1] ~[0 2]))
+  ==
+++  test-p2-mx-gcd
+  ;:  weld
+    %+  expect-eq  !>(`mol`~[6 1])  !>((gcd:m7 ~[6 0 1] ~[6 1]))
+    ::  x^2 + 1 has no root at -1 over F_7, so the two are coprime
+    %+  expect-eq  !>(`mol`~[1])    !>((gcd:m7 ~[1 0 1] ~[1 1]))
+    ::  S7: gcd(~, ~) = ~ and gcd(a, ~) = monic(a)
+    %+  expect-eq  !>(`mol`~)       !>((gcd:m7 ~ ~))
+    %+  expect-eq  !>(`mol`~[4 1])  !>((gcd:m7 ~[2 4] ~))
+  ==
+++  test-p2-mx-powmod
+  ;:  weld
+    ::  x^3 = -x = 6x modulo x^2 + 1
+    %+  expect-eq  !>(`mol`~[0 6])  !>((powmod:m7 ~[0 1] 3 ~[1 0 1]))
+    %+  expect-eq  !>(`mol`~[1])    !>((powmod:m7 ~[0 1] 0 ~[1 0 1]))
+    %+  expect-eq  !>(`mol`~[0 1])  !>((powmod:m7 ~[0 1] 1 ~[1 0 1]))
+  ==
+++  test-p2-mx-egcd
+  ::  0 * (x^2 - 1) + 1 * (x - 1) = x - 1, monic
+  %+  expect-eq
+    !>([g=`mol`~[6 1] u=`mol`~ v=`mol`~[1]])
+  !>((egcd:m7 ~[6 0 1] ~[6 1]))
+::  Property: a = q*b + r with deg r < deg b, over several primes.
+++  test-p2-mx-divmod-reconstructs
+  =/  ps=(list @ud)  ~[2 3 5 7 97]
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol])
+  %+  skip  (zpairs (zols seed-zx 30))
+  |=  [x=zol y=zol]
+  %+  levy  ps
+  |=  p=@ud
+  =/  d  ~(. mx p)
+  =/  a  (to-mol x p)
+  =/  b  (to-mol y p)
+  ?~  b  %.y
+  =/  dm  (divmod:d a b)
+  ?&  =(a (add:d (mul:d q.dm b) r.dm))
+      ?|(=(~ r.dm) (lth (deg:d r.dm) (deg:d b)))
+  ==
+::  Property: the Bezout identity for +egcd, and that g is monic.
+++  test-p2-mx-egcd-bezout
+  =/  ps=(list @ud)  ~[2 3 5 7 97]
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol])
+  %+  skip  (zpairs (zols seed-zx 30))
+  |=  [x=zol y=zol]
+  %+  levy  ps
+  |=  p=@ud
+  =/  d  ~(. mx p)
+  =/  a  (to-mol x p)
+  =/  b  (to-mol y p)
+  =/  e  (egcd:d a b)
+  ?&  =(g.e (add:d (mul:d u.e a) (mul:d v.e b)))
+      ?|(=(~ g.e) =(1 (lc:d g.e)))
+  ==
+::  Property: gcd is monic and divides both arguments.
+++  test-p2-mx-gcd-divides
+  =/  ps=(list @ud)  ~[2 3 5 7 97]
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol])
+  %+  skip  (zpairs (zols seed-zx 30))
+  |=  [x=zol y=zol]
+  %+  levy  ps
+  |=  p=@ud
+  =/  d  ~(. mx p)
+  =/  a  (to-mol x p)
+  =/  b  (to-mol y p)
+  =/  g  (gcd:d a b)
+  ?~  g  ?&(=(~ a) =(~ b))
+  ?&  =(1 (lc:d g))
+      ?|(=(~ a) =(~ r:(divmod:d a g)))
+      ?|(=(~ b) =(~ r:(divmod:d b g)))
+  ==
+::  Property: powmod agrees with repeated multiplication modulo f.
+++  test-p2-mx-powmod-repeated
+  =/  ps=(list @ud)  ~[2 3 7]
+  =/  es=(list @ud)  ~[0 1 2 5]
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol])
+  %+  skip  (zpairs (zols seed-zx 24))
+  |=  [x=zol y=zol]
+  %+  levy  ps
+  |=  p=@ud
+  =/  d  ~(. mx p)
+  =/  a  (to-mol x p)
+  =/  f  (to-mol y p)
+  ?:  (lth (lent f) 2)  %.y
+  %+  levy  es
+  |=  e=@ud
+  =/  want=mol
+    =/  i=@ud    e
+    =/  acc=mol  r:(divmod:d ~[1] f)
+    |-  ^-  mol
+    ?:  =(0 i)  acc
+    $(i (dec i), acc r:(divmod:d (mul:d acc a) f))
+  =((powmod:d a e f) want)
+::
++|  %p2-zx
+++  test-p2-zx-pdiv
+  ;:  weld
+    %+  expect-eq
+      !>([q=`zol`~[--1 --1] r=`zol`~])
+    !>((pdiv:zx ~[-1 --0 --1] ~[-1 --1]))
+    ::  deg a < deg b: exponent 0, so the identity reads a = r
+    %+  expect-eq
+      !>([q=`zol`~ r=`zol`~[--1]])
+    !>((pdiv:zx ~[--1] ~[--1 --1]))
+    ::  2^2 * (x^2 + 1) = (2x)(2x) + 4
+    %+  expect-eq
+      !>([q=`zol`~[--0 --2] r=`zol`~[--4]])
+    !>((pdiv:zx ~[--1 --0 --1] ~[--0 --2]))
+  ==
+++  test-p2-zx-content-pp
+  ;:  weld
+    ::  S7: content(~) = 0
+    %+  expect-eq  !>(`@ud`0)  !>((content:zx ~))
+    %+  expect-eq  !>(`@ud`2)  !>((content:zx ~[--2 --4 --6]))
+    ::  content is always non-negative
+    %+  expect-eq  !>(`@ud`2)  !>((content:zx ~[-2 --4]))
+    %+  expect-eq  !>(`zol`~)  !>((pp:zx ~))
+    %+  expect-eq  !>(`zol`~[--1 --2])  !>((pp:zx ~[--2 --4]))
+    ::  pp carries the input's sign, since content * pp = input exactly
+    %+  expect-eq  !>(`zol`~[-1 --2])   !>((pp:zx ~[-2 --4]))
+  ==
+++  test-p2-zx-gcd
+  ;:  weld
+    %+  expect-eq  !>(`zol`~[-1 --1])  !>((gcd:zx ~[-1 --0 --1] ~[-1 --1]))
+    %+  expect-eq  !>(`zol`~[--1])     !>((gcd:zx ~[--1 --0 --1] ~[--1 --1]))
+    ::  content is carried through: gcd(2,4) * (1 + 2x)
+    %+  expect-eq
+      !>(`zol`~[--2 --4])
+    !>((gcd:zx ~[--2 --4] ~[--4 --8]))
+    %+  expect-eq  !>(`zol`~[--1])  !>((gcd:zx ~[--6 --0 --0 --2] ~[--3 --3]))
+  ==
+::  S7: gcd(~, ~) = ~, and gcd(a, ~) is the WHOLE polynomial normalized to
+::  positive lc -- content included, not just the primitive part.
+++  test-p2-zx-gcd-zero
+  ;:  weld
+    %+  expect-eq  !>(`zol`~)           !>((gcd:zx ~ ~))
+    %+  expect-eq  !>(`zol`~[-2 --4])   !>((gcd:zx ~[-2 --4] ~))
+    %+  expect-eq  !>(`zol`~[-2 --4])   !>((gcd:zx ~ ~[-2 --4]))
+    ::  negative lc is negated, which flips the sign of the content too
+    %+  expect-eq  !>(`zol`~[-2 --4])   !>((gcd:zx ~[--2 -4] ~))
+  ==
+++  test-p2-zx-res
+  ;:  weld
+    %+  expect-eq  !>(`@s`--0)  !>((res:zx ~[-1 --0 --1] ~[-1 --1]))
+    %+  expect-eq  !>(`@s`--2)  !>((res:zx ~[--1 --0 --1] ~[--1 --1]))
+    %+  expect-eq  !>(`@s`-2)   !>((res:zx ~[-2 --0 --1] ~[--0 --1]))
+    ::  S9: either argument ~ gives --0
+    %+  expect-eq  !>(`@s`--0)  !>((res:zx ~ ~[--1]))
+    %+  expect-eq  !>(`@s`--0)  !>((res:zx ~[--1] ~))
+    ::  S9 pinned degree-0 conventions: lc(a)^(deg b), and symmetrically
+    %+  expect-eq  !>(`@s`--5)  !>((res:zx ~[--5] ~[--1 --1]))
+    %+  expect-eq  !>(`@s`--3)  !>((res:zx ~[--1 --1] ~[--3]))
+    ::  higher degree, where the subresultant PRS actually iterates
+    %+  expect-eq
+      !>(`@s`--162.000)
+    !>((res:zx ~[--1 --2 --3 --4 --5] ~[--5 --4 --3 --2 --1]))
+    %+  expect-eq
+      !>(`@s`-196.975)
+    !>((res:zx ~[--1 --0 -1 --0 --1 --0 --0 --1] ~[--2 --3 --0 --5 --1]))
+  ==
+++  test-p2-zx-disc
+  ;:  weld
+    %+  expect-eq  !>(`@s`--4)  !>((disc:zx ~[-1 --0 --1]))
+    %+  expect-eq  !>(`@s`-4)   !>((disc:zx ~[--1 --0 --1]))
+    ::  a repeated root gives discriminant zero
+    %+  expect-eq  !>(`@s`--0)  !>((disc:zx ~[--1 --2 --1]))
+    %+  expect-eq  !>(`@s`--1)  !>((disc:zx ~[--2 --3 --1]))
+    %+  expect-eq  !>(`@s`--4)  !>((disc:zx ~[--6 --11 --6 --1]))
+    %+  expect-eq  !>(`@s`--8)  !>((disc:zx ~[-2 --0 --1]))
+  ==
+++  test-p2-zx-mig
+  ;:  weld
+    %+  expect-eq  !>(`@ud`0)   !>((mig:zx ~))
+    ::  2^1 * (isqrt(2) + 1) * 1
+    %+  expect-eq  !>(`@ud`4)   !>((mig:zx ~[--1 --1]))
+    ::  2^2 * (isqrt(3) + 1) * 5
+    %+  expect-eq  !>(`@ud`40)  !>((mig:zx ~[--3 --0 -5]))
+    ::  2^3 * (isqrt(4) + 1) * 2
+    %+  expect-eq  !>(`@ud`48)  !>((mig:zx ~[--1 --0 --0 --2]))
+  ==
+::  Property: the pinned pseudo-division identity, which is what fixes q and r.
+++  test-p2-zx-pdiv-identity
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol])
+  %+  skip  (zpairs (zols seed-zx 40))
+  |=  [a=zol b=zol]
+  ?~  b  %.y
+  =/  dm  (pdiv:zx a b)
+  =/  e=@ud
+    ?:  |(=(~ a) (lth (deg:zx a) (deg:zx b)))  0
+    +((sub (deg:zx a) (deg:zx b)))
+  =/  lhs=zol  (scale:zx a (ipow (lc:zx b) e))
+  ?&  =(lhs (add:zx (mul:zx q.dm b) r.dm))
+      ?|(=(~ r.dm) (lth (deg:zx r.dm) (deg:zx b)))
+  ==
+::  Property: content * pp = input, exactly, and pp is primitive.
+++  test-p2-zx-content-identity
+  %+  expect-eq  !>(~)
+  !>  ^-  (list zol)
+  %+  skip  (zols seed-zx 40)
+  |=  a=zol
+  ?~  a  =(0 (content:zx a))
+  =/  c=@ud  (content:zx a)
+  ?&  (gth c 0)
+      =(a (scale:zx (pp:zx a) (sun:si c)))
+      =(1 (content:zx (pp:zx a)))
+  ==
+::  Property: the gcd divides both arguments and has positive lc.  This is
+::  the certification the modular algorithm performs internally, checked
+::  here from the outside.
+++  test-p2-zx-gcd-divides
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol])
+  %+  skip  (zpairs (zols seed-zx 30))
+  |=  [a=zol b=zol]
+  =/  g  (gcd:zx a b)
+  ?:  ?&(=(~ a) =(~ b))  =(~ g)
+  ?~  g  %.n
+  ?&  (syn:si (lc:zx g))
+      ?|(=(~ a) =(~ r:(pdiv:zx a g)))
+      ?|(=(~ b) =(~ r:(pdiv:zx b g)))
+  ==
+::  Property: a constructed common factor divides the computed gcd.
+++  test-p2-zx-gcd-constructed
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol zol])
+  %+  skip  (ztriples (zols seed-zx 24))
+  |=  [g=zol a=zol b=zol]
+  ?:  ?|(=(~ g) =(~ a) =(~ b))  %.y
+  =/  x  (mul:zx g a)
+  =/  y  (mul:zx g b)
+  =/  d  (gcd:zx x y)
+  ?~  d  %.n
+  ::  g divides the gcd, up to content and sign
+  =(~ r:(pdiv:zx d (pp:zx g)))
+::  Property: res(a, b) = 0 exactly when the gcd is nonconstant (S11.3).
+++  test-p2-zx-res-gcd
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol])
+  %+  skip  (zpairs (zols seed-zx 30))
+  |=  [a=zol b=zol]
+  ?:  |(=(~ a) =(~ b))  %.y
+  =/  r  (res:zx a b)
+  =/  g  (gcd:zx a b)
+  =/  nonconstant=?  ?&(?!(=(~ g)) (gth (lent g) 1))
+  =(=(--0 r) nonconstant)
+::
++|  %p2-qx
+++  test-p2-qx-arith
+  ;:  weld
+    %+  expect-eq
+      !>(`qol`~[[--5 6]])
+    !>((add:qx ~[[--1 2]] ~[[--1 3]]))
+    %+  expect-eq
+      !>(`qol`~[[--1 3]])
+    !>((mul:qx ~[[--1 2]] ~[[--2 3]]))
+    %+  expect-eq  !>(`qol`~)  !>((sub:qx ~[[--1 2]] ~[[--1 2]]))
+    ::  (1/2 + x) at x = 2 is 5/2
+    %+  expect-eq
+      !>(`frac`[--5 2])
+    !>((eval:qx ~[[--1 2] [--1 1]] [--2 1]))
+    %+  expect-eq  !>(`frac`[--3 4])  !>((lc:qx ~[[--1 2] [--3 4]]))
+    %+  expect-eq  !>(`ord`%gt)  !>((pcmp:qx ~[[--1 2]] ~[[--1 3]]))
+  ==
+++  test-p2-qx-divmod
+  ;:  weld
+    %+  expect-eq
+      !>([q=`qol`~[[--1 1] [--1 1]] r=`qol`~])
+    !>((divmod:qx ~[[-1 1] [--0 1] [--1 1]] ~[[-1 1] [--1 1]]))
+    ::  1 divided by 2/3 is 3/2, exactly -- Q is a field
+    %+  expect-eq
+      !>([q=`qol`~[[--3 2]] r=`qol`~])
+    !>((divmod:qx ~[[--1 1]] ~[[--2 3]]))
+  ==
+++  test-p2-qx-gcd
+  ;:  weld
+    ::  monic
+    %+  expect-eq
+      !>(`qol`~[[-1 1] [--1 1]])
+    !>((gcd:qx ~[[-1 1] [--0 1] [--1 1]] ~[[-1 1] [--1 1]]))
+    ::  denominators are cleared before delegating to +gcd:zx
+    %+  expect-eq
+      !>(`qol`~[[-1 1] [--1 1]])
+    !>((gcd:qx ~[[-1 2] [--0 1] [--1 2]] ~[[-1 3] [--1 3]]))
+    %+  expect-eq  !>(`qol`~)  !>((gcd:qx ~ ~))
+  ==
+::  Property: a = q*b + r with deg r < deg b, over Q.
+++  test-p2-qx-divmod-reconstructs
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol])
+  %+  skip  (zpairs (zols seed-zx 30))
+  |=  [x=zol y=zol]
+  =/  a  (to-qol x)
+  =/  b  (to-qol y)
+  ?~  b  %.y
+  =/  dm  (divmod:qx a b)
+  ?&  =(a (add:qx (mul:qx q.dm b) r.dm))
+      ?|(=(~ r.dm) (lth (deg:qx r.dm) (deg:qx b)))
+  ==
+::  Property: the gcd is monic and divides both arguments exactly.
+++  test-p2-qx-gcd-divides
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol])
+  %+  skip  (zpairs (zols seed-zx 24))
+  |=  [x=zol y=zol]
+  =/  a  (to-qol x)
+  =/  b  (to-qol y)
+  =/  g  (gcd:qx a b)
+  ?:  ?&(=(~ a) =(~ b))  =(~ g)
+  ?~  g  %.n
+  ?&  =([--1 1] (lc:qx g))
+      ?|(=(~ a) =(~ r:(divmod:qx a g)))
+      ?|(=(~ b) =(~ r:(divmod:qx b g)))
+  ==
+::
++|  %p2-crashes
+::  S8: +divmod (mx) crashes on b = ~, and on a non-unit leading coefficient.
+++  test-p2-crash-mx-divmod-zero
+  (expect-fail |.((divmod:m7 ~[1] ~)))
+++  test-p2-crash-mx-divmod-non-unit
+  ;:  weld
+    ::  2 is a zero divisor mod 6, so it has no inverse
+    (expect-fail |.((divmod:m6 ~[1 1] ~[0 2])))
+    (expect-fail |.((divmod:m6 ~[1 1] ~[0 3])))
+  ==
+::  S8: +powmod (mx) crashes on f = ~ and on deg f < 1.
+++  test-p2-crash-mx-powmod-modulus
+  ;:  weld
+    (expect-fail |.((powmod:m7 ~[1] 2 ~)))
+    (expect-fail |.((powmod:m7 ~[1] 2 ~[3])))
+  ==
+::  S8: +pdiv (zx) crashes on b = ~.
+++  test-p2-crash-zx-pdiv-zero
+  ;:  weld
+    (expect-fail |.((pdiv:zx ~[--1] ~)))
+    (expect-fail |.((pdiv:zx ~ ~)))
+  ==
+::  S9: +disc (zx) crashes on deg a < 1, which includes the zero polynomial.
+++  test-p2-crash-zx-disc-degree
+  ;:  weld
+    (expect-fail |.((disc:zx ~[--5])))
+    (expect-fail |.((disc:zx ~)))
+  ==
+::  S8: +divmod (qx) crashes on b = ~.
+++  test-p2-crash-qx-divmod-zero
+  (expect-fail |.((divmod:qx ~[[--1 1]] ~)))
+++  test-p2-crash-qx-deg-lc-zero
+  ;:  weld
+    (expect-fail |.((deg:qx ~)))
+    (expect-fail |.((lc:qx ~)))
+  ==
+::  The Phase 2 arms that must NOT crash.
+++  test-p2-nocrash
+  ;:  weld
+    ::  gcd is total in every ring
+    (expect-success |.((gcd:m7 ~ ~)))
+    (expect-success |.((gcd:zx ~ ~)))
+    (expect-success |.((gcd:qx ~ ~)))
+    (expect-success |.((res:zx ~ ~)))
+    (expect-success |.((content:zx ~)))
+    (expect-success |.((pp:zx ~)))
+    (expect-success |.((mig:zx ~)))
+    (expect-success |.((egcd:m7 ~ ~)))
+    ::  a degree-0 modulus is fine for divmod, unlike for powmod
+    (expect-success |.((divmod:m7 ~[1 1] ~[3])))
+  ==
+::
 +|  %p0-vectors
 ::  Generated reference vectors (SPEC deliverable 3).  The oracle is SymPy and
 ::  the Python standard library; see tools/genvec.py.  These are the arms that
@@ -1110,4 +1533,105 @@
   !>  %+  skip  mx-eval-vectors:vec
       |=  [n=@ud a=mol x=@ud y=@ud]
       =(y (eval:~(. mx n) a x))
+::
++|  %p2-vectors
+::  Oracles: sympy over ZZ / GF(p) / QQ.  The identity-defined arms (+pdiv,
+::  +divmod, +pp) are checked in genvec.py against their defining identity
+::  rather than against a reimplementation of the loop.
+::
+++  test-p2-vec-zx-pdiv
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-pdiv-vectors:vec
+      |=  [a=zol b=zol q=zol r=zol]
+      =([q r] (pdiv:zx a b))
+::
+++  test-p2-vec-zx-content
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-content-vectors:vec
+      |=  [a=zol c=@ud]
+      =(c (content:zx a))
+::
+++  test-p2-vec-zx-pp
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-pp-vectors:vec
+      |=  [a=zol c=zol]
+      =(c (pp:zx a))
+::
+++  test-p2-vec-zx-gcd
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-gcd-vectors:vec
+      |=  [a=zol b=zol g=zol]
+      =(g (gcd:zx a b))
+::
+++  test-p2-vec-zx-res
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-res-vectors:vec
+      |=  [a=zol b=zol r=@s]
+      =(r (res:zx a b))
+::
+++  test-p2-vec-zx-disc
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-disc-vectors:vec
+      |=  [a=zol d=@s]
+      =(d (disc:zx a))
+::
+++  test-p2-vec-zx-mig
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-mig-vectors:vec
+      |=  [a=zol b=@ud]
+      =(b (mig:zx a))
+::
+++  test-p2-vec-mx-divmod
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-divmod-vectors:vec
+      |=  [n=@ud a=mol b=mol q=mol r=mol]
+      =([q r] (divmod:~(. mx n) a b))
+::
+++  test-p2-vec-mx-gcd
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-gcd-vectors:vec
+      |=  [n=@ud a=mol b=mol g=mol]
+      =(g (gcd:~(. mx n) a b))
+::
+++  test-p2-vec-mx-powmod
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-powmod-vectors:vec
+      |=  [n=@ud a=mol e=@ud f=mol c=mol]
+      =(c (powmod:~(. mx n) a e f))
+::
+++  test-p2-vec-qx-add
+  %+  expect-eq  !>(~)
+  !>  %+  skip  qx-add-vectors:vec
+      |=  [a=qol b=qol c=qol]
+      =(c (add:qx a b))
+::
+++  test-p2-vec-qx-sub
+  %+  expect-eq  !>(~)
+  !>  %+  skip  qx-sub-vectors:vec
+      |=  [a=qol b=qol c=qol]
+      =(c (sub:qx a b))
+::
+++  test-p2-vec-qx-mul
+  %+  expect-eq  !>(~)
+  !>  %+  skip  qx-mul-vectors:vec
+      |=  [a=qol b=qol c=qol]
+      =(c (mul:qx a b))
+::
+++  test-p2-vec-qx-divmod
+  %+  expect-eq  !>(~)
+  !>  %+  skip  qx-divmod-vectors:vec
+      |=  [a=qol b=qol q=qol r=qol]
+      =([q r] (divmod:qx a b))
+::
+++  test-p2-vec-qx-gcd
+  %+  expect-eq  !>(~)
+  !>  %+  skip  qx-gcd-vectors:vec
+      |=  [a=qol b=qol g=qol]
+      =(g (gcd:qx a b))
+::
+++  test-p2-vec-qx-eval
+  %+  expect-eq  !>(~)
+  !>  %+  skip  qx-eval-vectors:vec
+      |=  [a=qol x=frac y=frac]
+      =(y (eval:qx a x))
 --
