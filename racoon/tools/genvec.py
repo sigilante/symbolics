@@ -20,10 +20,12 @@ keeps this file a check on the Hoon transcription rather than a copy of it.
 import math
 from fractions import Fraction
 
-from sympy import isprime
+from sympy import Poly, ZZ, isprime, symbols
 from sympy.ntheory.modular import crt as sympy_crt
 
 import random
+
+X = symbols("x")
 
 SEED = 20260801
 MERSENNE_61 = 2**61 - 1
@@ -64,6 +66,13 @@ def frac(f):
 def unit_frac(f):
     """Format an optional Fraction as a (unit frac) literal."""
     return "~" if f is None else "[~ %s]" % (frac(f),)
+
+
+def zol(c):
+    """Format a little-endian coefficient list as a $zol literal."""
+    if not c:
+        return "~"
+    return "~[%s]" % " ".join(sd(v) for v in c)
 
 
 def emit(name, hoon_type, rows, doc):
@@ -336,6 +345,172 @@ def qq_unary_rows(rng, op, nonzero=False):
 
 
 # --------------------------------------------------------------------------
+# Z[x] -- Phase 1
+#
+# Coefficient lists are little-endian and canonical (no trailing zero).  The
+# oracle is sympy.Poly over ZZ, which is big-endian, so +to_poly and +of_poly
+# reverse on the way in and out.
+# --------------------------------------------------------------------------
+
+
+def to_poly(c):
+    """Little-endian coefficient list -> sympy Poly over ZZ."""
+    if not c:
+        return Poly(0, X, domain=ZZ)
+    return Poly(list(reversed(c)), X, domain=ZZ)
+
+
+def of_poly(p):
+    """sympy Poly -> canonical little-endian coefficient list."""
+    c = [int(v) for v in reversed(p.all_coeffs())]
+    while c and c[-1] == 0:
+        c.pop()
+    return c
+
+
+def zx_polys(rng, n):
+    """A deterministic supply of canonical Z[x] polynomials, edges first."""
+    out = [
+        [],                       # the zero polynomial
+        [1], [-1], [5], [-5],     # degree 0, both signs
+        [0, 1],                   # x
+        [1, 1], [-1, 1],          # 1 + x, x - 1
+        [0, 0, 1],                # x^2
+        [1, 2, 1],                # (1 + x)^2
+        [-1, 0, 1],               # x^2 - 1
+        [1, -2, 1],               # (x - 1)^2
+        [1, 0, 0, 0, 1],          # 1 + x^4, with interior zeros
+        [2, 4, 6],                # non-primitive
+        [-3, 0, 9],               # non-primitive, negative lc absent
+        [1, 1, 1, 1, 1, 1],
+        [0, 0, 0, 1],             # x^3, leading interior zeros
+        [10 ** 9, -(10 ** 9)],    # large coefficients
+        [2 ** 61, 1],             # coefficient past a word boundary
+        [-(2 ** 61), -1],
+    ]
+    nonzero = [v for v in range(-20, 21) if v != 0]
+    while len(out) < n:
+        d = rng.randrange(0, 7)
+        c = [rng.randrange(-50, 51) for _ in range(d)]
+        c.append(rng.choice(nonzero))   # keeps the list canonical
+        out.append(c)
+    return out
+
+
+def zx_pairs(rng, n):
+    ps = zx_polys(rng, n + 1)
+    return [(ps[i], ps[i + 1]) for i in range(n)]
+
+
+def pinned_pcmp(a, b):
+    """The SPEC S7 total order: shorter first, then high index down."""
+    if len(a) != len(b):
+        return "%lt" if len(a) < len(b) else "%gt"
+    for u, v in zip(reversed(a), reversed(b)):
+        if u != v:
+            return "%lt" if u < v else "%gt"
+    return "%eq"
+
+
+def zx_canon_rows(rng):
+    """+canon:zx -- [in out].  Inputs are deliberately non-canonical."""
+    cases = [
+        ([], []),
+        ([0], []),
+        ([0, 0], []),
+        ([0, 0, 0, 0], []),
+        ([1, 0], [1]),
+        ([0, 1], [0, 1]),
+        ([0, 0, 1, 0, 0], [0, 0, 1]),
+        ([1, 2, 3, 0], [1, 2, 3]),
+        ([-1, 0, 0], [-1]),
+    ]
+    for p in zx_polys(rng, 40):
+        # append a deterministic run of zeros; canon must strip all of them
+        k = (len(p) % 3) + 1
+        cases.append((p + [0] * k, p))
+    return ["[%s %s]" % (zol(i), zol(o)) for i, o in cases]
+
+
+def zx_deg_rows(rng):
+    """+deg:zx -- [a d].  The zero polynomial crashes, so it is excluded."""
+    ps = [p for p in zx_polys(rng, 48) if p]
+    return ["[%s %s]" % (zol(p), ud(len(p) - 1)) for p in ps]
+
+
+def zx_lc_rows(rng):
+    """+lc:zx -- [a c].  The zero polynomial crashes, so it is excluded."""
+    ps = [p for p in zx_polys(rng, 48) if p]
+    return ["[%s %s]" % (zol(p), sd(p[-1])) for p in ps]
+
+
+def zx_pcmp_rows(rng):
+    """+pcmp:zx -- [a b o]."""
+    rows = []
+    pairs = zx_pairs(rng, 44)
+    # a total order must be reflexive, so compare a few polys with themselves
+    pairs += [(p, list(p)) for p in zx_polys(rng, 6)]
+    for a, b in pairs:
+        o = pinned_pcmp(a, b)
+        # cross-check antisymmetry against the reversed comparison
+        rev = pinned_pcmp(b, a)
+        assert (o == "%eq") == (rev == "%eq")
+        assert o != rev or o == "%eq"
+        rows.append("[%s %s %s]" % (zol(a), zol(b), o))
+    return rows
+
+
+def zx_binop_rows(rng, op):
+    rows = []
+    for a, b in zx_pairs(rng, 48):
+        c = of_poly(op(to_poly(a), to_poly(b)))
+        rows.append("[%s %s %s]" % (zol(a), zol(b), zol(c)))
+    return rows
+
+
+def zx_neg_rows(rng):
+    rows = []
+    for p in zx_polys(rng, 48):
+        rows.append("[%s %s]" % (zol(p), zol(of_poly(-to_poly(p)))))
+    return rows
+
+
+def zx_shift_rows(rng):
+    """+shift:zx -- [a k c].  Multiplication by x^k."""
+    rows = []
+    ps = zx_polys(rng, 48)
+    for i, p in enumerate(ps):
+        k = i % 6
+        c = of_poly(to_poly(p) * to_poly([0] * k + [1]))
+        rows.append("[%s %s %s]" % (zol(p), ud(k), zol(c)))
+    return rows
+
+
+def zx_scale_rows(rng):
+    """+scale:zx -- [a c out].  Scalar 0 must produce the zero polynomial."""
+    rows = []
+    scalars = [0, 1, -1, 2, -3, 7, -100, 2 ** 40]
+    ps = zx_polys(rng, 48)
+    for i, p in enumerate(ps):
+        s = scalars[i % len(scalars)]
+        c = of_poly(to_poly(p) * Poly(s, X, domain=ZZ))
+        rows.append("[%s %s %s]" % (zol(p), sd(s), zol(c)))
+    return rows
+
+
+def zx_eval_rows(rng):
+    """+eval:zx -- [a x y].  Horner against sympy evaluation."""
+    rows = []
+    points = [0, 1, -1, 2, -2, 3, -10, 1000, -(2 ** 20)]
+    ps = zx_polys(rng, 48)
+    for i, p in enumerate(ps):
+        xv = points[i % len(points)]
+        y = 0 if not p else int(to_poly(p).eval(xv))
+        rows.append("[%s %s %s]" % (zol(p), sd(xv), sd(y)))
+    return rows
+
+
+# --------------------------------------------------------------------------
 
 
 def main():
@@ -391,6 +566,34 @@ def main():
     emit("qq-inv-vectors", "(list [a=frac c=frac])",
          qq_unary_rows(rng, lambda a: 1 / a, nonzero=True),
          "+inv:qq, oracle Fraction; operands are nonzero")
+
+    zt = "(list [a=zol b=zol c=zol])"
+    emit("zx-canon-vectors", "(list [in=zol out=zol])", zx_canon_rows(rng),
+         "+canon:zx; inputs carry trailing zeros")
+    emit("zx-deg-vectors", "(list [a=zol d=@ud])", zx_deg_rows(rng),
+         "+deg:zx; the zero polynomial crashes, so it is excluded")
+    emit("zx-lc-vectors", "(list [a=zol c=@s])", zx_lc_rows(rng),
+         "+lc:zx; the zero polynomial crashes, so it is excluded")
+    emit("zx-pcmp-vectors", "(list [a=zol b=zol o=ord])", zx_pcmp_rows(rng),
+         "+pcmp:zx, the pinned SPEC S7 order")
+    emit("zx-add-vectors", zt,
+         zx_binop_rows(rng, lambda p, q: p + q),
+         "+add:zx, oracle sympy.Poly over ZZ")
+    emit("zx-sub-vectors", zt,
+         zx_binop_rows(rng, lambda p, q: p - q),
+         "+sub:zx, oracle sympy.Poly over ZZ")
+    emit("zx-mul-vectors", zt,
+         zx_binop_rows(rng, lambda p, q: p * q),
+         "+mul:zx, oracle sympy.Poly over ZZ")
+    emit("zx-neg-vectors", "(list [a=zol c=zol])", zx_neg_rows(rng),
+         "+neg:zx, oracle sympy.Poly over ZZ")
+    emit("zx-shift-vectors", "(list [a=zol k=@ud c=zol])", zx_shift_rows(rng),
+         "+shift:zx, oracle multiplication by x^k")
+    emit("zx-scale-vectors", "(list [a=zol c=@s out=zol])",
+         zx_scale_rows(rng),
+         "+scale:zx, oracle sympy.Poly over ZZ")
+    emit("zx-eval-vectors", "(list [a=zol x=@s y=@s])", zx_eval_rows(rng),
+         "+eval:zx, oracle sympy Poly.eval")
 
     print("--")
 

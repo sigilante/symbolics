@@ -11,12 +11,15 @@
 /+  *test, racoon, vec=racoon-vectors
 =/  nz  nz:racoon
 =/  qq  qq:racoon
+=/  zx  zx:racoon
 |%
 +|  %seeds
 ::    +seed-nz:  pinned PRNG seed for the +nz property tests
 ++  seed-nz  0xdead.beef.1234.5678
 ::    +seed-qq:  pinned PRNG seed for the +qq property tests
 ++  seed-qq  0xfeed.face.8765.4321
+::    +seed-zx:  pinned PRNG seed for the +zx property tests
+++  seed-zx  0xc0ff.ee00.1234.abcd
 ::
 +|  %helpers
 ::    +rng:  a bounded stream of naturals from a pinned seed
@@ -45,6 +48,45 @@
   ^-  ?
   ?:  =(0 a)  =(0 b)
   =(0 (mod b a))
+::    +to-zol:  build a canonical zol from a list of naturals
+::
+::  The top coefficient is forced nonzero, so the result is canonical by
+::  construction.  Deliberately does NOT call +canon:zx: property tests must
+::  not depend on the arm they would otherwise be exercising.
+++  to-zol
+  |=  cs=(list @ud)
+  ^-  zol
+  =/  ss=zol
+    %+  turn  cs
+    |=(c=@ud ^-(@s (dif:si (sun:si (mod c 41)) --20)))
+  =/  rs=zol  (flop ss)
+  ?~  rs  ~
+  (flop [?:(=(--0 i.rs) --1 i.rs) t.rs])
+::    +zols:  a deterministic supply of canonical polynomials
+++  zols
+  |=  [seed=@ count=@ud]
+  ^-  (list zol)
+  =/  ns=(list @ud)  (rng seed (mul count 6) 100)
+  =|  out=(list zol)
+  =/  i=@ud  0
+  |-  ^-  (list zol)
+  ?:  =(i count)  (flop out)
+  $(i +(i), ns (slag 6 ns), out [(to-zol (scag +((mod i 5)) ns)) out])
+::    +zpairs:  sliding window of consecutive pairs
+++  zpairs
+  |=  a=(list zol)
+  ^-  (list [zol zol])
+  ?~  a  ~
+  ?~  t.a  ~
+  [[i.a i.t.a] $(a t.a)]
+::    +ztriples:  sliding window of consecutive triples
+++  ztriples
+  |=  a=(list zol)
+  ^-  (list [zol zol zol])
+  ?~  a  ~
+  ?~  t.a  ~
+  ?~  t.t.a  ~
+  [[i.a i.t.a i.t.t.a] $(a t.a)]
 ::  Vector-driven arms below all follow one shape: +skip the cases whose
 ::  computed value matches the oracle's, then expect the empty list.  A
 ::  regression therefore names every failing case, rather than stopping at
@@ -400,6 +442,174 @@
     (expect-success |.((ratrec:nz 0 2 0 0)))
   ==
 ::
++|  %p1-zx
+::  Phase 1: Z[x] arithmetic.  All arms are `free` -- outputs are canonical,
+::  so a jet may use any algorithm.
+::
+::  S7: +canon strips every trailing zero, and only trailing zeros.
+++  test-p1-zx-canon
+  ;:  weld
+    %+  expect-eq  !>(`zol`~)          !>((canon:zx ~))
+    %+  expect-eq  !>(`zol`~)          !>((canon:zx ~[--0]))
+    %+  expect-eq  !>(`zol`~)          !>((canon:zx ~[--0 --0 --0]))
+    %+  expect-eq  !>(`zol`~[--1])     !>((canon:zx ~[--1 --0]))
+    %+  expect-eq  !>(`zol`~[--1])     !>((canon:zx ~[--1 --0 --0]))
+    ::  interior zeros survive; only the tail is stripped
+    %+  expect-eq
+      !>(`zol`~[--0 --1])
+    !>((canon:zx ~[--0 --1]))
+    %+  expect-eq
+      !>(`zol`~[--0 --0 --1])
+    !>((canon:zx ~[--0 --0 --1 --0 --0]))
+  ==
+++  test-p1-zx-deg-lc
+  ;:  weld
+    %+  expect-eq  !>(`@ud`0)   !>((deg:zx ~[--5]))
+    %+  expect-eq  !>(`@ud`2)   !>((deg:zx ~[--1 --2 --3]))
+    %+  expect-eq  !>(`@ud`3)   !>((deg:zx ~[--0 --0 --0 --1]))
+    %+  expect-eq  !>(`@s`--5)  !>((lc:zx ~[--5]))
+    %+  expect-eq  !>(`@s`-3)   !>((lc:zx ~[--1 --2 -3]))
+    %+  expect-eq  !>(%.y)      !>((is-zero:zx ~))
+    %+  expect-eq  !>(%.n)      !>((is-zero:zx ~[--1]))
+  ==
+::  S7: shorter first (~ least); at equal length, high index down.
+++  test-p1-zx-pcmp
+  ;:  weld
+    %+  expect-eq  !>(`ord`%lt)  !>((pcmp:zx ~ ~[--1]))
+    %+  expect-eq  !>(`ord`%gt)  !>((pcmp:zx ~[--1] ~))
+    %+  expect-eq  !>(`ord`%eq)  !>((pcmp:zx ~ ~))
+    %+  expect-eq  !>(`ord`%eq)  !>((pcmp:zx ~[--1] ~[--1]))
+    ::  degree dominates coefficient magnitude
+    %+  expect-eq  !>(`ord`%gt)  !>((pcmp:zx ~[--1 --1] ~[--9]))
+    %+  expect-eq  !>(`ord`%lt)  !>((pcmp:zx ~[--1 --2] ~[--1 --3]))
+    ::  equal top coefficient, decided lower down
+    %+  expect-eq  !>(`ord`%lt)  !>((pcmp:zx ~[-1 --2] ~[--1 --2]))
+  ==
+++  test-p1-zx-arith
+  ;:  weld
+    %+  expect-eq  !>(`zol`~[--4 --6])  !>((add:zx ~[--1 --2] ~[--3 --4]))
+    ::  leading terms cancel: the sum must be canonicalized
+    %+  expect-eq  !>(`zol`~)           !>((add:zx ~[--1 --2] ~[-1 -2]))
+    %+  expect-eq  !>(`zol`~[--0 --1])  !>((add:zx ~[--1 --1] ~[-1]))
+    %+  expect-eq  !>(`zol`~)           !>((sub:zx ~[--1 --2] ~[--1 --2]))
+    %+  expect-eq  !>(`zol`~[-1 --2])   !>((neg:zx ~[--1 -2]))
+    ::  (1 + x)^2 and (x - 1)(x + 1)
+    %+  expect-eq
+      !>(`zol`~[--1 --2 --1])
+    !>((mul:zx ~[--1 --1] ~[--1 --1]))
+    %+  expect-eq
+      !>(`zol`~[-1 --0 --1])
+    !>((mul:zx ~[--1 --1] ~[-1 --1]))
+    %+  expect-eq  !>(`zol`~)           !>((mul:zx ~ ~[--1]))
+    %+  expect-eq  !>(`zol`~)           !>((mul:zx ~[--1] ~))
+    %+  expect-eq  !>(`zol`~[--6])      !>((mul:zx ~[--2] ~[--3]))
+  ==
+++  test-p1-zx-shift-scale-eval
+  ;:  weld
+    %+  expect-eq
+      !>(`zol`~[--0 --0 --0 --1 --2])
+    !>((shift:zx ~[--1 --2] 3))
+    %+  expect-eq  !>(`zol`~[--1])      !>((shift:zx ~[--1] 0))
+    %+  expect-eq  !>(`zol`~)           !>((shift:zx ~ 5))
+    %+  expect-eq  !>(`zol`~[--3 --6])  !>((scale:zx ~[--1 --2] --3))
+    ::  scaling by zero collapses to the zero polynomial
+    %+  expect-eq  !>(`zol`~)           !>((scale:zx ~[--1 --2] --0))
+    %+  expect-eq  !>(`zol`~[-1 -2])    !>((scale:zx ~[--1 --2] -1))
+    %+  expect-eq  !>(`@s`--7)          !>((eval:zx ~[--1 --2] --3))
+    %+  expect-eq  !>(`@s`--0)          !>((eval:zx ~ -5))
+    %+  expect-eq  !>(`@s`--5)          !>((eval:zx ~[--1 --0 --1] -2))
+    %+  expect-eq  !>(`@s`--5)          !>((eval:zx ~[--5] --9))
+  ==
+::  Property: the commutative ring axioms of Z[x], sampled.
+++  test-p1-zx-axioms
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol zol])
+  %+  skip  (ztriples (zols seed-zx 40))
+  |=  [a=zol b=zol c=zol]
+  ?&  =((add:zx a b) (add:zx b a))
+      =((mul:zx a b) (mul:zx b a))
+      =((add:zx a (add:zx b c)) (add:zx (add:zx a b) c))
+      =((mul:zx a (mul:zx b c)) (mul:zx (mul:zx a b) c))
+      =((mul:zx a (add:zx b c)) (add:zx (mul:zx a b) (mul:zx a c)))
+      =(~ (add:zx a (neg:zx a)))
+      =(a (add:zx a ~))
+      =(a (mul:zx a ~[--1]))
+      =(~ (mul:zx a ~))
+      =((sub:zx a b) (add:zx a (neg:zx b)))
+  ==
+::  Property: +eval is a ring homomorphism Z[x] -> Z at every point.
+++  test-p1-zx-eval-homomorphism
+  =/  xs=(list @s)  ~[--0 --1 -1 --2 -3 --7]
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol])
+  %+  skip  (zpairs (zols seed-zx 40))
+  |=  [a=zol b=zol]
+  %+  levy  xs
+  |=  x=@s
+  ?&  =((eval:zx (add:zx a b) x) (sum:si (eval:zx a x) (eval:zx b x)))
+      =((eval:zx (mul:zx a b) x) (pro:si (eval:zx a x) (eval:zx b x)))
+  ==
+::  Property: Z is an integral domain, so degrees add and leading
+::  coefficients multiply under +mul.
+++  test-p1-zx-degree-additive
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol])
+  %+  skip  (zpairs (zols seed-zx 40))
+  |=  [a=zol b=zol]
+  ?:  |(=(~ a) =(~ b))  %.y
+  =/  p  (mul:zx a b)
+  ?&  =(p (canon:zx p))
+      =((deg:zx p) (add (deg:zx a) (deg:zx b)))
+      =((lc:zx p) (pro:si (lc:zx a) (lc:zx b)))
+  ==
+::  Property: +shift and +scale agree with the multiplications they abbreviate.
+++  test-p1-zx-shift-scale-consistent
+  =/  ks=(list @ud)  ~[0 1 2 5]
+  =/  cs=(list @s)   ~[--0 --1 -1 --4 -7]
+  %+  expect-eq  !>(~)
+  !>  ^-  (list zol)
+  %+  skip  (zols seed-zx 40)
+  |=  a=zol
+  ?&  %+  levy  ks
+      |=(k=@ud =((shift:zx a k) (mul:zx a (shift:zx ~[--1] k))))
+      %+  levy  cs
+      |=(c=@s =((scale:zx a c) (mul:zx a (canon:zx ~[c]))))
+  ==
+::  Property: every +zx product is canonical, and +canon is idempotent.
+++  test-p1-zx-canonical
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [zol zol])
+  %+  skip  (zpairs (zols seed-zx 40))
+  |=  [a=zol b=zol]
+  =/  rs=(list zol)
+    :~  (add:zx a b)  (sub:zx a b)  (mul:zx a b)  (neg:zx a)
+        (shift:zx a 3)  (scale:zx a -2)  (canon:zx a)
+    ==
+  ?&  =(a (canon:zx a))
+      %+  levy  rs
+      |=(r=zol =(r (canon:zx r)))
+  ==
+::
++|  %p1-crashes
+::  S8: +deg and +lc crash on the zero polynomial.
+++  test-p1-crash-zx-deg-zero
+  (expect-fail |.((deg:zx ~)))
+++  test-p1-crash-zx-lc-zero
+  (expect-fail |.((lc:zx ~)))
+::  The arms that must NOT crash on the zero polynomial.
+++  test-p1-nocrash-zx-zero
+  ;:  weld
+    (expect-success |.((canon:zx ~)))
+    (expect-success |.((is-zero:zx ~)))
+    (expect-success |.((add:zx ~ ~)))
+    (expect-success |.((mul:zx ~ ~)))
+    (expect-success |.((neg:zx ~)))
+    (expect-success |.((shift:zx ~ 3)))
+    (expect-success |.((scale:zx ~ --2)))
+    (expect-success |.((eval:zx ~ --2)))
+    (expect-success |.((pcmp:zx ~ ~)))
+  ==
+::
 +|  %p0-vectors
 ::  Generated reference vectors (SPEC deliverable 3).  The oracle is SymPy and
 ::  the Python standard library; see tools/genvec.py.  These are the arms that
@@ -488,4 +698,73 @@
   !>  %+  skip  qq-inv-vectors:vec
       |=  [a=frac c=frac]
       =(c (inv:qq a))
+::
++|  %p1-vectors
+::  Oracle is sympy.Poly over ZZ; see tools/genvec.py.
+::
+++  test-p1-vec-zx-canon
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-canon-vectors:vec
+      |=  [in=zol out=zol]
+      =(out (canon:zx in))
+::
+++  test-p1-vec-zx-deg
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-deg-vectors:vec
+      |=  [a=zol d=@ud]
+      =(d (deg:zx a))
+::
+++  test-p1-vec-zx-lc
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-lc-vectors:vec
+      |=  [a=zol c=@s]
+      =(c (lc:zx a))
+::
+++  test-p1-vec-zx-pcmp
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-pcmp-vectors:vec
+      |=  [a=zol b=zol o=ord]
+      =(o (pcmp:zx a b))
+::
+++  test-p1-vec-zx-add
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-add-vectors:vec
+      |=  [a=zol b=zol c=zol]
+      =(c (add:zx a b))
+::
+++  test-p1-vec-zx-sub
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-sub-vectors:vec
+      |=  [a=zol b=zol c=zol]
+      =(c (sub:zx a b))
+::
+++  test-p1-vec-zx-mul
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-mul-vectors:vec
+      |=  [a=zol b=zol c=zol]
+      =(c (mul:zx a b))
+::
+++  test-p1-vec-zx-neg
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-neg-vectors:vec
+      |=  [a=zol c=zol]
+      =(c (neg:zx a))
+::
+++  test-p1-vec-zx-shift
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-shift-vectors:vec
+      |=  [a=zol k=@ud c=zol]
+      =(c (shift:zx a k))
+::
+++  test-p1-vec-zx-scale
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-scale-vectors:vec
+      |=  [a=zol c=@s out=zol]
+      =(out (scale:zx a c))
+::
+++  test-p1-vec-zx-eval
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-eval-vectors:vec
+      |=  [a=zol x=@s y=@s]
+      =(y (eval:zx a x))
 --

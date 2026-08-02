@@ -17,7 +17,8 @@ and file name. Only the spec document spells it `raccoon`.
 | Phase | Contents | State |
 |---|---|---|
 | **P0** | `nz`, `qq` — integers, number theory, rational scalars | **complete, frozen** |
-| P1 | `zx`/`mx` polynomial arithmetic | not started |
+| P1 | `zx` — ℤ[x] arithmetic | **complete** |
+| P1 | `mx` — (ℤ/n)[x] arithmetic and ℤ/n scalars | not started |
 | P2 | division, GCD, resultants | not started |
 | P3 | factorization | not started |
 
@@ -96,11 +97,12 @@ python3 tools/genvec.py > desk/lib/racoon-vectors.hoon
 ```
 
 Deterministic: the PRNG seed is pinned in the script, so regeneration is
-byte-identical. 14 families, 44–56 cases each, against the §11.2 minimum of 40.
+byte-identical. 25 families, 44–64 cases each, against the §11.2 minimum of 40.
 
 Oracles are independent implementations — `math.gcd`, `math.isqrt`,
-`sympy.isprime`, `sympy.ntheory.modular.crt`, `fractions.Fraction`. For the two
-arms where §9 pins the *algorithm* rather than the value (`egcd`, `ratrec`),
+`sympy.isprime`, `sympy.ntheory.modular.crt`, `fractions.Fraction`, and
+`sympy.Poly` over `ZZ` for ℤ[x]. For the two arms where §9 pins the
+*algorithm* rather than the value (`egcd`, `ratrec`),
 the pinned algorithm is transcribed in Python and cross-checked against an
 independent invariant — the Bézout identity against `math.gcd`, and the
 congruence `q*u ≡ p (mod m)`. That keeps the vectors a check on the Hoon
@@ -142,6 +144,10 @@ per row unless noted. Per-call figures are derived, not measured directly.
 | `mul:qq` | | 1.045 ms | ~10.5 µs |
 | `div:qq` | | 1.476 ms | ~14.8 µs |
 | `cmp:qq` | | 529 µs | ~5.3 µs |
+| `add:zx` | degree 64 | 14.463 ms | ~145 µs |
+| `mul:zx` | degree 16 | 160.825 ms | ~1.61 ms |
+| `mul:zx` | degree 64 (10 iter) | 235.067 ms | ~23.5 ms |
+| `mul:zx` | degree 256 (1 iter) | 363.691 ms | ~364 ms |
 
 Two observations worth carrying into Milestone B:
 
@@ -150,6 +156,11 @@ Two observations worth carrying into Milestone B:
   which allocates on every step. That ratio is the single most interesting
   number in this table, and `egcd` is a `pinned` arm, so a jet must reproduce
   the cofactors exactly rather than route around them.
+- **`mul:zx` is cleanly quadratic**: 1.61 ms → 23.5 ms → 364 ms across degrees
+  16/64/256 is 16× per 4× of degree, which is what classical convolution
+  should cost. That the measured curve matches the algorithm is the useful
+  fact here — it means the baseline is measuring what it claims to, and
+  Karatsuba/NTT in Milestone B have an honest curve to beat.
 - **The `is-prime` rows differ by 37×** between 20-bit and 61-bit inputs, but
   the 61-bit row deliberately feeds *primes*. A random 61-bit odd number is
   almost always rejected by trial division against the witness schedule, so
@@ -157,10 +168,10 @@ Two observations worth carrying into Milestone B:
   this table did exactly that and reported the 61-bit case as *faster* than the
   20-bit one.
 
-The §11.4 polynomial rows — `mul`/`gcd` over a 61-bit 𝔽p at degrees 16/64/256,
-`gcd:zx` at degree 64, `factor:zx` at degree 32 — require arms that do not
-exist until Phases 1–3. `+polynomial-rows` in the generator is where they land
-and is deliberately empty rather than faked.
+The §11.4 rows named by degree — `mul`/`gcd` over a 61-bit 𝔽p at 16/64/256,
+`gcd:zx` at degree 64, `factor:zx` at degree 32 — still require `mx` and the
+Phase 2–3 arms. Those are not faked; `+polynomial-rows` carries the `zx` rows
+that exist and will grow as the phases land.
 
 ## Testing
 
@@ -168,17 +179,23 @@ and is deliberately empty rather than faked.
 -test /=base=/tests/lib/racoon ~
 ```
 
-49 arms, all green. Three kinds:
+73 arms, all green. Three kinds:
 
 - **Behavioral** — known values and adversarial families. `is-prime` gets eight
   Carmichael numbers and five strong pseudoprimes rather than random odds,
   since a Fermat test passes every Carmichael and random odds are almost all
   trivially composite.
-- **Crash rows** — every §8 row naming a Phase 0 arm has a dedicated
-  `++test-p0-crash-*`, and matching `++test-p0-nocrash-*` arms pin the edges
-  that must *not* crash. §8 is a two-sided contract; both halves are jettable.
-- **Vector-driven** — one `++test-p0-vec-*` per generated family. Each reports
+- **Crash rows** — every §8 row naming an implemented arm has a dedicated
+  `++test-*-crash-*`, and matching `++test-*-nocrash-*` arms pin the edges that
+  must *not* crash. §8 is a two-sided contract; both halves are jettable. For
+  `zx` that means `deg` and `lc` crash on `~` while the other nine arms must
+  not.
+- **Vector-driven** — one `++test-*-vec-*` per generated family. Each reports
   *every* mismatching case rather than stopping at the first.
+
+Phase 1 property tests build their inputs with a local `+to-zol` that forces
+the top coefficient nonzero, rather than calling `+canon:zx`. A property test
+must not depend on the arm it would otherwise be exercising.
 
 Property tests use `++og` from seeds pinned in the `%seeds` section of the test
 file.

@@ -25,6 +25,7 @@
 /+  racoon
 =/  nz  nz:racoon
 =/  qq  qq:racoon
+=/  zx  zx:racoon
 :-  %say
 |=  *
 :-  %noun
@@ -50,7 +51,7 @@
     =/  j  bench-qq-div
     =/  k  bench-qq-cmp
     ~&  '::'
-    ~&  '::  polynomials: empty until Phase 1'
+    ~&  '::  +zx  Z[x]  (mx/qx rows await Phases 1-3)'
     =/  l  polynomial-rows
     ~&  '::'
     ::  consume every accumulator so nothing is elided
@@ -225,12 +226,58 @@
   ?~  ys  acc
   $(xs t.xs, ys t.ys, acc (add acc ?:(=(%eq (cmp:qq i.xs i.ys)) 1 0)))
 ::
+::    +zpoly:  a canonical zol of the given degree, from the pinned seed
+::
+::  Every coefficient is drawn from [off+1, off+1.000.001), hence strictly
+::  positive, so the leading coefficient is nonzero and the list is canonical
+::  by construction.  +zx arms require canonical input (R5), so a supply that
+::  could end in --0 would be feeding them out-of-domain values.
+++  zpoly
+  |=  [d=@ud off=@ud]
+  ^-  zol
+  %+  turn  (naturals-from +(d) +(off) 1.000.000)
+  |=(c=@ud ^-(@s (sun:si c)))
+::
 ::    +polynomial-rows:  the SPEC S11.4 polynomial timings
 ::
-::  Empty until +zx and +mx land in Phases 1-3.  The named rows are:
-::  mul:mx and gcd:mx at degrees 16/64/256 over a 61-bit F_p; gcd:zx at
-::  degree 64 with 64-bit coefficients; factor:zx at degree 32.
+::  Phase 1 supplies +zx arithmetic, timed below.  The rows S11.4 names by
+::  degree -- mul:mx and gcd:mx at 16/64/256 over a 61-bit F_p, gcd:zx at
+::  degree 64, factor:zx at degree 32 -- need arms from Phases 1-3 that do
+::  not exist yet, and are not faked here.
 ++  polynomial-rows
   ^-  @
-  0
+  =/  a16   (zpoly 16 0)
+  =/  b16   (zpoly 16 7)
+  =/  a64   (zpoly 64 0)
+  =/  b64   (zpoly 64 7)
+  =/  a256  (zpoly 256 0)
+  =/  b256  (zpoly 256 7)
+  =/  p  (bench-zx-mul a16 b16 '  mul:zx            degree 16   (n iter)' n)
+  =/  q
+    (bench-zx-mul a64 b64 '  mul:zx            degree 64   (n/10)' (div n 10))
+  =/  r  (bench-zx-mul a256 b256 '  mul:zx            degree 256  (1 iter)' 1)
+  =/  s  (bench-zx-add a64 b64 '  add:zx            degree 64   (n iter)' n)
+  :(add p q r s)
+::
+++  bench-zx-mul
+  |=  [a=zol b=zol label=@t count=@ud]
+  ^-  @
+  ~&  label
+  ~>  %bout
+  =|  acc=@
+  =/  i=@ud  count
+  |-  ^-  @
+  ?:  =(0 i)  acc
+  $(i (dec i), acc (add acc (lent (mul:zx a b))))
+::
+++  bench-zx-add
+  |=  [a=zol b=zol label=@t count=@ud]
+  ^-  @
+  ~&  label
+  ~>  %bout
+  =|  acc=@
+  =/  i=@ud  count
+  |-  ^-  @
+  ?:  =(0 i)  acc
+  $(i (dec i), acc (add acc (lent (add:zx a b))))
 --

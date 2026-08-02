@@ -285,19 +285,170 @@
       %lt
     --
   +|  %polynomials
-  ::  Slot reservation, not dead code.  Adding an arm to a core changes the
-  ::  battery axes of the arms already in it, so if +zx, +mx, and +qx were
-  ::  introduced when their phases land, the %racoon battery -- and with it
-  ::  the parent axis every sub-core jet resolves against -- would shift at
-  ::  each gate.  R6's freeze would then mean nothing above the sub-core
-  ::  level.  Declaring all five arms now fixes the %racoon battery for the
+  ::  +mx and +qx are declared empty deliberately.  Adding an arm to a core
+  ::  changes the battery axes of the arms already in it, so introducing a
+  ::  sub-core when its phase lands would shift the %racoon battery -- and
+  ::  with it the parent axis every sub-core jet resolves against -- at each
+  ::  gate.  Declaring all five arms up front fixes %racoon for the
   ::  milestone; each sub-core's own layout freezes at its own phase gate.
   ::  See SPEC-QUESTIONS Q5.
   ::
-  ::    +zx:  Z[x].  Phase 1 arithmetic, Phase 2 division and GCD.
+  ::    +zx:  Z[x]
+  ::
+  ::  Dense little-endian polynomials over the integers: index i holds the
+  ::  coefficient of x^i, and the canonical form carries no trailing --0, so
+  ::  the zero polynomial is ~.  Every arm requires canonical input and
+  ::  produces canonical output; +canon is the sole exception (R5).
+  ::
+  ::  Phase 1 arithmetic below.  Phase 2 adds pdiv, content, pp, gcd, res,
+  ::  disc, and mig; Phase 3 adds sqfree and factor.
   ++  zx
     ~/  %zx
     |%
+    ::    +canon:  impose the canonical form
+    ::
+    ::  [a=zol] -> zol.  Strips every trailing zero coefficient.  The only
+    ::  arm that accepts non-canonical input.  Never crashes.
+    ++  canon
+      |=  a=zol
+      ^-  zol
+      =/  r=zol  (flop a)
+      |-  ^-  zol
+      ?~  r  ~
+      ?:  =(--0 i.r)  $(r t.r)
+      (flop r)
+    ::    +is-zero:  is this the zero polynomial?
+    ::
+    ::  [a=zol] -> ?.  Never crashes.
+    ++  is-zero
+      |=  a=zol
+      ^-  ?
+      =(~ a)
+    ::    +deg:  degree
+    ::
+    ::  [a=zol] -> @ud, the (dec (lent a)) of SPEC S7.  Crashes on ~: the
+    ::  degree of the zero polynomial is undefined (S8).
+    ++  deg
+      |=  a=zol
+      ^-  @ud
+      ?~  a  !!
+      (dec (lent a))
+    ::    +lc:  leading coefficient
+    ::
+    ::  [a=zol] -> @s, the coefficient of x^deg(a), nonzero by the canonical
+    ::  form.  Crashes on ~ (S8).
+    ++  lc
+      |=  a=zol
+      ^-  @s
+      ?~  a  !!
+      |-  ^-  @s
+      ?~  t.a  i.a
+      $(a t.a)
+    ::    +pcmp:  total order on Z[x]
+    ::
+    ::  [a=zol b=zol] -> ord.  SPEC S7: shorter list first, so ~ is least;
+    ::  at equal length compare coefficients from the highest index down
+    ::  through ++cmp:si.  Never crashes.
+    ++  pcmp
+      |=  [a=zol b=zol]
+      ^-  ord
+      =/  la=@ud  (lent a)
+      =/  lb=@ud  (lent b)
+      ?:  (lth la lb)  %lt
+      ?:  (gth la lb)  %gt
+      =/  ra=zol  (flop a)
+      =/  rb=zol  (flop b)
+      |-  ^-  ord
+      ?~  ra  %eq
+      ?~  rb  %eq
+      =/  c=@s  (cmp:si i.ra i.rb)
+      ?:  =(--0 c)  $(ra t.ra, rb t.rb)
+      ?:  (syn:si c)  %gt
+      %lt
+    ::    +add:  addition in Z[x]
+    ::
+    ::  [a=zol b=zol] -> zol.  Coefficientwise.  The sum is canonicalized:
+    ::  unlike +mul, leading terms can cancel.  Never crashes.
+    ++  add
+      |=  [a=zol b=zol]
+      ^-  zol
+      %-  canon
+      |-  ^-  zol
+      ?~  a  b
+      ?~  b  a
+      [(sum:si i.a i.b) $(a t.a, b t.b)]
+    ::    +neg:  additive inverse in Z[x]
+    ::
+    ::  [a=zol] -> zol.  Negation preserves the canonical form, so no
+    ::  canonicalization is needed.  Never crashes.
+    ++  neg
+      |=  a=zol
+      ^-  zol
+      (turn a |=(c=@s (dif:si --0 c)))
+    ::    +sub:  subtraction in Z[x]
+    ::
+    ::  [a=zol b=zol] -> zol.  Never crashes.
+    ++  sub
+      |=  [a=zol b=zol]
+      ^-  zol
+      (add a (neg b))
+    ::    +mul:  multiplication in Z[x]
+    ::
+    ::  [a=zol b=zol] -> zol.  Classical convolution (vzGG S2), accumulated
+    ::  as a sum of shifted scalar multiples of b.  Z is an integral domain,
+    ::  so lc(a*b) = lc(a)*lc(b) is nonzero and the leading term cannot
+    ::  cancel.  mul(~, b) = mul(a, ~) = ~.  Never crashes.
+    ++  mul
+      ~/  %mul
+      |=  [a=zol b=zol]
+      ^-  zol
+      ?~  a  ~
+      ?~  b  ~
+      =/  xs=zol   a
+      =/  acc=zol  ~
+      =/  k=@ud    0
+      |-  ^-  zol
+      ?~  xs  acc
+      %=  $
+        xs   t.xs
+        k    +(k)
+        acc  (add acc (shift (scale b i.xs) k))
+      ==
+    ::    +shift:  multiply by x^k
+    ::
+    ::  [a=zol k=@ud] -> zol, prepending k zero coefficients.
+    ::  shift(~, k) = ~, since 0 * x^k = 0.  Never crashes.
+    ++  shift
+      |=  [a=zol k=@ud]
+      ^-  zol
+      ?~  a  ~
+      =/  out=zol  a
+      =/  i=@ud    k
+      |-  ^-  zol
+      ?:  =(0 i)  out
+      $(i (dec i), out [--0 out])
+    ::    +scale:  multiply by a scalar
+    ::
+    ::  [a=zol c=@s] -> zol.  scale(a, --0) = ~.  Otherwise Z is an integral
+    ::  domain, so no coefficient becomes zero and the canonical form is
+    ::  preserved.  Never crashes.
+    ++  scale
+      |=  [a=zol c=@s]
+      ^-  zol
+      ?:  =(--0 c)  ~
+      (turn a |=(d=@s (pro:si c d)))
+    ::    +eval:  evaluate at an integer point
+    ::
+    ::  [a=zol x=@s] -> @s.  Horner's rule, from the highest coefficient
+    ::  down.  eval(~, x) = --0.  Never crashes.
+    ++  eval
+      |=  [a=zol x=@s]
+      ^-  @s
+      =/  r=zol   (flop a)
+      =/  acc=@s  --0
+      |-  ^-  @s
+      ?~  r  acc
+      $(r t.r, acc (sum:si (pro:si acc x) i.r))
     --
   ::    +mx:  (Z/n)[x] and Z/n scalars; a door on the modulus.
   ::
