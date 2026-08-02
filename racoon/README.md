@@ -40,9 +40,11 @@ racoon/
     lib/racoon-vectors.hoon   generated vectors -- never hand-edited
     tests/lib/racoon.hoon     test suite
     lib/racoon-fmt.hoon       rendering and parsing
+    lib/racoon-rs.hoon        Reed-Solomon codec over F_p
     gen/racoon-bench.hoon     benchmark generator
     gen/racoon-factor.hoon    factor a polynomial from the dojo
     gen/racoon-gcd.hoon       gcd of two polynomials from the dojo
+    gen/racoon-rs.hoon        Reed-Solomon round-trip demonstration
   tools/genvec.py             SymPy vector generator
   tools/requirements.txt      pinned SymPy version
   scripts/sync.sh             copy desk/ into the pier
@@ -237,7 +239,7 @@ alone. Do not read a trend into two points.
 -test /=base=/tests/lib/racoon ~
 ```
 
-179 arms, all green. Three kinds:
+189 arms, all green. Three kinds:
 
 - **Behavioral** — known values and adversarial families. `is-prime` gets eight
   Carmichael numbers and five strong pseudoprimes rather than random odds,
@@ -266,6 +268,43 @@ out of scope until a van Hoeij milestone.
 
 Property tests use `++og` from seeds pinned in the `%seeds` section of the test
 file.
+
+## Reed–Solomon
+
+`/lib/racoon-rs` is a systematic Reed–Solomon codec over 𝔽p — the live
+workload the library was built to be exercised against. Correctness is
+self-evident: data either round-trips through deliberate corruption or it
+does not.
+
+```
++racoon-rs 'hello', =errs 2
+"message   hello"
+"codeword  ~[104 101 108 108 111 69 88 106 119]"
+"corrupted ~[201 101 108 205 111 69 88 106 119]  (2 errors)"
+"recovered hello"
+
++racoon-rs 'hello', =errs 3
+"recovered UNCORRECTABLE"
+```
+
+**Prime field, not GF(2⁸).** Classical byte-oriented RS uses an extension
+field, which Racoon does not implement — `mx` is ℤ/n, and 𝔽p only when n is
+prime. With p = 257 every byte 0–255 is a distinct field element, so byte
+data is representable; a parity symbol may come out as 256, which is a field
+element but not a byte, and callers on a byte channel must account for it.
+
+**The decoder needed one thing the frozen interface does not supply.** The
+key equation is solved by an extended Euclid *stopped early*, once the
+remainder degree drops below `nsym/2`. `egcd:mx` runs to completion and would
+pass straight through the solution, so that loop is written locally over
+`divmod:mx`. Everything else — syndromes, Chien search, Forney — is `mx`
+arithmetic unchanged.
+
+**Beyond capacity the answer may be wrong, not merely absent.** A word far
+enough from every codeword can land nearer a *different* one, and the decoder
+will return that with every syndrome satisfied. Measured over 3000 random
+over-capacity corruptions: 2974 detected, 26 miscorrected. This is inherent
+to the code, not a defect, and it is stated in the arm's own documentation.
 
 ## Decision log
 

@@ -44,11 +44,13 @@ files="
 sur/racoon.hoon
 lib/racoon.hoon
 lib/racoon-fmt.hoon
+lib/racoon-rs.hoon
 lib/racoon-vectors.hoon
 tests/lib/racoon.hoon
 gen/racoon-bench.hoon
 gen/racoon-factor.hoon
 gen/racoon-gcd.hoon
+gen/racoon-rs.hoon
 "
 
 copied=0

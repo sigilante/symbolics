@@ -8,7 +8,7 @@
 ::  ++og from the pinned literal seeds recorded below.
 ::
 /-  *racoon
-/+  *test, racoon, vec=racoon-vectors, fmt=racoon-fmt
+/+  *test, racoon, vec=racoon-vectors, fmt=racoon-fmt, rs=racoon-rs
 =/  nz  nz:racoon
 =/  qq  qq:racoon
 =/  zx  zx:racoon
@@ -27,6 +27,8 @@
 ++  seed-qq  0xfeed.face.8765.4321
 ::    +seed-zx:  pinned PRNG seed for the +zx property tests
 ++  seed-zx  0xc0ff.ee00.1234.abcd
+::    +seed-rs:  pinned PRNG seed for the Reed-Solomon property tests
+++  seed-rs  0x5eed.5010.0000.0001
 ::
 +|  %helpers
 ::    +rng:  a bounded stream of naturals from a pinned seed
@@ -2098,4 +2100,197 @@
   %+  skip  ps
   |=  a=qol
   =([~ a] (redq:fmt (crip (shoq:fmt a))))
+::
++|  %rs
+::  Reed-Solomon coding (/lib/racoon-rs).  This is the live-utilization
+::  workload: an error-correcting code either round-trips data through
+::  deliberate corruption or it does not, so its correctness criterion is
+::  self-evident and does not depend on matching another implementation.
+::
+::  All cases use p = 257 with primitive element 3.  Every byte 0-255 is a
+::  distinct element of F_257, which is what makes byte data representable
+::  without an extension field -- Racoon has none.
+::
+++  rs4  ~(. rs [257 3 4])
+++  rs2  ~(. rs [257 3 2])
+++  rs6  ~(. rs [257 3 6])
+::
+++  test-rs-generator
+  ;:  weld
+    ::  g(x) = prod (x - 3^i) for i in 1..4
+    %+  expect-eq  !>(`mol`~[196 138 169 137 1])  !>(gpoly:rs4)
+    ::  degree is exactly nsym, so the coefficient list has nsym + 1 entries
+    %+  expect-eq  !>(`@ud`3)  !>((lent gpoly:rs2))
+    %+  expect-eq  !>(`@ud`5)  !>((lent gpoly:rs4))
+    %+  expect-eq  !>(`@ud`7)  !>((lent gpoly:rs6))
+    ::  and it is monic
+    %+  expect-eq  !>(`@ud`1)  !>((rear gpoly:rs4))
+  ==
+++  test-rs-encode
+  ;:  weld
+    %+  expect-eq
+      !>(`(list @ud)`~[1 2 3 122 50 19 138])
+    !>((encode:rs4 ~[1 2 3]))
+    %+  expect-eq  !>(`(list @ud)`~[5 197 135])  !>((encode:rs2 ~[5]))
+    ::  systematic: the message occupies the leading positions untouched
+    %+  expect-eq
+      !>(`(list @ud)`~[1 2 3])
+    !>((unencode:rs4 (encode:rs4 ~[1 2 3])))
+    ::  an all-zero message encodes to all zeros
+    %+  expect-eq
+      !>(`(list @ud)`~[0 0 0 0 0])
+    !>((encode:rs2 ~[0 0 0]))
+  ==
+::  A codeword is a multiple of the generator, which is exactly the
+::  statement that every syndrome vanishes.
+++  test-rs-syndromes
+  ;:  weld
+    %+  expect-eq
+      !>(`(list @ud)`~[0 0 0 0])
+    !>((syndromes:rs4 (encode:rs4 ~[1 2 3])))
+    %+  expect-eq
+      !>(`(list @ud)`~[0 0])
+    !>((syndromes:rs2 (encode:rs2 ~[9 8 7])))
+    ::  a corrupted word has at least one nonzero syndrome
+    %+  expect-eq
+      !>(%.n)
+    !>((levy (syndromes:rs4 ~[8 2 3 122 50 19 138]) |=(s=@ud =(0 s))))
+  ==
+++  test-rs-decode-known
+  =/  cw=(list @ud)  ~[1 2 3 122 50 19 138]
+  ;:  weld
+    ::  a clean word passes through unchanged
+    %+  expect-eq  !>(`(unit (list @ud))`[~ cw])  !>((decode:rs4 cw))
+    ::  one error, in the message part
+    %+  expect-eq
+      !>(`(unit (list @ud))`[~ cw])
+    !>((decode:rs4 ~[1 7 3 122 50 19 138]))
+    ::  two errors, one in the message and one in the parity -- at the
+    ::  full correction capacity for nsym = 4
+    %+  expect-eq
+      !>(`(unit (list @ud))`[~ cw])
+    !>((decode:rs4 ~[8 2 3 222 50 19 138]))
+  ==
+::  THE load-bearing test: encode, corrupt up to cap symbols at arbitrary
+::  positions, decode, and require the original codeword back exactly.
+::  Nothing here compares against a reference implementation; the property
+::  is the specification.
+++  test-rs-roundtrip
+  =/  ns=(list @ud)  (rng seed-rs 600 257)
+  %+  expect-eq  !>(~)
+  !>  ^-  (list @ud)
+  %+  skip  (gulf 0 39)
+  |=  trial=@ud
+  =/  base=@ud  (mul trial 15)
+  =/  k=@ud     +((mod trial 6))
+  =/  msg=(list @ud)
+    %+  turn  (gulf 0 (dec k))
+    |=(i=@ud (mod (snag (mod (add base i) 600) ns) 257))
+  =/  code  (encode:rs4 msg)
+  =/  n=@ud  (lent code)
+  ::  corrupt 0, 1, or 2 symbols -- at most cap = 2 for nsym = 4
+  =/  nerr=@ud  (mod trial 3)
+  =/  recv=(list @ud)
+    =/  i=@ud           0
+    =/  acc=(list @ud)  code
+    |-  ^-  (list @ud)
+    ?:  (gte i nerr)  acc
+    =/  pos=@ud    (mod (add (mul trial 7) (mul i 3)) n)
+    =/  bump=@ud   +((mod (snag (mod (add base i) 600) ns) 256))
+    =/  was=@ud    (snag pos `(list @ud)`acc)
+    $(i +(i), acc (sput:rs4 acc pos (mod (add was bump) 257)))
+  =/  got  (decode:rs4 recv)
+  ?&  ?!(=(~ got))
+      =(code +:got)
+      ::  and the message itself comes back
+      =(msg (unencode:rs4 +:got))
+  ==
+::  The same property at nsym = 6, correcting up to three errors.
+++  test-rs-roundtrip-6
+  =/  ns=(list @ud)  (rng seed-rs 400 257)
+  %+  expect-eq  !>(~)
+  !>  ^-  (list @ud)
+  %+  skip  (gulf 0 23)
+  |=  trial=@ud
+  =/  base=@ud  (mul trial 13)
+  =/  k=@ud     +((mod trial 5))
+  =/  msg=(list @ud)
+    %+  turn  (gulf 0 (dec k))
+    |=(i=@ud (mod (snag (mod (add base i) 400) ns) 257))
+  =/  code   (encode:rs6 msg)
+  =/  n=@ud  (lent code)
+  =/  nerr=@ud  (mod trial 4)
+  =/  recv=(list @ud)
+    =/  i=@ud           0
+    =/  acc=(list @ud)  code
+    |-  ^-  (list @ud)
+    ?:  (gte i nerr)  acc
+    =/  pos=@ud   (mod (add (mul trial 5) (mul i 2)) n)
+    =/  bump=@ud  +((mod (snag (mod (add base i) 400) ns) 256))
+    =/  was=@ud   (snag pos `(list @ud)`acc)
+    $(i +(i), acc (sput:rs6 acc pos (mod (add was bump) 257)))
+  =/  got  (decode:rs6 recv)
+  ?&(?!(=(~ got)) =(code +:got))
+::  Property: corruption in EVERY position is correctable, one at a time.
+::  A decoder can be subtly wrong only at the ends -- position 0 or n-1 --
+::  because of an off-by-one in the Chien search, so every position is
+::  swept rather than sampled.
+++  test-rs-every-position
+  =/  msg=(list @ud)  ~[11 22 33 44]
+  =/  code  (encode:rs4 msg)
+  =/  n=@ud  (lent code)
+  %+  expect-eq  !>(~)
+  !>  ^-  (list @ud)
+  %+  skip  (gulf 0 (dec n))
+  |=  pos=@ud
+  =/  was=@ud  (snag pos `(list @ud)`code)
+  =/  recv  (sput:rs4 code pos (mod (add was 137) 257))
+  =/  got  (decode:rs4 recv)
+  ?&(?!(=(~ got)) =(code +:got))
+::  Property: every PAIR of positions is correctable at nsym = 4, which is
+::  the capacity.  This is the case a decoder that only ever handled a
+::  single error would pass the previous test and fail here.
+++  test-rs-every-pair
+  =/  msg=(list @ud)  ~[11 22 33]
+  =/  code  (encode:rs4 msg)
+  =/  n=@ud  (lent code)
+  ::  every ordered pair, as a single indexed pass -- a nested +turn under
+  ::  +zing does not infer here, both being wet
+  =/  pairs=(list [a=@ud b=@ud])
+    %+  turn  (gulf 0 (dec (mul n n)))
+    |=  k=@ud
+    ^-  [a=@ud b=@ud]
+    [(div k n) (mod k n)]
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [a=@ud b=@ud])
+  %+  skip  pairs
+  |=  [a=@ud b=@ud]
+  ?:  =(a b)  %.y
+  =/  w1=@ud  (snag a `(list @ud)`code)
+  =/  r1  (sput:rs4 code a (mod (add w1 91) 257))
+  =/  w2=@ud  (snag b `(list @ud)`r1)
+  =/  r2  (sput:rs4 r1 b (mod (add w2 173) 257))
+  =/  got  (decode:rs4 r2)
+  ?&(?!(=(~ got)) =(code +:got))
+::  Crash rows.
+++  test-rs-crashes
+  ;:  weld
+    ::  an empty message has nothing to encode
+    (expect-fail |.((encode:rs4 ~)))
+    ::  a symbol outside the field
+    (expect-fail |.((encode:rs4 ~[257])))
+    (expect-fail |.((encode:rs4 ~[300 1])))
+    (expect-fail |.((decode:rs4 ~[1 2 3 4 5 6 999])))
+    ::  a block longer than p - 1 would repeat evaluation points
+    (expect-fail |.((encode:rs4 (reap 260 1))))
+  ==
+++  test-rs-nocrash
+  ;:  weld
+    ::  a single-symbol message is fine
+    (expect-success |.((encode:rs4 ~[0])))
+    (expect-success |.((encode:rs4 ~[256])))
+    ::  an uncorrectable word produces ~ rather than crashing
+    (expect-success |.((decode:rs2 ~[9 9 9 9 9])))
+    (expect-success |.((syndromes:rs4 ~[1 2 3 4 5 6 7])))
+  ==
 --
