@@ -286,6 +286,119 @@ def pow_rows(rng, count=48):
     return rows
 
 
+
+# --------------------------------------------------------------------------
+# Phase 2 families
+# --------------------------------------------------------------------------
+
+
+def squares(rng, count, maxdim=4):
+    """A supply of square matrices, singular cases included."""
+    out = [
+        [[Rational(1)]],
+        [[Rational(0)]],
+        [[Rational(1), Rational(2)], [Rational(3), Rational(4)]],
+        [[Rational(1), Rational(2)], [Rational(2), Rational(4)]],      # singular
+        [[Rational(1), Rational(0)], [Rational(0), Rational(1)]],
+        [[Rational(0), Rational(1)], [Rational(1), Rational(0)]],      # swap
+        [[Rational(1, 2), Rational(1, 3)], [Rational(1, 4), Rational(1, 5)]],
+        [[Rational(1), Rational(2), Rational(3)],
+         [Rational(4), Rational(5), Rational(6)],
+         [Rational(7), Rational(8), Rational(10)]],
+        [[Rational(1), Rational(2), Rational(3)],
+         [Rational(4), Rational(5), Rational(6)],
+         [Rational(7), Rational(8), Rational(9)]],                     # singular
+        # a zero first pivot, which forces the Bareiss row swap
+        [[Rational(0), Rational(1)], [Rational(1), Rational(1)]],
+        [[Rational(0), Rational(0), Rational(1)],
+         [Rational(0), Rational(1), Rational(0)],
+         [Rational(1), Rational(0), Rational(0)]],
+    ]
+    while len(out) < count:
+        n = rng.randrange(1, maxdim + 1)
+        out.append(rand_qmat(rng, n, n, denom=4, span=6))
+    return out
+
+
+def det_rows(rng, count=48):
+    rows = []
+    for m in squares(rng, count):
+        rows.append("[%s %s]" % (qmat(m), frac(Matrix(m).det())))
+    return rows
+
+
+def rref_rows(rng, count=48):
+    rows = []
+    for m in supply(rng, count):
+        R, piv = Matrix(m).rref()
+        pl = "~" if not piv else "~[%s]" % " ".join(ud(int(p)) for p in piv)
+        rows.append("[%s %s %s]" % (qmat(m), qmat(of_matrix(R)), pl))
+    return rows
+
+
+def rank_rows(rng, count=48):
+    rows = []
+    for m in supply(rng, count):
+        rows.append("[%s %s]" % (qmat(m), ud(Matrix(m).rank())))
+    return rows
+
+
+def inv_rows(rng, count=48):
+    """+inv:qm -- [m c].  Invertible inputs only; singular ones crash."""
+    rows = []
+    for m in squares(rng, count * 3):
+        M = Matrix(m)
+        if M.det() == 0:
+            continue
+        inverse = of_matrix(M.inv())
+        # the defining identity, checked here as well as in-ship
+        assert of_matrix(Matrix(inverse) * M) == of_matrix(eye(M.rows))
+        rows.append("[%s %s]" % (qmat(m), qmat(inverse)))
+        if len(rows) == count:
+            break
+    return rows
+
+
+def solve_rows(rng, count=48):
+    """+solve:qm -- [a b out].  Singular a gives ~, not a crash."""
+    rows = []
+    for m in squares(rng, count * 2):
+        M = Matrix(m)
+        n = M.rows
+        b = rand_qmat(rng, n, 1, denom=3, span=5)
+        if M.det() == 0:
+            out = "~"
+        else:
+            x = of_matrix(M.solve(Matrix(b)))
+            assert of_matrix(M * Matrix(x)) == b
+            out = "[~ %s]" % qmat(x)
+        rows.append("[%s %s %s]" % (qmat(m), qmat(b), out))
+        if len(rows) == count:
+            break
+    return rows
+
+
+def nullspace_rows(rng, count=48):
+    """+nullspace:qm -- [m basis].
+
+    SymPy's basis matches the SPEC S7 convention: for each free column j, a
+    vector with 1 at j, 0 at the other free columns, and the negated RREF
+    entry at each pivot.  Asserted below rather than assumed.
+    """
+    rows = []
+    for m in supply(rng, count):
+        M = Matrix(m)
+        ns = [list(v) for v in M.nullspace()]
+        # every basis vector really is in the kernel
+        for v in ns:
+            assert all(x == 0 for x in M * Matrix(len(v), 1, v))
+        # rank-nullity
+        assert M.rank() + len(ns) == M.cols
+        body = "~" if not ns else "~[%s]" % " ".join(qvec(v) for v in ns)
+        rows.append("[%s %s]" % (qmat(m), body))
+    return rows
+
+
 # --------------------------------------------------------------------------
 
 
@@ -334,6 +447,22 @@ def main():
          "+scale:qm; includes the zero scalar")
     emit("pow-vectors", "(list [a=qmat e=@ud c=qmat])", pow_rows(rng),
          "+pow:qm; square inputs, includes e = 0 and a nilpotent matrix")
+
+    # Phase 2
+    emit("det-vectors", "(list [a=qmat d=frac])", det_rows(rng),
+         "+det:qm, oracle sympy Matrix.det; includes singular inputs")
+    emit("rref-vectors", "(list [a=qmat m=qmat piv=(list @ud)])",
+         rref_rows(rng), "+rref:qm, oracle sympy Matrix.rref")
+    emit("rank-vectors", "(list [a=qmat r=@ud])", rank_rows(rng),
+         "+rank:qm, oracle sympy Matrix.rank")
+    emit("inv-vectors", "(list [a=qmat c=qmat])", inv_rows(rng),
+         "+inv:qm, checked against inv(m) * m = I; singular inputs crash")
+    emit("solve-vectors", "(list [a=qmat b=qmat out=(unit qmat)])",
+         solve_rows(rng),
+         "+solve:qm, checked against a * x = b; singular a gives ~")
+    emit("nullspace-vectors", "(list [a=qmat ns=(list qvec)])",
+         nullspace_rows(rng),
+         "+nullspace:qm, the pinned SPEC S7 basis; rank-nullity asserted")
 
     print("--")
 

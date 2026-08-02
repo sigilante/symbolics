@@ -1,7 +1,7 @@
   ::  /tests/lib/baloon
 ::::  Baloon test suite
 ::
-::  Phases 0 and 1: shape, construction, and arithmetic.
+::  Phases 0 through 2: shape, arithmetic, and elimination.
 ::
 ::  Naming: ++test-p0-*, ++test-p1-*, and so on.  Every crash row in SPEC
 ::  S8 gets a dedicated ++test-*-crash-* arm, and every non-crash row a
@@ -621,4 +621,251 @@
   !>  %+  skip  pow-vectors:vec
       |=  [a=qmat e=@ud c=qmat]
       =(c (pow:qm a e))
+::
++|  %p2-elimination
+++  test-p2-det
+  =/  ma=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
+  =/  ms=qmat  ~[~[[--1 1] [--2 1]] ~[[--2 1] [--4 1]]]
+  =/  mt=qmat
+    :~  ~[[--1 1] [--2 1] [--3 1]]
+        ~[[--4 1] [--5 1] [--6 1]]
+        ~[[--7 1] [--8 1] [--10 1]]
+    ==
+  =/  mq=qmat  ~[~[[--1 2] [--1 3]] ~[[--1 4] [--1 5]]]
+  ;:  weld
+    %+  expect-eq  !>(`frac`[-2 1])   !>((det:qm ma))
+    ::  a singular matrix has determinant zero
+    %+  expect-eq  !>(`frac`[--0 1])  !>((det:qm ms))
+    %+  expect-eq  !>(`frac`[-3 1])   !>((det:qm mt))
+    ::  fractional entries: 1/2*1/5 - 1/3*1/4 = 1/10 - 1/12 = 1/60
+    %+  expect-eq
+      !>(`frac`[--1 60])
+    !>((det:qm mq))
+    ::  a 1x1 determinant is its entry
+    %+  expect-eq  !>(`frac`[-3 4])   !>((det:qm ~[~[[-3 4]]]))
+    %+  expect-eq  !>(one:qq)         !>((det:qm (idn:qm 4)))
+    ::  a zero first pivot forces the Bareiss row swap, which flips sign
+    %+  expect-eq
+      !>(`frac`[-1 1])
+    !>((det:qm ~[~[[--0 1] [--1 1]] ~[[--1 1] [--1 1]]]))
+  ==
+++  test-p2-rank-rref
+  =/  ms=qmat  ~[~[[--1 1] [--2 1]] ~[[--2 1] [--4 1]]]
+  ;:  weld
+    %+  expect-eq  !>(`@ud`2)  !>((rank:qm (idn:qm 2)))
+    %+  expect-eq  !>(`@ud`1)  !>((rank:qm ms))
+    %+  expect-eq  !>(`@ud`0)  !>((rank:qm (zeros:qm 3 3)))
+    ::  the RREF of a singular 2x2 keeps one pivot
+    %+  expect-eq
+      !>  ^-  qrref
+      [~[~[[--1 1] [--2 1]] ~[[--0 1] [--0 1]]] ~[0]]
+    !>((rref:qm ms))
+    ::  the RREF of an invertible matrix is the identity
+    %+  expect-eq
+      !>(`qmat`(idn:qm 2))
+    !>(m:(rref:qm ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]))
+  ==
+++  test-p2-inv-solve
+  =/  ma=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
+  =/  mq=qmat  ~[~[[--1 2] [--1 3]] ~[[--1 4] [--1 5]]]
+  =/  ms=qmat  ~[~[[--1 1] [--2 1]] ~[[--2 1] [--4 1]]]
+  =/  bb=qmat  ~[~[[--5 1]] ~[[--11 1]]]
+  ;:  weld
+    %+  expect-eq
+      !>(`qmat`~[~[[-2 1] [--1 1]] ~[[--3 2] [-1 2]]])
+    !>((inv:qm ma))
+    ::  a fractional inverse comes out in integers here
+    %+  expect-eq
+      !>(`qmat`~[~[[--12 1] [-20 1]] ~[[-15 1] [--30 1]]])
+    !>((inv:qm mq))
+    %+  expect-eq  !>((idn:qm 3))  !>((inv:qm (idn:qm 3)))
+    ::  x = [1 2] solves [[1 2] [3 4]] x = [5 11]
+    %+  expect-eq
+      !>(`(unit qmat)`[~ ~[~[[--1 1]] ~[[--2 1]]]])
+    !>((solve:qm ma bb))
+    ::  S8: a singular system produces ~ rather than crashing
+    %+  expect-eq  !>(`(unit qmat)`~)  !>((solve:qm ms bb))
+  ==
+++  test-p2-nullspace
+  =/  ms=qmat  ~[~[[--1 1] [--2 1]] ~[[--2 1] [--4 1]]]
+  =/  wide=qmat
+    ~[~[[--1 1] [--2 1] [--3 1] [--4 1]] ~[[--2 1] [--4 1] [--6 1] [--8 1]]]
+  ;:  weld
+    ::  the S7 convention: 1 at the free column, negated RREF entry at the
+    ::  pivot -- so [-2 1], not [2 -1] or a scaled variant
+    %+  expect-eq
+      !>(`(list qvec)`~[~[[-2 1] [--1 1]]])
+    !>((nullspace:qm ms))
+    ::  three free columns, ordered by ascending index
+    %+  expect-eq
+      !>  ^-  (list qvec)
+      :~  ~[[-2 1] [--1 1] [--0 1] [--0 1]]
+          ~[[-3 1] [--0 1] [--1 1] [--0 1]]
+          ~[[-4 1] [--0 1] [--0 1] [--1 1]]
+      ==
+    !>((nullspace:qm wide))
+    ::  full column rank leaves an empty basis, not a crash
+    %+  expect-eq  !>(`(list qvec)`~)  !>((nullspace:qm (idn:qm 3)))
+  ==
+::
++|  %p2-properties
+::  Property: inv(m) * m and m * inv(m) are both exactly the identity.
+++  test-p2-prop-inv
+  %+  expect-eq  !>(~)
+  !>  ^-  (list qmat)
+  %+  skip  (qsquares seed-qm 24)
+  |=  m=qmat
+  =/  n  r:(dims:qm m)
+  ?:  =(zero:qq (det:qm m))  %.y
+  =/  vi  (inv:qm m)
+  ?&  =((mul:qm vi m) (idn:qm n))
+      =((mul:qm m vi) (idn:qm n))
+  ==
+::  Property: rank-nullity.  rank(m) + dim(nullspace(m)) = cols(m).
+++  test-p2-prop-rank-nullity
+  %+  expect-eq  !>(~)
+  !>  ^-  (list qmat)
+  %+  skip  (qmats seed-qm 30)
+  |=  m=qmat
+  =/  d  (dims:qm m)
+  =((add (rank:qm m) (lent (nullspace:qm m))) c.d)
+::  Property: every nullspace basis vector really is in the kernel.
+++  test-p2-prop-nullspace-kernel
+  %+  expect-eq  !>(~)
+  !>  ^-  (list qmat)
+  %+  skip  (qmats seed-qm 30)
+  |=  m=qmat
+  =/  d  (dims:qm m)
+  %+  levy  (nullspace:qm m)
+  |=  v=qvec
+  =/  col=qmat  (turn v |=(f=frac ^-(qvec ~[f])))
+  =((mul:qm m col) (zeros:qm r.d 1))
+::  Property: det is multiplicative, and invariant under transpose.
+++  test-p2-prop-det
+  =/  ms  (qsquares seed-qm 24)
+  %+  expect-eq  !>(~)
+  !>  ^-  (list [qmat qmat])
+  %+  skip  (zip-mats ms)
+  |=  [a=qmat b=qmat]
+  ?.  =((dims:qm a) (dims:qm b))  %.y
+  ?&  =((det:qm (mul:qm a b)) (mul:qq (det:qm a) (det:qm b)))
+      =((det:qm (transpose:qm a)) (det:qm a))
+      =((det:qm (idn:qm r:(dims:qm a))) one:qq)
+  ==
+::  Property: a matrix is singular exactly when its determinant vanishes.
+++  test-p2-prop-singular
+  %+  expect-eq  !>(~)
+  !>  ^-  (list qmat)
+  %+  skip  (qsquares seed-qm 24)
+  |=  m=qmat
+  =/  n  r:(dims:qm m)
+  =(=(zero:qq (det:qm m)) ?!(=(n (rank:qm m))))
+::  Property: RREF is idempotent, and preserves shape.
+++  test-p2-prop-rref-idempotent
+  %+  expect-eq  !>(~)
+  !>  ^-  (list qmat)
+  %+  skip  (qmats seed-qm 30)
+  |=  m=qmat
+  =/  rr  (rref:qm m)
+  ?&  =(m.rr m:(rref:qm m.rr))
+      =((dims:qm m.rr) (dims:qm m))
+      ::  pivots are strictly ascending
+      =/  ps=(list @ud)  piv.rr
+      |-  ^-  ?
+      ?~  ps  %.y
+      ?~  t.ps  %.y
+      ?&((lth i.ps i.t.ps) $(ps t.ps))
+  ==
+::  Property: +solve produces an x satisfying a*x = b, and produces ~
+::  exactly when a is singular.
+++  test-p2-prop-solve
+  %+  expect-eq  !>(~)
+  !>  ^-  (list qmat)
+  %+  skip  (qsquares seed-qm 24)
+  |=  m=qmat
+  =/  n  r:(dims:qm m)
+  =/  b=qmat  (scale:qm (transpose:qm ~[(row:qm (idn:qm n) 0)]) [--3 1])
+  =/  x  (solve:qm m b)
+  ?~  x  =(zero:qq (det:qm m))
+  ?&  ?!(=(zero:qq (det:qm m)))
+      =((mul:qm m u.x) b)
+  ==
+::
++|  %p2-crashes
+::  S8: +det, +inv, and +charpoly require square input.
+++  test-p2-crash-nonsquare
+  =/  w=qmat  ~[~[[--1 1] [--2 1] [--3 1]]]
+  ;:  weld
+    (expect-fail |.((det:qm w)))
+    (expect-fail |.((inv:qm w)))
+  ==
+::  S8: +inv crashes on a singular matrix.
+++  test-p2-crash-inv-singular
+  ;:  weld
+    (expect-fail |.((inv:qm ~[~[[--1 1] [--2 1]] ~[[--2 1] [--4 1]]])))
+    (expect-fail |.((inv:qm (zeros:qm 2 2))))
+    (expect-fail |.((inv:qm ~[~[[--0 1]]])))
+  ==
+::  S8: +solve requires a square and matching row counts.
+++  test-p2-crash-solve-shape
+  =/  ma=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
+  =/  w=qmat   ~[~[[--1 1] [--2 1] [--3 1]]]
+  ;:  weld
+    (expect-fail |.((solve:qm w ~[~[[--1 1]]])))
+    ::  b has the wrong number of rows
+    (expect-fail |.((solve:qm ma ~[~[[--1 1]]])))
+  ==
+::  The Phase 2 arms that must NOT crash.
+++  test-p2-nocrash
+  =/  ms=qmat  ~[~[[--1 1] [--2 1]] ~[[--2 1] [--4 1]]]
+  =/  w=qmat   ~[~[[--1 1] [--2 1] [--3 1]]]
+  ;:  weld
+    ::  a singular system produces ~, and singular input is fine elsewhere
+    (expect-success |.((solve:qm ms ~[~[[--1 1]] ~[[--2 1]]])))
+    (expect-success |.((det:qm ms)))
+    (expect-success |.((rank:qm ms)))
+    ::  rref, rank, and nullspace are total, including on non-square input
+    (expect-success |.((rref:qm w)))
+    (expect-success |.((rank:qm w)))
+    (expect-success |.((nullspace:qm w)))
+    (expect-success |.((nullspace:qm (idn:qm 2))))
+    (expect-success |.((rref:qm (zeros:qm 2 3))))
+  ==
+::
++|  %p2-vectors
+++  test-p2-vec-det
+  %+  expect-eq  !>(~)
+  !>  %+  skip  det-vectors:vec
+      |=  [a=qmat d=frac]
+      =(d (det:qm a))
+::
+++  test-p2-vec-rref
+  %+  expect-eq  !>(~)
+  !>  %+  skip  rref-vectors:vec
+      |=  [a=qmat m=qmat piv=(list @ud)]
+      =([m piv] (rref:qm a))
+::
+++  test-p2-vec-rank
+  %+  expect-eq  !>(~)
+  !>  %+  skip  rank-vectors:vec
+      |=  [a=qmat r=@ud]
+      =(r (rank:qm a))
+::
+++  test-p2-vec-inv
+  %+  expect-eq  !>(~)
+  !>  %+  skip  inv-vectors:vec
+      |=  [a=qmat c=qmat]
+      =(c (inv:qm a))
+::
+++  test-p2-vec-solve
+  %+  expect-eq  !>(~)
+  !>  %+  skip  solve-vectors:vec
+      |=  [a=qmat b=qmat out=(unit qmat)]
+      =(out (solve:qm a b))
+::
+++  test-p2-vec-nullspace
+  %+  expect-eq  !>(~)
+  !>  %+  skip  nullspace-vectors:vec
+      |=  [a=qmat ns=(list qvec)]
+      =(ns (nullspace:qm a))
 --

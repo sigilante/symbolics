@@ -16,7 +16,7 @@ Racoon's single `c`.
 |---|---|---|
 | **P0** | shape and construction | **complete** |
 | **P1** | arithmetic | **complete** |
-| P2 | elimination — rref, rank, det, inv, solve, nullspace | not started |
+| **P2** | elimination — rref, rank, det, inv, solve, nullspace | **complete** |
 | P3 | spectral — charpoly, eigen | not started |
 
 Milestone A is **ℚ only**. `+zm` (ℤ) and `+mm` (ℤ/n, which also serves 𝔽p)
@@ -68,7 +68,7 @@ its argument order.
 -test /=base=/tests/lib/baloon ~
 ```
 
-44 arms, all green. Behavioral, property, crash-row, and vector-driven.
+65 arms, all green. Behavioral, property, crash-row, and vector-driven.
 §8 is treated as a two-sided contract: every crash row has a dedicated test
 and every non-crash boundary has a matching expected-success test.
 
@@ -82,6 +82,8 @@ uses.
 |---|---|---|
 | — | Indexing helpers written out in `+pv` rather than using `++snag` | `snag` carries a `~_` hint, so an out-of-range crash puts `"snag-fail"` into the trace. Trace payloads are observable under virtualization and would become part of the jet contract; B3 keeps them out. The local helpers crash bare, and public arms guard bounds with `?>` so the guard fires before any accessor could. |
 | — | `$qrref`, not `$rref` | RREF is not ring-generic: over ℤ there is none at all, and the row-canonical form is Hermite. An unprefixed name in a multi-ring library is a trap that only springs once the second ring arrives. |
+| — | `det` by Bareiss over ℤ, not Gauss–Jordan over ℚ | B4. Rational elimination swells denominators badly. Bareiss keeps every intermediate an exact integer — each division is exact by Sylvester's identity — so the arm clears denominators, eliminates over ℤ, then divides the scaling back out. Same discipline `gcd:qx` uses in delegating to `gcd:zx`. |
+| — | `rref` pivots on the first nonzero, not the largest | There is no rounding error to control, so magnitude-based partial pivoting buys nothing. That technique belongs to Lagoon's world. First-nonzero is deterministic and exact. |
 | — | Dimensions derived, not stored | Carrying `[r c data]` adds two invariants that can desync; deriving adds one, rectangularity. |
 | — | `idn` vectors number 12, not the §11.2 minimum of 40 | The arm is parameterized only by a dimension, so there is no input variety to sample; sizes 1–12 cover the structure exhaustively. Padding to 40 would be ceremony, and 40×40 identity literals would add ~200 KB to the corpus. **Proposed §11.2 amendment — see below.** |
 
