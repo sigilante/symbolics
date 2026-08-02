@@ -20,7 +20,7 @@ and file name. Only the spec document spells it `raccoon`.
 | P1 | `zx` — ℤ[x] arithmetic | **complete** |
 | P1 | `mx` — (ℤ/n)[x] arithmetic and ℤ/n scalars | **complete** |
 | **P2** | division, GCD, resultants; `qx` | **complete** |
-| P3 | factorization | not started |
+| **P3** | factorization | **complete** |
 
 `%nz` and `%qq` are frozen under R6: arm sets and order are fixed for
 Milestone A, and no reordering, renaming, or insertion happens without
@@ -97,7 +97,7 @@ python3 tools/genvec.py > desk/lib/racoon-vectors.hoon
 ```
 
 Deterministic: the PRNG seed is pinned in the script, so regeneration is
-byte-identical. 58 families, 44–64 cases each, against the §11.2 minimum of 40.
+byte-identical. 61 families, 44–64 cases each, against the §11.2 minimum of 40.
 Moduli cover §11.2's required set: `p = 2`, `p = 3`, a 61-bit prime, and the
 composites 6, 12, 100, and 256.
 
@@ -167,6 +167,7 @@ per row unless noted. Per-call figures are derived, not measured directly.
 | `gcd:mx` | degree 64, 61-bit 𝔽p (1 iter) | 42.234 ms | ~42.2 ms |
 | `gcd:zx` | degree 64 (1 iter) | 104.967 ms | ~105 ms |
 | `res:zx` | degree 16 (1 iter) | 4.727 ms | ~4.73 ms |
+| `factor:zx` | degree 32, 16 modular factors (1 iter) | 775.095 ms | ~775 ms |
 
 Observations worth carrying into Milestone B:
 
@@ -194,8 +195,7 @@ Observations worth carrying into Milestone B:
   this table did exactly that and reported the 61-bit case as *faster* than the
   20-bit one.
 
-Every §11.4 row named by degree is now present except `factor:zx` at degree
-32, which awaits Phase 3 and is not faked.
+Every §11.4 row named by degree is now present.
 
 `gcd:mx` at degree 64 costs *less* than at degree 16 (42 ms against 90 ms for
 ten runs, so ~42 ms against ~9 ms per call — the per-call figures are the ones
@@ -209,7 +209,7 @@ alone. Do not read a trend into two points.
 -test /=base=/tests/lib/racoon ~
 ```
 
-151 arms, all green. Three kinds:
+171 arms, all green. Three kinds:
 
 - **Behavioral** — known values and adversarial families. `is-prime` gets eight
   Carmichael numbers and five strong pseudoprimes rather than random odds,
@@ -223,9 +223,18 @@ alone. Do not read a trend into two points.
 - **Vector-driven** — one `++test-*-vec-*` per generated family. Each reports
   *every* mismatching case rather than stopping at the first.
 
-Phase 1 property tests build their inputs with a local `+to-zol` that forces
-the top coefficient nonzero, rather than calling `+canon:zx`. A property test
-must not depend on the arm it would otherwise be exercising.
+Property tests build their inputs with local helpers — `+to-zol`, `+to-mol`,
+`+to-qol`, `+ipow`, `+tderiv` — rather than calling the library arm they would
+otherwise be exercising. A squarefreeness check that borrowed the library's own
+derivative would be checking less than it appears to.
+
+**Exact reconstruction is the load-bearing factorization test** (§11.3): the
+reassembled product must equal the input noun-for-noun, over both ℤ and 𝔽p.
+Irreducibility of individual factors is certified by the SymPy vectors, not
+in-ship. The Swinnerton–Dyer polynomials are the adversarial case — irreducible
+over ℤ yet split mod *every* prime, so recombination must reject every proper
+subset before concluding. §13 requires SD_3; it passes, and SD_4 and beyond are
+out of scope until a van Hoeij milestone.
 
 Property tests use `++og` from seeds pinned in the `%seeds` section of the test
 file.
@@ -239,6 +248,8 @@ file.
 | Q3 | Add a §8 crash row: `+new:qq` on `q = 0` | No product respects the `$frac` invariant — `gcd(|p|, 0) = |p|` reduces to `q' = 0` — and R5 forbids downstream arms from re-canonicalizing, so a bad value would propagate silently. |
 | Q4 | Jet registration follows `/lib/math.hoon`, not §10's prose | §10 demands mirroring that file "exactly" while also describing "nested `~%` per sub-core"; the file and Lagoon both use one root `~%` under `%non` and plain `~/` below. Followed the file, per §10's operative instruction. |
 | Q5 | Reserve all five sub-core slots now; `%nz`/`%qq` frozen at the P0 gate | R6 freezes a hinted core once its phase closes, but adding an arm to a Hoon core moves the battery axes of the arms already there. Introducing `zx`/`mx`/`qx` as their phases land would shift the `%racoon` battery at every gate — and that is the parent axis each sub-core jet resolves against, so freezing `%nz` internally would buy a jet author nothing. Declaring all five arms now fixes `%racoon` for the milestone; each sub-core freezes at its own gate. |
+| — | `factor:zx` monic-izes nothing; recombination multiplies by `lc` | Follows §9's pinned pipeline literally. The lifted factors are kept monic by dividing `f` through by its leading coefficient mod `p^k` — valid because `p ∤ lc(f)`, so `lc` is a unit at every power of `p`. |
+| — | Delegated private helpers in `zx` beyond §9's public list | `lift`, `crt-lift`, `xdiv`, `combos`, `mprod`, `hstep`, `hlift`, `firr`; and `npow`, `mstrip`, `mderiv`, `mproot`, `remod` in `pv`. §14 delegates helper structure and naming. `xdiv` is worth noting: Z is not a field, so exact division goes through `pdiv` and then divides the quotient by `lc(b)^e`. |
 | — | `res` oracle is the Sylvester determinant, not `sympy.resultant` | SymPy normalizes argument order by degree and so loses the sign when `deg a < deg b` and both degrees are odd; it disagreed with the definition on 19/300 sampled pairs. The determinant is definitional and self-consistent. The library correspondingly swaps to `deg a >= deg b` with the `(-1)^(mn)` sign, which the subresultant recurrence requires. |
 | — | `gcd:qx` clears denominators and delegates to `gcd:zx` | Running Euclid over `$frac` directly invites rational coefficient swell — the classic failure mode. Delegating inherits both `gcd:zx`'s modular algorithm and its trial-division certification. |
 | — | Private helpers live in `+pv`, outside the `%racoon` core | Helper churn cannot disturb the battery layout of a hinted core when the R6 freeze lands, and `=<` keeps them genuinely private. |

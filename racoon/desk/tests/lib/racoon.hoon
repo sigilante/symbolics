@@ -14,9 +14,10 @@
 =/  zx  zx:racoon
 =/  mx  mx:racoon
 =/  qx  qx:racoon
-::  doors at a prime, a composite, and the smallest modulus
+::  doors at primes, a composite, and the smallest modulus
 =/  m7   ~(. mx 7)
 =/  m6   ~(. mx 6)
+=/  m3   ~(. mx 3)
 =/  m2   ~(. mx 2)
 |%
 +|  %seeds
@@ -92,6 +93,22 @@
   ?~  r  ~
   ?:  =(0 i.r)  $(r t.r)
   (flop r)
+::    +tderiv:  formal derivative over Z, for the test suite
+::
+::  The library's +zderiv lives in the private +pv core and is not reachable
+::  from here.  Recomputing it independently is the right thing anyway: a
+::  squarefreeness check that borrowed the library's own derivative would be
+::  checking less than it appears to.
+++  tderiv
+  |=  a=zol
+  ^-  zol
+  ?~  a  ~
+  =/  cs=zol  t.a
+  =/  k=@ud   1
+  =|  out=zol
+  |-  ^-  zol
+  ?~  cs  (flop out)
+  $(cs t.cs, k +(k), out [(pro:si (sun:si k) i.cs) out])
 ::    +ipow:  integer power, for checking the pseudo-division identity
 ::
 ::  The library's own +pows lives in the private +pv core, which is not
@@ -1270,6 +1287,310 @@
     (expect-success |.((divmod:m7 ~[1 1] ~[3])))
   ==
 ::
++|  %p3-mx
+::  Phase 3: factorization over F_p.
+::
+++  test-p3-mx-factor-char2
+  ;:  weld
+    ::  (1 + x)^3
+    %+  expect-eq
+      !>(`mfac`[1 ~[[~[1 1] 3]]])
+    !>((factor:m2 ~[1 1 1 1]))
+    ::  1 + x^2 = (1 + x)^2 in characteristic 2
+    %+  expect-eq
+      !>(`mfac`[1 ~[[~[1 1] 2]]])
+    !>((factor:m2 ~[1 0 1]))
+    ::  x^3 + x + 1 is irreducible over F_2
+    %+  expect-eq
+      !>(`mfac`[1 ~[[~[1 1 0 1] 1]]])
+    !>((factor:m2 ~[1 1 0 1]))
+    ::  x + x^3 = x(1 + x)^2
+    %+  expect-eq
+      !>(`mfac`[1 ~[[~[0 1] 1] [~[1 1] 2]]])
+    !>((factor:m2 ~[0 1 0 1]))
+  ==
+++  test-p3-mx-factor-odd
+  ;:  weld
+    %+  expect-eq
+      !>(`mfac`[1 ~[[~[1 1] 1] [~[2 1] 1]]])
+    !>((factor:m3 ~[2 0 1]))
+    %+  expect-eq
+      !>(`mfac`[1 ~[[~[1 1] 1] [~[6 1] 1]]])
+    !>((factor:m7 ~[6 0 1]))
+    ::  x^2 + 1 has no root mod 7, so it is irreducible there
+    %+  expect-eq
+      !>(`mfac`[1 ~[[~[1 0 1] 1]]])
+    !>((factor:m7 ~[1 0 1]))
+    %+  expect-eq
+      !>(`mfac`[1 ~[[~[1 1] 2]]])
+    !>((factor:m7 ~[1 2 1]))
+  ==
+::  The f' = 0 path: every exponent divisible by p, so f = g(x^p) and the
+::  p-th root has to be taken.  A char-0 algorithm has no such case.
+++  test-p3-mx-factor-pth-root
+  ;:  weld
+    %+  expect-eq
+      !>(`mfac`[1 ~[[~[1 1] 3]]])
+    !>((factor:m3 ~[1 0 0 1]))
+    %+  expect-eq
+      !>(`mfac`[1 ~[[~[2 1] 3]]])
+    !>((factor:m3 ~[2 0 0 1]))
+    %+  expect-eq
+      !>(`mfac`[1 ~[[~[1 1] 6]]])
+    !>((factor:m2 ~[1 0 1 0 1 0 1]))
+    %+  expect-eq
+      !>(`mfac`[1 ~[[~[1 1] 5]]])
+    !>((factor:~(. mx 5) ~[1 0 0 0 0 1]))
+    ::  (x - 1)^8 over F_3, which needs the root taken twice
+    %+  expect-eq
+      !>(`mfac`[1 ~[[~[2 1] 8]]])
+    !>((factor:m3 ~[1 1 1 1 1 1 1 1 1]))
+  ==
+++  test-p3-mx-sqfree
+  ;:  weld
+    ::  the parts are squarefree, not necessarily irreducible
+    %+  expect-eq
+      !>(`mfac`[1 ~[[~[1 1] 2]]])
+    !>((sqfree:m7 ~[1 2 1]))
+    %+  expect-eq
+      !>(`mfac`[1 ~[[~[6 0 1] 1]]])
+    !>((sqfree:m7 ~[6 0 1]))
+  ==
+::  Property: exact reconstruction over F_p.  SPEC S11.3 makes this the
+::  load-bearing factorization test -- the reassembled product must equal
+::  the input noun-for-noun.
+++  test-p3-mx-reconstructs
+  =/  ps=(list @ud)  ~[2 3 5 7]
+  %+  expect-eq  !>(~)
+  !>  ^-  (list zol)
+  %+  skip  (zols seed-zx 24)
+  |=  x=zol
+  %+  levy  ps
+  |=  p=@ud
+  =/  d  ~(. mx p)
+  =/  a  (to-mol x p)
+  ?~  a  %.y
+  =/  fc  (factor:d a)
+  =/  re=mol
+    =/  acc=mol  ~[c.fc]
+    =/  fs=(list [p=mol m=@ud])  fs.fc
+    |-  ^-  mol
+    ?~  fs  acc
+    =/  pw=mol
+      =/  i=@ud    m.i.fs
+      =/  z=mol    ~[1]
+      |-  ^-  mol
+      ?:  =(0 i)  z
+      $(i (dec i), z (mul:d z p.i.fs))
+    $(fs t.fs, acc (mul:d acc pw))
+  =(a re)
+::  Property: every factor is monic, multiplicities are positive, and the
+::  factors are strictly ascending -- hence sorted and pairwise distinct.
+++  test-p3-mx-canonical
+  =/  ps=(list @ud)  ~[2 3 5 7]
+  %+  expect-eq  !>(~)
+  !>  ^-  (list zol)
+  %+  skip  (zols seed-zx 24)
+  |=  x=zol
+  %+  levy  ps
+  |=  p=@ud
+  =/  d  ~(. mx p)
+  =/  a  (to-mol x p)
+  ?~  a  %.y
+  =/  fc  (factor:d a)
+  ?&  %+  levy  fs.fc
+      |=([q=mol m=@ud] ?&(?!(=(~ q)) =(1 (lc:d q)) (gth m 0)))
+      =/  fs=(list [p=mol m=@ud])  fs.fc
+      |-  ^-  ?
+      ?~  fs  %.y
+      ?~  t.fs  %.y
+      ?&(=(%lt (pcmp:d p.i.fs p.i.t.fs)) $(fs t.fs))
+  ==
+::
++|  %p3-zx
+++  test-p3-zx-sqfree
+  ;:  weld
+    %+  expect-eq
+      !>(`zfac`[--1 ~[[~[-1 --0 --1] 1]]])
+    !>((sqfree:zx ~[-1 --0 --1]))
+    %+  expect-eq
+      !>(`zfac`[--1 ~[[~[--1 --1] 2]]])
+    !>((sqfree:zx ~[--1 --2 --1]))
+    %+  expect-eq
+      !>(`zfac`[--1 ~[[~[--0 --1] 2] [~[--1 --1] 1]]])
+    !>((sqfree:zx ~[--0 --0 --1 --1]))
+    ::  content and sign are stripped into c
+    %+  expect-eq
+      !>(`zfac`[--2 ~[[~[--1 --2] 1]]])
+    !>((sqfree:zx ~[--2 --4]))
+    %+  expect-eq
+      !>(`zfac`[-2 ~[[~[--1 --2] 1]]])
+    !>((sqfree:zx ~[-2 -4]))
+    %+  expect-eq
+      !>(`zfac`[--8 ~[[~[--0 --1] 3]]])
+    !>((sqfree:zx ~[--0 --0 --0 --8]))
+  ==
+++  test-p3-zx-factor
+  ;:  weld
+    %+  expect-eq
+      !>(`zfac`[--1 ~[[~[-1 --1] 1] [~[--1 --1] 1]]])
+    !>((factor:zx ~[-1 --0 --1]))
+    %+  expect-eq
+      !>(`zfac`[--1 ~[[~[--1 --1] 2]]])
+    !>((factor:zx ~[--1 --2 --1]))
+    %+  expect-eq
+      !>(`zfac`[--1 ~[[~[--1 --1] 1] [~[--2 --1] 1]]])
+    !>((factor:zx ~[--2 --3 --1]))
+    ::  three linear factors
+    %+  expect-eq
+      !>(`zfac`[--1 ~[[~[--1 --1] 1] [~[--2 --1] 1] [~[--3 --1] 1]]])
+    !>((factor:zx ~[--6 --11 --6 --1]))
+    ::  x^4 - 1: two linear and one quadratic, so +pcmp must order by
+    ::  degree before coefficients
+    %+  expect-eq
+      !>(`zfac`[--1 ~[[~[-1 --1] 1] [~[--1 --1] 1] [~[--1 --0 --1] 1]]])
+    !>((factor:zx ~[-1 --0 --0 --0 --1]))
+  ==
+++  test-p3-zx-factor-irreducible
+  ;:  weld
+    %+  expect-eq
+      !>(`zfac`[--1 ~[[~[--1 --0 --1] 1]]])
+    !>((factor:zx ~[--1 --0 --1]))
+    %+  expect-eq
+      !>(`zfac`[--1 ~[[~[-2 --0 --1] 1]]])
+    !>((factor:zx ~[-2 --0 --1]))
+    ::  the fifth cyclotomic: factors mod every prime, irreducible over Z
+    %+  expect-eq
+      !>(`zfac`[--1 ~[[~[--1 --1 --1 --1 --1] 1]]])
+    !>((factor:zx ~[--1 --1 --1 --1 --1]))
+  ==
+::  Swinnerton-Dyer.  These are irreducible over Z yet split into linear or
+::  quadratic factors modulo EVERY prime, so recombination must reject every
+::  proper subset before concluding.  SPEC S13 requires SD_3 to pass; SD_4
+::  and beyond are out of scope until a van Hoeij milestone.
+++  test-p3-zx-swinnerton-dyer
+  ;:  weld
+    %+  expect-eq
+      !>(`zfac`[--1 ~[[~[--1 --0 -10 --0 --1] 1]]])
+    !>((factor:zx ~[--1 --0 -10 --0 --1]))
+    %+  expect-eq
+      !>  ^-  zfac
+      :-  --1
+      ~[[~[--576 --0 -960 --0 --352 --0 -40 --0 --1] 1]]
+    !>((factor:zx ~[--576 --0 -960 --0 --352 --0 -40 --0 --1]))
+  ==
+++  test-p3-zx-factor-content
+  ;:  weld
+    %+  expect-eq
+      !>(`zfac`[--2 ~[[~[--1 --2] 1]]])
+    !>((factor:zx ~[--2 --4]))
+    %+  expect-eq
+      !>(`zfac`[--2 ~[[~[-3 --0 --0 --1] 1]]])
+    !>((factor:zx ~[-6 --0 --0 --2]))
+    ::  S8: a degree-0 input factors as [c ~], with no crash
+    %+  expect-eq  !>(`zfac`[--5 ~])  !>((factor:zx ~[--5]))
+    %+  expect-eq  !>(`zfac`[-5 ~])   !>((factor:zx ~[-5]))
+  ==
+::  Property: exact reconstruction over Z -- the load-bearing test (S11.3).
+++  test-p3-zx-reconstructs
+  %+  expect-eq  !>(~)
+  !>  ^-  (list zol)
+  %+  skip  (zols seed-zx 24)
+  |=  a=zol
+  ?~  a  %.y
+  =/  fc  (factor:zx a)
+  =/  re=zol
+    =/  acc=zol  ~[c.fc]
+    =/  fs=(list [p=zol m=@ud])  fs.fc
+    |-  ^-  zol
+    ?~  fs  acc
+    =/  pw=zol
+      =/  i=@ud    m.i.fs
+      =/  z=zol    ~[--1]
+      |-  ^-  zol
+      ?:  =(0 i)  z
+      $(i (dec i), z (mul:zx z p.i.fs))
+    $(fs t.fs, acc (mul:zx acc pw))
+  =(a re)
+::  Property: factors are primitive with positive lc, multiplicities are
+::  positive, and the list is strictly ascending.
+++  test-p3-zx-canonical
+  %+  expect-eq  !>(~)
+  !>  ^-  (list zol)
+  %+  skip  (zols seed-zx 24)
+  |=  a=zol
+  ?~  a  %.y
+  =/  fc  (factor:zx a)
+  ?&  %+  levy  fs.fc
+      |=  [q=zol m=@ud]
+      ?&  ?!(=(~ q))
+          (syn:si (lc:zx q))
+          =(1 (content:zx q))
+          (gth m 0)
+      ==
+      =/  fs=(list [p=zol m=@ud])  fs.fc
+      |-  ^-  ?
+      ?~  fs  %.y
+      ?~  t.fs  %.y
+      ?&(=(%lt (pcmp:zx p.i.fs p.i.t.fs)) $(fs t.fs))
+  ==
+::  Property: +sqfree parts are pairwise coprime and squarefree, and
+::  reassemble to the input exactly.
+++  test-p3-zx-sqfree-reconstructs
+  %+  expect-eq  !>(~)
+  !>  ^-  (list zol)
+  %+  skip  (zols seed-zx 32)
+  |=  a=zol
+  ?~  a  %.y
+  =/  fc  (sqfree:zx a)
+  =/  re=zol
+    =/  acc=zol  ~[c.fc]
+    =/  fs=(list [p=zol m=@ud])  fs.fc
+    |-  ^-  zol
+    ?~  fs  acc
+    =/  pw=zol
+      =/  i=@ud    m.i.fs
+      =/  z=zol    ~[--1]
+      |-  ^-  zol
+      ?:  =(0 i)  z
+      $(i (dec i), z (mul:zx z p.i.fs))
+    $(fs t.fs, acc (mul:zx acc pw))
+  ?&  =(a re)
+      ::  each part is squarefree: its gcd with its own derivative is a
+      ::  constant, i.e. has no repeated root
+      %+  levy  fs.fc
+      |=  [q=zol m=@ud]
+      ?|  (lth (lent q) 2)
+          =(1 (lent (gcd:zx q (tderiv q))))
+      ==
+  ==
+::
++|  %p3-crashes
+::  S8: factoring the zero polynomial is undefined in every ring.
+++  test-p3-crash-factor-zero
+  ;:  weld
+    (expect-fail |.((factor:zx ~)))
+    (expect-fail |.((factor:m7 ~)))
+    (expect-fail |.((sqfree:zx ~)))
+    (expect-fail |.((sqfree:m7 ~)))
+  ==
+::  S8: the field-only arms assert primality.
+++  test-p3-crash-mx-composite
+  ;:  weld
+    (expect-fail |.((factor:m6 ~[1 1])))
+    (expect-fail |.((sqfree:m6 ~[1 1])))
+    (expect-fail |.((ddf:m6 ~[1 1])))
+    (expect-fail |.((edf:m6 ~[1 1] 1)))
+  ==
+++  test-p3-nocrash
+  ;:  weld
+    ::  S8: a degree-0 input factors as [c ~] rather than crashing
+    (expect-success |.((factor:zx ~[--5])))
+    (expect-success |.((factor:m7 ~[5])))
+    (expect-success |.((sqfree:zx ~[--5])))
+    (expect-success |.((ddf:m7 ~[1])))
+  ==
+::
 +|  %p0-vectors
 ::  Generated reference vectors (SPEC deliverable 3).  The oracle is SymPy and
 ::  the Python standard library; see tools/genvec.py.  These are the arms that
@@ -1634,4 +1955,23 @@
   !>  %+  skip  qx-eval-vectors:vec
       |=  [a=qol x=frac y=frac]
       =(y (eval:qx a x))
+::
++|  %p3-vectors
+++  test-p3-vec-zx-sqfree
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-sqfree-vectors:vec
+      |=  [a=zol c=@s fs=(list [p=zol m=@ud])]
+      =([c fs] (sqfree:zx a))
+::
+++  test-p3-vec-zx-factor
+  %+  expect-eq  !>(~)
+  !>  %+  skip  zx-factor-vectors:vec
+      |=  [a=zol c=@s fs=(list [p=zol m=@ud])]
+      =([c fs] (factor:zx a))
+::
+++  test-p3-vec-mx-factor
+  %+  expect-eq  !>(~)
+  !>  %+  skip  mx-factor-vectors:vec
+      |=  [n=@ud a=mol c=@ud fs=(list [p=mol m=@ud])]
+      =([c fs] (factor:~(. mx n) a))
 --

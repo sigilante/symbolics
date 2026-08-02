@@ -281,7 +281,24 @@
     ['  gcd:mx            degree 64   61-bit F_p  (1 iter)' 1]
   =/  z   (bench-zx-gcd a64 b64 '  gcd:zx            degree 64   (1 iter)' 1)
   =/  zz  (bench-zx-res a16 b16 '  res:zx            degree 16   (1 iter)' 1)
-  :(add p q r s t u v w y z zz)
+  ::  S11.4's last row: factor:zx at degree 32.  Built from four irreducible
+  ::  quadratics times a linear, so recombination has real work to do.
+  =/  fz  (bench-zx-factor '  factor:zx         degree 32   (1 iter)')
+  :(add p q r s t u v w y z zz fz)
+::
+++  bench-zx-factor
+  |=  label=@t
+  ^-  @
+  ::  (x^2+1)(x^2+2)...(x^2+16) has degree 32 and sixteen modular factors
+  =/  f=zol
+    =/  i=@ud    1
+    =/  acc=zol  ~[--1]
+    |-  ^-  zol
+    ?:  (gth i 16)  acc
+    $(i +(i), acc (mul:zx acc ~[(sun:si i) --0 --1]))
+  ~&  label
+  ~>  %bout
+  (lent fs:(factor:zx f))
 ::
 ++  bench-mx-gcd
   |=  [m=@ud [a=mol b=mol] label=@t count=@ud]

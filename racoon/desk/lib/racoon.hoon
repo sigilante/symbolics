@@ -113,6 +113,60 @@
     ?~  r  ~
     ?:  =(0 i.r)  $(r t.r)
     (flop r)
+  ::    +npow:  exponentiation over the naturals
+  ::
+  ::  [b=@ud e=@ud] -> @ud.  Used for p^d with d a polynomial degree, so the
+  ::  exponent is small even when the base is a 61-bit prime.
+  ++  npow
+    |=  [b=@ud e=@ud]
+    ^-  @ud
+    ?:  =(0 e)  1
+    (mul b $(e (dec e)))
+  ::    +mstrip:  drop trailing zero coefficients from a (Z/n)[x] polynomial
+  ++  mstrip
+    |=  a=mol
+    ^-  mol
+    =/  r=mol  (flop a)
+    |-  ^-  mol
+    ?~  r  ~
+    ?:  =(0 i.r)  $(r t.r)
+    (flop r)
+  ::    +mderiv:  formal derivative in (Z/n)[x]
+  ::
+  ::  [a=mol n=@ud] -> mol.  Unlike +zderiv the product must be stripped:
+  ::  in characteristic p the top coefficient k*c_k vanishes whenever p | k,
+  ::  which is exactly the signal +sqfree tests for.
+  ++  mderiv
+    |=  [a=mol n=@ud]
+    ^-  mol
+    ?~  a  ~
+    =/  cs=mol  t.a
+    =/  k=@ud   1
+    =|  out=mol
+    |-  ^-  mol
+    ?~  cs  (mstrip (flop out))
+    $(cs t.cs, k +(k), out [(mod (mul k i.cs) n) out])
+  ::    +mproot:  p-th root of a polynomial in (Z/p)[x]
+  ::
+  ::  [a=mol p=@ud] -> mol.  The caller guarantees a' = 0, so a = g(x^p) and
+  ::  only indices divisible by p carry a nonzero coefficient.  Over a PRIME
+  ::  field the coefficient p-th root is the identity, since c^p = c by
+  ::  Fermat, so the root is obtained by index division alone.
+  ++  mproot
+    |=  [a=mol p=@ud]
+    ^-  mol
+    =/  cs=mol  a
+    =/  i=@ud   0
+    =|  out=mol
+    |-  ^-  mol
+    ?~  cs  (mstrip (flop out))
+    ?:  =(0 (mod i p))  $(cs t.cs, i +(i), out [i.cs out])
+    $(cs t.cs, i +(i))
+  ::    +remod:  reduce a (Z/m)[x] polynomial to a different modulus
+  ++  remod
+    |=  [a=mol m=@ud]
+    ^-  mol
+    (mstrip (turn a |=(c=@ud (mod c m))))
   ::    +mr:  one Miller-Rabin round
   ::
   ::  [n=@ud a=@ud d=@ud s=@ud] -> ?, where n - 1 = d * 2^s, d odd, s >= 1.
@@ -652,6 +706,27 @@
           ==
         (scale cand (sun:si cg))
       $(p (^add p 2), m nm, acc na, best di)
+    ::    +xdiv:  exact division in Z[x]
+    ::
+    ::  [a=zol b=zol] -> zol, the quotient a/b when b divides a exactly.
+    ::  The caller guarantees exactness; on an inexact input the product is
+    ::  whatever the truncating scalar division yields, which is why every
+    ::  use below is a division the surrounding theory proves exact.
+    ::
+    ::  Z is not a field, so this goes through +pdiv: that arm produces
+    ::  lc(b)^e * a = q*b + r with e = deg a - deg b + 1, and when b divides
+    ::  a we have r = ~ and q = lc(b)^e * (a/b), so dividing q by that same
+    ::  power recovers the true quotient.
+    ++  xdiv
+      |=  [a=zol b=zol]
+      ^-  zol
+      ?~  a  ~
+      ?~  b  !!
+      =/  da=@ud  (deg a)
+      =/  db=@ud  (deg b)
+      ?:  (lth da db)  ~
+      =/  e=@ud  +((^sub da db))
+      (zdiv:pv q:(pdiv a b) (pows:pv (lc b) e))
     ::    +lift:  symmetric lift of a (Z/m)[x] polynomial into Z[x]
     ::
     ::  [a=mol m=@ud] -> zol, each coefficient mapped into (-m/2, m/2].
@@ -785,6 +860,250 @@
         ?~  cs  x
         $(cs t.cs, x (max x (abs:si i.cs)))
       (^mul (^mul (bex n) +((isqrt:nz +(n)))) m)
+    ::    +sqfree:  squarefree decomposition over Z
+    ::
+    ::  [a=zol] -> zfac, where |c| is the content of a and sign(c) is the
+    ::  sign of lc(a), and each factor is primitive squarefree with positive
+    ::  leading coefficient.  The parts are pairwise coprime and squarefree
+    ::  but NOT irreducible; +factor refines them.
+    ::
+    ::  Yun's algorithm (SPEC S9).  Characteristic 0, so unlike +sqfree:mx
+    ::  there is no f' = 0 case to handle: over Z the derivative of a
+    ::  nonconstant polynomial is never zero.  Every division below is exact.
+    ::
+    ::  Crashes on ~ (the zero polynomial has no decomposition).
+    ++  sqfree
+      |=  a=zol
+      ^-  zfac
+      ?~  a  !!
+      =/  ct=@ud  (content a)
+      =/  c=@s    ?:((syn:si (lc a)) (sun:si ct) (dif:si --0 (sun:si ct)))
+      =/  f=zol   (zdiv:pv a c)
+      ?:  =(0 (deg f))  [c ~]
+      =/  fp=zol  (zderiv:pv f)
+      =/  a0=zol  (gcd f fp)
+      =/  b=zol   (xdiv f a0)
+      =/  c1=zol  (xdiv fp a0)
+      =/  d=zol   (sub c1 (zderiv:pv b))
+      =/  i=@ud   1
+      =|  out=(list [p=zol m=@ud])
+      |-  ^-  zfac
+      ?:  =(0 (deg b))
+        :-  c
+        %+  sort  out
+        |=  [x=[p=zol m=@ud] y=[p=zol m=@ud]]
+        ?!(=(%gt (pcmp p.x p.y)))
+      =/  ai=zol  (gcd b d)
+      =/  bn=zol  (xdiv b ai)
+      =/  cn=zol  (xdiv d ai)
+      %=  $
+        out  ?:((gth (deg ai) 0) [[ai i] out] out)
+        b    bn
+        d    (sub cn (zderiv:pv bn))
+        i    +(i)
+      ==
+    ::    +combos:  the k-subsets of a list, lexicographic ascending
+    ::
+    ::  The enumeration order is pinned by SPEC S9 for the recombination
+    ::  search: subsets by cardinality ascending, and within a cardinality
+    ::  lexicographic ascending on index tuples.
+    ++  combos
+      |=  [k=@ud xs=(list @ud)]
+      ^-  (list (list @ud))
+      ?:  =(0 k)  ~[~]
+      ?~  xs  ~
+      %+  weld
+        %+  turn  $(k (dec k), xs t.xs)
+        |=(c=(list @ud) [i.xs c])
+      $(xs t.xs)
+    ::    +mprod:  product of a list of (Z/m)[x] polynomials
+    ++  mprod
+      |=  [xs=(list mol) m=@ud]
+      ^-  mol
+      =/  d  ~(. mx m)
+      =/  acc=mol  ~[1]
+      |-  ^-  mol
+      ?~  xs  acc
+      $(xs t.xs, acc (mul:d acc i.xs))
+    ::    +hstep:  one quadratic Hensel step, lifting modulus m to m^2
+    ::
+    ::  Given f = g*h and s*g + t*h = 1 modulo m, with h monic, produces the
+    ::  corresponding quadruple modulo m^2 (vzGG Alg. 15.10).  Quadratic
+    ::  rather than linear lifting is what SPEC S9 pins, so the modulus
+    ::  reaches the target in log time.
+    ::
+    ::  h monic is what makes the divisions well defined: m^2 is composite,
+    ::  so +divmod:mx needs a unit leading coefficient, and 1 always is.
+    ++  hstep
+      |=  [f=mol g=mol h=mol s=mol t=mol m=@ud]
+      ^-  [g=mol h=mol s=mol t=mol]
+      =/  m2=@ud  (^mul m m)
+      =/  d  ~(. mx m2)
+      =/  fr=mol  (remod:pv f m2)
+      =/  e=mol   (sub:d fr (mul:d g h))
+      =/  qr      (divmod:d (mul:d s e) h)
+      =/  g2=mol  (add:d g (add:d (mul:d t e) (mul:d q.qr g)))
+      =/  h2=mol  (add:d h r.qr)
+      =/  b=mol   (sub:d (add:d (mul:d s g2) (mul:d t h2)) ~[1])
+      =/  cd      (divmod:d (mul:d s b) h2)
+      =/  s2=mol  (sub:d s r.cd)
+      =/  t2=mol  (sub:d t (add:d (mul:d t b) (mul:d q.cd g2)))
+      [g2 h2 s2 t2]
+    ::    +hlift:  multifactor Hensel lift
+    ::
+    ::  [f=mol gs=(list mol) p=@ud m=@ud] -> (list mol).  Given monic f
+    ::  modulo m and the monic factors gs of f modulo p, produces the
+    ::  corresponding monic factors modulo m.
+    ::
+    ::  Balanced factor tree per SPEC S9: split the factor list at ceil(r/2)
+    ::  and recurse, so the two-factor step is all that is ever needed.
+    ++  hlift
+      |=  [f=mol gs=(list mol) p=@ud m=@ud]
+      ^-  (list mol)
+      ?~  gs  ~
+      ?~  t.gs  ~[f]
+      =/  r=@ud     (lent gs)
+      =/  half=@ud  (^div +(r) 2)
+      ::  widen back to (list mol): +scag and +slag are wet, so they would
+      ::  otherwise inherit the non-empty type ?~ refined gs to, and neither
+      ::  can promise a non-empty product
+      =/  xs=(list mol)  gs
+      =/  as=(list mol)  (scag half xs)
+      =/  bs=(list mol)  (slag half xs)
+      =/  ga=mol  (mprod as p)
+      =/  gb=mol  (mprod bs p)
+      =/  e  (egcd:~(. mx p) ga gb)
+      ::  the halves are coprime mod p, so the Bezout cofactors exist
+      ?>  =(~[1] g.e)
+      =/  st  [g=ga h=gb s=u.e t=v.e]
+      =/  res
+        =/  cur=@ud  p
+        |-  ^-  [g=mol h=mol s=mol t=mol]
+        ?:  (gte cur m)  st
+        %=  $
+          st   (hstep f g.st h.st s.st t.st cur)
+          cur  (^mul cur cur)
+        ==
+      (weld $(f g.res, gs as) $(f h.res, gs bs))
+    ::    +factor:  factorization into irreducibles over Z
+    ::
+    ::  [a=zol] -> zfac.  |c| is the content of a and sign(c) the sign of
+    ::  lc(a); each factor is primitive, irreducible, with positive leading
+    ::  coefficient; the list is sorted ascending by +pcmp, multiplicities
+    ::  are >= 1, and the factors are pairwise distinct.
+    ::
+    ::  Pinned pipeline (SPEC S9): strip sign and content; +sqfree; per
+    ::  squarefree part choose the smallest odd prime p with p not dividing
+    ::  lc and the image squarefree; factor that image over F_p; Hensel-lift
+    ::  to the least p^(2^k) exceeding 2*mig(g)*|lc(g)|; then Zassenhaus
+    ::  recombination over subsets by ascending cardinality.
+    ::
+    ::  Recombination is exponential in the number of modular factors in the
+    ::  worst case -- the Swinnerton-Dyer polynomials are the standard
+    ::  witnesses.  SD_3 is in the test suite; SD_4 and beyond are out of
+    ::  scope until a van Hoeij milestone (SPEC S13).
+    ::
+    ::  Crashes on ~ (factorization of zero is undefined).  A degree-0 input
+    ::  factors as [c ~], with no crash (SPEC S8).
+    ++  factor
+      ~/  %factor
+      |=  a=zol
+      ^-  zfac
+      ?~  a  !!
+      =/  sq=zfac  (sqfree a)
+      ?~  fs.sq  [c.sq ~]
+      =|  out=(list [p=zol m=@ud])
+      =/  parts=(list [p=zol m=@ud])  fs.sq
+      |-  ^-  zfac
+      ?~  parts
+        :-  c.sq
+        %+  sort  out
+        |=  [x=[p=zol m=@ud] y=[p=zol m=@ud]]
+        ?!(=(%gt (pcmp p.x p.y)))
+      =/  irr=(list zol)  (firr p.i.parts)
+      %=  $
+        parts  t.parts
+        out    (weld out (turn irr |=(q=zol [q m.i.parts])))
+      ==
+    ::    +firr:  factor a primitive squarefree polynomial into irreducibles
+    ::
+    ::  [f=zol] -> (list zol), each primitive irreducible with positive lc.
+    ::  The caller guarantees f primitive, squarefree, deg >= 1, lc > 0.
+    ++  firr
+      |=  f=zol
+      ^-  (list zol)
+      ?:  =(1 (deg f))  ~[f]
+      =/  lf=@s   (lc f)
+      =/  n=@ud   (deg f)
+      ::  smallest odd prime keeping the degree and squarefreeness
+      =/  p=@ud
+        =/  q=@ud  3
+        |-  ^-  @ud
+        ?.  (is-prime:nz q)  $(q (^add q 2))
+        ?:  =(0 (mod (abs:si lf) q))  $(q (^add q 2))
+        =/  fq=mol  (zmod:pv f q)
+        ?.  =((lent fq) (lent f))  $(q (^add q 2))
+        =/  dq  ~(. mx q)
+        ?.  =(~[1] (gcd:dq fq (mderiv:pv fq q)))  $(q (^add q 2))
+        q
+      =/  fp=mol  (zmod:pv f p)
+      =/  gs=(list mol)  (turn fs:(factor:~(. mx p) fp) |=([q=mol m=@ud] q))
+      ::  a single modular factor means f is already irreducible over Z
+      ?:  (lth (lent gs) 2)  ~[f]
+      ::  lift target: the least p^(2^k) exceeding 2 * mig(f) * |lc(f)|
+      =/  bd=@ud  (^mul (^mul 2 (mig f)) (abs:si lf))
+      =/  md=@ud
+        =/  x=@ud  p
+        |-  ^-  @ud
+        ?:  (gth x bd)  x
+        $(x (^mul x x))
+      =/  dm  ~(. mx md)
+      ::  the monic image of f modulo md; lc(f) is a unit since p does not
+      ::  divide it, hence neither does any power of p
+      =/  fm=mol  (scale:dm (zmod:pv f md) (cinv:dm (mod (abs:si lf) md)))
+      =/  fmm=mol
+        ?:  (syn:si lf)  fm
+        (scale:dm fm (cneg:dm 1))
+      =/  lifted=(list mol)  (hlift fmm gs p md)
+      ::  Zassenhaus recombination
+      =/  idx=(list @ud)  (gulf 0 (dec (lent lifted)))
+      =/  rem=zol   f
+      =/  acc=(list zol)  ~
+      =/  card=@ud  1
+      |-  ^-  (list zol)
+      ?:  (gth (^mul 2 card) (lent idx))
+        ?:  (gth (deg rem) 0)  (flop [rem acc])
+        (flop acc)
+      =/  hit
+        =/  cs=(list (list @ud))  (combos card idx)
+        |-  ^-  (unit [s=(list @ud) f=zol])
+        ?~  cs  ~
+        =/  sel=(list mol)
+          %+  turn  i.cs
+          |=(j=@ud (snag j lifted))
+        =/  pr=mol   (mprod sel md)
+        =/  lr=@ud   (mod (abs:si (lc rem)) md)
+        =/  sc=mol
+          ?:  (syn:si (lc rem))  (scale:dm pr lr)
+          (scale:dm pr (cneg:dm lr))
+        =/  cand0=zol  (lift sc md)
+        ?~  cand0  $(cs t.cs)
+        =/  cand1=zol  (pp cand0)
+        =/  cand=zol
+          ?:  (syn:si (lc cand1))  cand1
+          (neg cand1)
+        ?:  ?&  (gth (deg cand) 0)
+                (lte (deg cand) (deg rem))
+                =(~ r:(pdiv rem cand))
+            ==
+          `[i.cs cand]
+        $(cs t.cs)
+      ?~  hit  $(card +(card))
+      %=  $
+        idx  (skip idx |=(j=@ud (lien s.u.hit |=(k=@ud =(k j)))))
+        rem  (xdiv rem f.u.hit)
+        acc  [f.u.hit acc]
+      ==
     --
   ::    +mx:  (Z/n)[x] and Z/n scalars; a door on the modulus
   ::
@@ -1109,6 +1428,186 @@
         k    nk
         acc  ?:(=(1 (cut 0 [nk 1] e)) r:(divmod (mul sq bb) f) sq)
       ==
+    ::    +sqfree:  squarefree decomposition over F_p
+    ::
+    ::  [a=mol] -> mfac, where c is lc(a) and the factors are the monic
+    ::  squarefree parts with their multiplicities.  The parts are pairwise
+    ::  coprime and squarefree but NOT necessarily irreducible.
+    ::
+    ::  Classic characteristic-p recursion (SPEC S9).  Where char 0 needs
+    ::  only Yun, char p must additionally handle f' = 0, which says every
+    ::  exponent is divisible by p, i.e. f = g(x^p); the p-th root is then
+    ::  taken and every multiplicity below scales by p.  The recursion on
+    ::  that root is run here as a loop carrying a running .mult, which is
+    ::  equivalent and keeps the arm self-contained.
+    ::
+    ::  Crashes on ~ and on composite n (SPEC S8).
+    ++  sqfree
+      ~/  %sqfree
+      |=  a=mol
+      ^-  mfac
+      ?>  (is-prime:nz n)
+      ?~  a  !!
+      =/  c=@ud  (lc a)
+      =/  f0=mol  (scale a (cinv c))
+      ?:  =(0 (deg f0))  [c ~]
+      =/  out=(list [p=mol m=@ud])  ~
+      =/  mult=@ud  1
+      =/  f=mol     f0
+      =|  done=?
+      |-  ^-  mfac
+      =/  fd=mol  (mderiv:pv f n)
+      ?~  fd
+        ::  f' = 0, so f = g(x^p): descend to the p-th root
+        $(f (mproot:pv f n), mult (^mul mult n))
+      =/  c0=mol  (gcd f fd)
+      =/  w0=mol  q:(divmod f c0)
+      =/  res
+        =/  w=mol    w0
+        =/  cc=mol   c0
+        =/  i=@ud    1
+        =/  acc=(list [p=mol m=@ud])  out
+        |-  ^-  [(list [p=mol m=@ud]) mol]
+        ?:  =(~[1] w)  [acc cc]
+        =/  y=mol  (gcd w cc)
+        =/  z=mol  q:(divmod w y)
+        %=  $
+          acc  ?:((gth (lent z) 1) [[z (^mul i mult)] acc] acc)
+          i    +(i)
+          w    y
+          cc   q:(divmod cc y)
+        ==
+      ?:  (gth (lent +.res) 1)
+        ::  the leftover is a p-th power: descend, scaling multiplicities
+        $(out -.res, f (mproot:pv +.res n), mult (^mul mult n))
+      :-  c
+      %+  sort  -.res
+      |=  [x=[p=mol m=@ud] y=[p=mol m=@ud]]
+      ?!(=(%gt (pcmp p.x p.y)))
+    ::    +ddf:  distinct-degree factorization over F_p
+    ::
+    ::  [a=mol] -> (list [d=@ud f=mol]), where each f is the product of all
+    ::  monic irreducible factors of a of degree exactly d, and the list is
+    ::  ascending in d.  The caller supplies a monic squarefree a.
+    ::
+    ::  Iterate h <- h^p mod f from h = x; then gcd(h - x, f) collects the
+    ::  factors whose degree divides the current index (SPEC S9).  The loop
+    ::  stops once deg f < 2d, at which point any remainder is irreducible.
+    ::
+    ::  Crashes on ~ and on composite n (SPEC S8).
+    ++  ddf
+      ~/  %ddf
+      |=  a=mol
+      ^-  (list [d=@ud f=mol])
+      ?>  (is-prime:nz n)
+      ?~  a  !!
+      =/  fs=mol  a
+      =/  h=mol   ~[0 1]
+      =/  i=@ud   1
+      =|  out=(list [d=@ud f=mol])
+      |-  ^-  (list [d=@ud f=mol])
+      ?:  (lth (deg fs) (^mul 2 i))
+        ::  what remains is irreducible, of its own degree
+        ?:  (gth (lent fs) 1)  (flop [[(deg fs) fs] out])
+        (flop out)
+      =/  hh=mol  (powmod h n fs)
+      =/  g=mol   (gcd (sub hh ~[0 1]) fs)
+      ?:  (gth (lent g) 1)
+        =/  nfs=mol  q:(divmod fs g)
+        %=  $
+          out  [[i g] out]
+          fs   nfs
+          h    ?:((gth (lent nfs) 1) r:(divmod hh nfs) hh)
+          i    +(i)
+        ==
+      $(h hh, i +(i))
+    ::    +edf:  equal-degree factorization over F_p
+    ::
+    ::  [a=mol d=@ud] -> (list mol).  The caller supplies a monic a that is
+    ::  a product of distinct irreducibles all of degree exactly d; the
+    ::  product is that set of irreducibles.
+    ::
+    ::  The candidate sequence is PINNED (SPEC S9) so that the specification
+    ::  terminates deterministically: for odd p the candidates are x + j for
+    ::  j = 0, 1, 2, ... split by gcd(a_j^((p^d - 1)/2) - 1, f); for p = 2
+    ::  the trace map T(c) = c + c^2 + ... + c^(2^(d-1)) is used with
+    ::  candidates x^j for j = 1, 2, ....  The factor SET is unique, so a jet
+    ::  may find it any way it likes.
+    ::
+    ::  Crashes on ~ and on composite n (SPEC S8).
+    ++  edf
+      ~/  %edf
+      |=  [a=mol d=@ud]
+      ^-  (list mol)
+      ?>  (is-prime:nz n)
+      ?~  a  !!
+      ?>  (gte d 1)
+      =/  da=@ud  (deg a)
+      ?:  (lth da d)  ~
+      ?:  =(da d)  ~[a]
+      ?:  =(2 n)
+        ::  characteristic 2: trace-map splitting
+        =/  j=@ud  1
+        |-  ^-  (list mol)
+        =/  cand=mol  (shift ~[1] j)
+        =/  t=mol
+          =/  s=mol  r:(divmod cand a)
+          =/  acc=mol  s
+          =/  k=@ud  1
+          |-  ^-  mol
+          ?:  (gte k d)  acc
+          =/  s2=mol  r:(divmod (mul s s) a)
+          $(k +(k), s s2, acc (add acc s2))
+        =/  g=mol  (gcd t a)
+        ?:  ?&((gth (lent g) 1) (lth (lent g) (lent a)))
+          (weld ^$(a g) ^$(a q:(divmod a g)))
+        $(j +(j))
+      ::  odd characteristic: the (p^d - 1)/2 power test
+      =/  e=@ud  (^div (dec (npow:pv n d)) 2)
+      =/  j=@ud  0
+      |-  ^-  (list mol)
+      =/  cand=mol  (mstrip:pv ~[(mod j n) 1])
+      =/  g=mol  (gcd (sub (powmod cand e a) ~[1]) a)
+      ?:  ?&((gth (lent g) 1) (lth (lent g) (lent a)))
+        (weld ^$(a g) ^$(a q:(divmod a g)))
+      $(j +(j))
+    ::    +factor:  factorization into irreducibles over F_p
+    ::
+    ::  [a=mol] -> mfac.  c is the leading coefficient, each factor is monic
+    ::  irreducible, the list is sorted ascending by +pcmp, multiplicities
+    ::  are >= 1, and the factors are pairwise distinct.
+    ::
+    ::  Pipeline per SPEC S9: assert primality, strip lc, monic-ize, then
+    ::  sqfree -> ddf -> edf and assemble.  Distinct squarefree parts are
+    ::  coprime, so factors gathered from different parts are automatically
+    ::  distinct.
+    ::
+    ::  Crashes on ~ (factorization of zero is undefined) and on composite n.
+    ::  A degree-0 input factors as [c ~], with no crash (SPEC S8).
+    ++  factor
+      ~/  %factor
+      |=  a=mol
+      ^-  mfac
+      ?>  (is-prime:nz n)
+      ?~  a  !!
+      =/  c=@ud  (lc a)
+      ?:  =(0 (deg a))  [c ~]
+      =/  f=mol  (scale a (cinv c))
+      =/  parts=(list [p=mol m=@ud])  fs:(sqfree f)
+      =|  out=(list [p=mol m=@ud])
+      |-  ^-  mfac
+      ?~  parts
+        :-  c
+        %+  sort  out
+        |=  [x=[p=mol m=@ud] y=[p=mol m=@ud]]
+        ?!(=(%gt (pcmp p.x p.y)))
+      =/  sub=(list [p=mol m=@ud])
+        %-  zing
+        %+  turn  (ddf p.i.parts)
+        |=  [d=@ud g=mol]
+        %+  turn  (edf g d)
+        |=(q=mol [q m.i.parts])
+      $(parts t.parts, out (weld out sub))
     --
   ::    +qx:  Q[x]
   ::

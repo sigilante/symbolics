@@ -20,7 +20,8 @@ keeps this file a check on the Hoon transcription rather than a copy of it.
 import math
 from fractions import Fraction
 
-from sympy import GF, Poly, QQ, ZZ, discriminant, isprime, symbols
+from sympy import (GF, Poly, QQ, ZZ, discriminant, factor_list,
+                   isprime, sqf_list, symbols)
 from sympy.matrices import zeros
 from sympy.ntheory.modular import crt as sympy_crt
 
@@ -1070,6 +1071,136 @@ def qx_eval_rows(rng, count=48):
     return rows
 
 
+
+# --------------------------------------------------------------------------
+# Phase 3 -- factorization
+#
+# SPEC S11.3 makes exact RECONSTRUCTION the load-bearing test: the reassembled
+# product must equal the input noun-for-noun.  Irreducibility of the
+# individual factors is what the SymPy oracle certifies here.
+# --------------------------------------------------------------------------
+
+
+def zx_sqfree_rows(rng, count=48):
+    """+sqfree:zx -- [a c fs].  Oracle sympy.sqf_list over ZZ."""
+    cases = [
+        [-1, 0, 1], [1, 2, 1], [0, 0, 1, 1], [4, 4, 1],
+        [2, 4], [-2, -4], [0, 0, 0, 8], [5], [-5], [1],
+        [-1, 0, 0, 0, 1], [1, 3, 3, 1], [0, 1],
+    ]
+    for q in zx_polys(rng, count * 2):
+        if not q:
+            continue                       # ~ crashes
+        cases.append(q)
+        if len(cases) >= count:
+            break
+    rows = []
+    for q in cases:
+        c, fl = sqf_list(to_poly(q))
+        c = int(c)
+        fs = []
+        for poly, m in fl:
+            f = of_poly(poly)
+            if f and f[-1] < 0:            # normalize to positive lc
+                f = [-v for v in f]
+                if m % 2:
+                    c = -c
+            if len(f) > 1 or (len(f) == 1 and f[0] != 1):
+                fs.append((f, m))
+        fs.sort(key=lambda t: (len(t[0]), list(reversed(t[0]))))
+        inner = " ".join("[%s %s]" % (zol(f), ud(m)) for f, m in fs)
+        rows.append("[%s %s ~[%s]]" % (zol(q), sd(c), inner)
+                    if fs else "[%s %s ~]" % (zol(q), sd(c)))
+    return rows
+
+
+def zx_factor_rows(rng, count=44):
+    """+factor:zx -- [a c fs].  Oracle sympy.factor_list over ZZ."""
+    cases = [
+        [-1, 0, 1], [1, 2, 1], [2, 3, 1], [6, 11, 6, 1],
+        [-1, 0, 0, 0, 1], [1, 0, 1], [-2, 0, 1], [0, 0, 1, 1],
+        [2, 4], [-6, 0, 0, 2], [1, 1, 1, 1, 1], [5], [-5],
+        # Swinnerton-Dyer: irreducible, yet splits mod every prime.  These
+        # are the exponential worst case for Zassenhaus recombination.
+        [1, 0, -10, 0, 1],                                 # SD_2
+        [576, 0, -960, 0, 352, 0, -40, 0, 1],              # SD_3
+        # cyclotomics and x^k - 1
+        [-1, 1], [-1, 0, 1], [-1, 0, 0, 1], [-1, 0, 0, 0, 1],
+        [-1, 0, 0, 0, 0, 0, 1], [1, 1], [1, 0, 0, 1],
+        [1, -1, 1], [1, 1, 1],
+        # repeated factors, and content times a power
+        [1, 3, 3, 1], [4, 8, 4], [-4, -8, -4],
+    ]
+    for q in zx_polys(rng, count * 3):
+        if not q or len(q) > 5:
+            continue                       # keep recombination tractable
+        cases.append(q)
+        if len(cases) >= count:
+            break
+    rows = []
+    for q in cases:
+        c, fl = factor_list(to_poly(q))
+        c = int(c)
+        fs = []
+        for poly, m in fl:
+            f = of_poly(poly)
+            if f and f[-1] < 0:
+                f = [-v for v in f]
+                if m % 2:
+                    c = -c
+            fs.append((f, m))
+        fs.sort(key=lambda t: (len(t[0]), list(reversed(t[0]))))
+        # reconstruction: c * prod(f^m) must equal the input exactly
+        chk = Poly(c, X, domain=ZZ)
+        for f, m in fs:
+            chk = chk * to_poly(f) ** m
+        assert of_poly(chk) == q, (q, c, fs)
+        inner = " ".join("[%s %s]" % (zol(f), ud(m)) for f, m in fs)
+        rows.append("[%s %s ~[%s]]" % (zol(q), sd(c), inner)
+                    if fs else "[%s %s ~]" % (zol(q), sd(c)))
+    return rows
+
+
+def mx_factor_rows(rng, count=48):
+    """+factor:mx -- [n a c fs].  Oracle sympy.factor_list over GF(p)."""
+    cases = [
+        (2, [1, 1, 1, 1]), (2, [1, 0, 1]), (2, [1, 1, 0, 1]),
+        (2, [0, 1, 0, 1]), (2, [1, 0, 1, 0, 1, 0, 1]),
+        (3, [2, 0, 1]), (3, [1, 0, 0, 1]), (3, [2, 0, 0, 1]),
+        (3, [1, 1, 1, 1, 1, 1, 1, 1, 1]),
+        (5, [0, 0, 1, 1]), (5, [1, 0, 0, 0, 0, 1]),
+        (7, [6, 0, 1]), (7, [1, 0, 1]), (7, [1, 2, 1]), (7, [5]),
+    ]
+    primes = [2, 3, 5, 7, 97]
+    while len(cases) < count:
+        p = primes[len(cases) % len(primes)]
+        cases.append((p, mx_poly(rng, p, maxdeg=5)))
+    rows = []
+    for p, q in cases:
+        if not q:
+            continue
+        c = q[-1]
+        pf = Poly(list(reversed(q)), X, modulus=p)
+        _, fl = factor_list(pf, modulus=p)
+        fs = []
+        for poly, m in fl:
+            f = mod_strip([int(v) for v in reversed(poly.all_coeffs())], p)
+            inv = pow(f[-1], -1, p)
+            f = mod_strip([v * inv for v in f], p)   # monic
+            fs.append((f, m))
+        fs.sort(key=lambda t: (len(t[0]), list(reversed(t[0]))))
+        # reconstruction over F_p
+        chk = [c]
+        for f, m in fs:
+            for _ in range(m):
+                chk = mod_strip(of_poly(to_poly(chk) * to_poly(f)), p)
+        assert chk == mod_strip(q, p), (p, q)
+        inner = " ".join("[%s %s]" % (mol(f), ud(m)) for f, m in fs)
+        rows.append("[%s %s %s ~[%s]]" % (ud(p), mol(q), ud(c), inner)
+                    if fs else "[%s %s %s ~]" % (ud(p), mol(q), ud(c)))
+    return rows
+
+
 # --------------------------------------------------------------------------
 
 
@@ -1233,6 +1364,19 @@ def main():
          "+gcd:qx, oracle sympy gcd over QQ, monic")
     emit("qx-eval-vectors", "(list [a=qol x=frac y=frac])", qx_eval_rows(rng),
          "+eval:qx, oracle sympy Poly.eval over QQ")
+
+    # Phase 3
+    emit("zx-sqfree-vectors",
+         "(list [a=zol c=@s fs=(list [p=zol m=@ud])])",
+         zx_sqfree_rows(rng), "+sqfree:zx, oracle sympy.sqf_list over ZZ")
+    emit("zx-factor-vectors",
+         "(list [a=zol c=@s fs=(list [p=zol m=@ud])])",
+         zx_factor_rows(rng),
+         "+factor:zx, oracle sympy.factor_list; includes SD_2 and SD_3")
+    emit("mx-factor-vectors",
+         "(list [n=@ud a=mol c=@ud fs=(list [p=mol m=@ud])])",
+         mx_factor_rows(rng),
+         "+factor:mx, oracle sympy.factor_list over GF(p)")
 
     print("--")
 
