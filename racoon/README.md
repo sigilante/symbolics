@@ -39,7 +39,10 @@ racoon/
     lib/racoon.hoon           the library
     lib/racoon-vectors.hoon   generated vectors -- never hand-edited
     tests/lib/racoon.hoon     test suite
+    lib/racoon-fmt.hoon       rendering and parsing
     gen/racoon-bench.hoon     benchmark generator
+    gen/racoon-factor.hoon    factor a polynomial from the dojo
+    gen/racoon-gcd.hoon       gcd of two polynomials from the dojo
   tools/genvec.py             SymPy vector generator
   tools/requirements.txt      pinned SymPy version
   scripts/sync.sh             copy desk/ into the pier
@@ -79,12 +82,34 @@ scripts/sync.sh                       # host
 commits, because conflating the copy with the commit makes a failed build hard
 to attribute. Override the pier with `RACOON_PIER=/path/to/zod`.
 
-For interactive work:
+For interactive work there is a human-readable surface — `/lib/racoon-fmt`
+renders and parses conventional notation, so nothing has to be read as a
+little-endian ZigZag list:
+
+```
++racoon-factor 'x^4 - 1'
+"x^4 - 1  =  (x - 1) * (x + 1) * (x^2 + 1)"
+
++racoon-factor 'x^2 - 1', =p 7
+"x^2 + 6  =  (x + 1) * (x + 6)   (mod 7)"
+
++racoon-gcd 'x^4 - 1' 'x^2 - 1'
+"gcd(x^4 - 1, x^2 - 1)  =  x^2 - 1"
+```
+
+Or against the library directly:
 
 ```
 =r -build-file /=base=/lib/racoon/hoon
 (egcd:nz:r 240 46)
 ```
+
+`racoon-fmt` is a CONSUMER of `/lib/racoon`, not part of it: the Milestone A
+interface is frozen, so the formatter imports the library like any other
+caller. `print . parse` is asserted as an identity over the whole generated
+vector corpus, which is a free property test the parser buys us — and it
+immediately caught the printer emitting `(1/2)x^2` while the parser had no
+rule for parentheses.
 
 Building the library slogs `fund: in racoon, parent ... not found at 7`. This
 is expected: no jets exist until Milestone B, so the runtime has nothing to
@@ -212,7 +237,7 @@ alone. Do not read a trend into two points.
 -test /=base=/tests/lib/racoon ~
 ```
 
-171 arms, all green. Three kinds:
+179 arms, all green. Three kinds:
 
 - **Behavioral** — known values and adversarial families. `is-prime` gets eight
   Carmichael numbers and five strong pseudoprimes rather than random odds,

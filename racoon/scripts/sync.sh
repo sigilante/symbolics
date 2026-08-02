@@ -43,9 +43,12 @@ fi
 files="
 sur/racoon.hoon
 lib/racoon.hoon
+lib/racoon-fmt.hoon
 lib/racoon-vectors.hoon
 tests/lib/racoon.hoon
 gen/racoon-bench.hoon
+gen/racoon-factor.hoon
+gen/racoon-gcd.hoon
 "
 
 copied=0
