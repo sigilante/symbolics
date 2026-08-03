@@ -2,10 +2,16 @@
 ::::  Real-root isolation over Z[x] -- SPEC Milestone C, phase R
 ::
 ::  Racoon is named for real algebraic numbers and did not produce any.
-::  Phases R0 and R1: an EXACT count of the distinct real roots in any
-::  rational interval, and the exact rational roots themselves.  Phase R2
-::  -- isolation and refinement of the irrational ones -- is bookkeeping
-::  on top of a count that is already right.
+::  Phases R0, R1, and R2: an EXACT count of the distinct real roots in
+::  any rational interval, the exact rational roots, and a canonical
+::  isolating interval for every root with refinement on demand.
+::
+::  A root of p isolated to an interval IS an exact object: the pair
+::  (p, interval) determines one real algebraic number and no other, and
+::  +refine narrows it to any width without ever leaving Q.  What this
+::  library does NOT do is arithmetic on such numbers -- adding or
+::  multiplying two of them needs resultants and a minimal polynomial,
+::  which SPEC R8 fences out as separate work.
 ::
 ::  This is a CONSUMER of /lib/racoon, not part of it.  %zx and %qx froze
 ::  under R6 at Milestone A's P2 gate; nothing inside the frozen library
@@ -59,6 +65,22 @@
   ?:  =(%eq prev)    $(rest t.rest, prev i.rest)
   ?:  =(prev i.rest)  $(rest t.rest, prev i.rest)
   $(rest t.rest, prev i.rest, n +(n))
+::
+::    +half:  the midpoint scale, x/2
+++  half  |=(x=frac ^-(frac (mul:qq x [--1 2])))
+::    +mid:  the midpoint of two rationals
+++  mid  |=([a=frac b=frac] ^-(frac (half (add:qq a b))))
+::    +rat-in:  the rational root lying in (lo, hi], if there is one
+::
+::  At most one can, wherever this is called: the caller has already
+::  established that the range holds exactly one root.
+++  rat-in
+  |=  [rs=(list [r=frac m=@ud]) lo=frac hi=frac]
+  ^-  (unit frac)
+  ?~  rs  ~
+  ?:  ?&(=(%lt (cmp:qq lo r.i.rs)) ?!(=(%gt (cmp:qq r.i.rs hi))))
+    `r.i.rs
+  $(rs t.rs)
 ::
 +|  %public
 ::    +bound:  the Cauchy root bound
@@ -286,6 +308,121 @@
   %+  sort  (weld zed res)
   |=  [x=[r=frac m=@ud] y=[r=frac m=@ud]]
   ?!(=(%gt (cmp:qq r.x r.y)))
+::    +subdiv:  the canonical isolating intervals of q inside (lo, hi]
+::
+::  [q=zol rs=(list [r=frac m=@ud]) lo=frac hi=frac] -> (list ivl), with q
+::  SQUAREFREE and rs its rational roots.  Recurses on the binary
+::  subdivision tree, stopping at the SHALLOWEST node holding exactly one
+::  root -- which is what makes the product a function of q alone (SPEC
+::  R3) and every arm here `free`.
+::
+::  THE HALF-OPEN CONVENTION IS WHY THIS IS EXACT.  (lo, mid] and
+::  (mid, hi] partition (lo, hi] with no overlap and no gap, so a root can
+::  neither be counted twice nor fall between the children -- including a
+::  root that lands exactly on mid.  A closed convention would need a
+::  special case there; this needs none.
+::
+::  A node whose one root is RATIONAL collapses to the degenerate
+::  interval at that root, rather than being reported as a range around
+::  it.  That is also what keeps the products pairwise disjoint: the
+::  exact point replaces the node it sat in, so it cannot overlap a
+::  sibling.
+::
+::  Terminates because q is squarefree: its roots are distinct, so any
+::  two separate at some finite depth.
+++  subdiv
+  |=  [q=zol rs=(list [r=frac m=@ud]) lo=frac hi=frac]
+  ^-  (list ivl)
+  =/  c=@ud  (count q lo hi)
+  ?:  =(0 c)  ~
+  ?:  =(1 c)
+    =/  hit  (rat-in rs lo hi)
+    ?~  hit  ~[[lo hi]]
+    ~[[u.hit u.hit]]
+  =/  md=frac  (mid lo hi)
+  ::  left child first, so the product comes out ascending with no sort
+  (weld $(hi md) $(lo md))
+::    +isolate:  a canonical isolating interval for every real root
+::
+::  [p=zol] -> (list ivl), ascending, pairwise disjoint, each holding
+::  exactly one distinct real root of p.  A rational root appears as the
+::  degenerate interval at its exact value, never as a range.
+::
+::  Never crashes on a nonzero p: a constant, and a polynomial with no
+::  real roots, both produce ~.  Crashes on ~ (SPEC R5).
+::
+::  Runs on the SQUAREFREE PART, so a repeated factor yields one interval
+::  and not several; +roots below recovers the multiplicities.
+++  isolate
+  |=  p=zol
+  ^-  (list ivl)
+  ?~  p  !!
+  =/  q=zol  (sqpart p)
+  ?~  q  ~
+  ?:  =(0 (deg:zx q))  ~
+  =/  rs  (rational-roots q)
+  =/  b=frac  (bound q)
+  ::  every root is strictly inside (-B, B), so the half-open end at B
+  ::  cannot clip one
+  (subdiv q rs (qneg b) b)
+::    +refine:  narrow an isolating interval by bisection
+::
+::  [p=zol iv=ivl k=@ud] -> ivl, bisected k times, keeping the half that
+::  holds the root.  Canonical given k, since the starting interval is
+::  canonical and bisection is deterministic.
+::
+::  A degenerate interval is already exact and comes back unchanged --
+::  there is nothing to narrow, and bisecting it would produce nonsense.
+::
+::  The width falls by exactly 2^k, so a caller wanting a given precision
+::  computes k once rather than looping.  No floating point is involved
+::  at any point, and none ever will be: the endpoints stay $frac.
+++  refine
+  |=  [p=zol iv=ivl k=@ud]
+  ^-  ivl
+  ?:  =(%eq (cmp:qq lo.iv hi.iv))  iv
+  =/  q=zol    (sqpart p)
+  =/  lo=frac  lo.iv
+  =/  hi=frac  hi.iv
+  =/  j=@ud    0
+  |-  ^-  ivl
+  ?:  =(j k)  [lo hi]
+  =/  md=frac  (mid lo hi)
+  ?:  =(1 (count q lo md))  $(j +(j), hi md)
+  $(j +(j), lo md)
+::    +mult-of:  the multiplicity of the root isolated by iv
+++  mult-of
+  |=  [fs=(list [p=zol m=@ud]) iv=ivl]
+  ^-  @ud
+  ::  the squarefree factors partition the distinct roots, so exactly one
+  ::  of them holds this root; reaching the end is an invariant violation
+  ?~  fs  !!
+  =/  hit=?
+    ?:  =(%eq (cmp:qq lo.iv hi.iv))
+      =(%eq (sign-at p.i.fs lo.iv))
+    =(1 (count p.i.fs lo.iv hi.iv))
+  ?:  hit  m.i.fs
+  $(fs t.fs)
+::    +roots:  every real root, isolated, with its multiplicity
+::
+::  [p=zol] -> (list rrt), ascending.  Isolation comes from +isolate on
+::  the squarefree part, so the intervals are canonical and disjoint;
+::  multiplicities come from Yun's decomposition in +sqfree:zx, whose
+::  factors partition the distinct roots.
+::
+::  Isolating on the squarefree part rather than per factor is what keeps
+::  the intervals disjoint: separate factors would be subdivided from
+::  different Cauchy bounds, on different trees, and their products could
+::  overlap.
+++  roots
+  |=  p=zol
+  ^-  (list rrt)
+  ?~  p  !!
+  =/  sf  (sqfree:zx p)
+  %+  turn  (isolate p)
+  |=  iv=ivl
+  ^-  rrt
+  [iv (mult-of fs.sf iv)]
 ::    +nroots:  the number of distinct real roots
 ::
 ::  [p=zol] -> @ud, over all of R.  Counted on (-B, B] with B the Cauchy

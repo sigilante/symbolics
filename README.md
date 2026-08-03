@@ -1,7 +1,7 @@
 #   Symbolic Libraries for Urbit
 
 **Status ~2026.8.2:  Racoon Milestone A and Baloon Milestones A and C are
-complete, and both interfaces are frozen.  329 tests green.  Jets are
+complete, and both interfaces are frozen.  336 tests green.  Jets are
 next.**
 
 ![An evocative scene of a mysterious futuristic castle in the style of Flash Gordon](./img/hero.jpeg)
@@ -21,7 +21,7 @@ one, and the two are siblings rather than layers.
 
 | | Milestone A | Milestone B | Milestone C | Tests |
 |---|---|---|---|---:|
-| **Racoon** | complete, frozen | deferred | in progress — see below | 223 |
+| **Racoon** | complete, frozen | deferred | in progress — see below | 230 |
 | **Baloon** | complete, frozen | deferred | complete | 106 |
 
 **Milestone A** is the Hoon library as authoritative specification, with
@@ -36,9 +36,9 @@ single existing battery axis, because the `+zm` and `+mm` sub-cores were
 declared empty from the outset for exactly that purpose.
 
 Racoon's Milestone C is under way rather than done: integer factorization
-is built, real-root isolation is specified (`raccoon-spec.md` §R) with
-phases R0 and R1 built, and van Hoeij recombination and sparse
-multivariate remain unspecified.
+is built, real-root isolation is specified (`raccoon-spec.md` §R) and
+complete, and van Hoeij recombination and sparse multivariate remain
+unspecified.
 
 ##  Libraries
 
@@ -79,7 +79,7 @@ racoon/
     lib/racoon-rs.hoon          Reed-Solomon codec over F_p
     lib/racoon-fp3.hoon         extension fields F_p[x]/(m)
     lib/racoon-zfac.hoon        integer factorization, totient, order
-    lib/racoon-roots.hoon       exact real-root counting and rational roots
+    lib/racoon-roots.hoon       exact real-root counting and isolation
     tests/lib/racoon.hoon       test suite
     gen/                        dojo generators: bench factor gcd rs fp3
   tools/genvec.py               SymPy vector generator

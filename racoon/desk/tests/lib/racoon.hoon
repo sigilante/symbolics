@@ -3595,4 +3595,251 @@
       !>(`(list [r=frac m=@ud])`~[[[--0 1] 4]])
     !>((rational-roots:rr ~[--0 --0 --0 --0 --1]))
   ==
+::  Real roots with multiplicities from SymPy's Poly.real_roots,
+::  ascending.  .ms lists the multiplicity of each DISTINCT real root
+::  in ascending order, so its length is +nroots and its sum is the
+::  count of real roots with multiplicity.
+++  r2vecs
+  ^-  (list [p=zol ms=(list @ud)])
+  :~
+    [~[--0 --1] ~[1]]
+    [~[-3 --2] ~[1]]
+    [~[-1 --0 --1] ~[1 1]]
+    [~[--1 --0 --1] ~]
+    [~[-2 --0 --1] ~[1 1]]
+    [~[--0 -1 --0 --1] ~[1 1 1]]
+    [~[-2 --0 --0 --1] ~[1]]
+    [~[--2 -3 --0 --1] ~[1 2]]
+    [~[-1 --3 -3 --1] ~[3]]
+    [~[--0 --0 -3 --1] ~[2 1]]
+    [~[--0 --0 --0 --4 --4 --1] ~[2 3]]
+    [~[--1 -5 --6] ~[1 1]]
+    [~[--2 -2 -1 --1] ~[1 1 1]]
+    [~[-2 -8 -7 --4 --4] ~[1 2 1]]
+    [~[--4 --0 -4 --0 --1] ~[2 2]]
+    [~[-1 --0 --0 --0 --1] ~[1 1]]
+    [~[--1 --0 --0 --0 --1] ~]
+    [~[--24 -50 --35 -10 --1] ~[1 1 1 1]]
+    [~[--1 --0 -10 --0 --1] ~[1 1 1 1]]
+    [~[--576 --0 -960 --0 --352 --0 -40 --0 --1] ~[1 1 1 1 1 1 1 1]]
+    [~[--0 --5 --0 -20 --0 --16] ~[1 1 1 1 1]]
+    [~[--1 --1 --1 --1 --1] ~]
+    [~[--1 --1 --1] ~]
+    [~[--5] ~]
+    [~[--1 -3 --0 --0 --0 --1] ~[1 1 1]]
+    [~[-1 --0 --0 --0 --0 --0 --1] ~[1 1]]
+    [~[-1 --0 --100] ~[1 1]]
+    [~[--6 --0 -5 --0 --1] ~[1 1 1 1]]
+  ==
+::
+::  Phase R2: canonical isolation and refinement.
+::
+::  The strongest checks here need no oracle at all.  An interval isolates
+::  a root exactly when +count says it holds one, and +count is R0, which
+::  is already verified against SymPy -- so "does this interval bracket a
+::  root" is answered exactly rather than by comparing floating-point
+::  approximations, which is how this would be tested anywhere else.
+::
+::    +wid:  the width of an interval
+++  wid  |=(iv=ivl:rr ^-(frac (sub:qq hi.iv lo.iv)))
+::    +disjoint-asc:  are these intervals ascending and non-overlapping?
+::
+::  hi of each is at most lo of the next.  Touching at an endpoint is
+::  allowed and unavoidable in a subdivision; what matters is that no two
+::  intervals share an interior point.
+++  disjoint-asc
+  |=  ivs=(list ivl:rr)
+  ^-  ?
+  ?~  ivs  %.y
+  =/  prev=ivl:rr         i.ivs
+  =/  rest=(list ivl:rr)  t.ivs
+  |-  ^-  ?
+  ?~  rest  %.y
+  ?.  ?!(=(%gt (cmp:qq hi.prev lo.i.rest)))  %.n
+  $(rest t.rest, prev i.rest)
+::
+++  test-r2-isolate-values
+  ;:  weld
+    ::  x^2 - 2 has bound 3, so the tree of (-3, 3] splits once and each
+    ::  half holds one root: the shallowest nodes are the halves
+    %+  expect-eq
+      !>(`(list ivl:rr)`~[[[-3 1] [--0 1]] [[--0 1] [--3 1]]])
+    !>((isolate:rr ~[-2 --0 --1]))
+    ::  x^3 - x has three rational roots, so all three come back EXACT
+    %+  expect-eq
+      !>(`(list ivl:rr)`~[[[-1 1] [-1 1]] [[--0 1] [--0 1]]])
+    !>((scag 2 (isolate:rr ~[--0 -1 --0 --1])))
+    %+  expect-eq  !>(`@ud`3)  !>((lent (isolate:rr ~[--0 -1 --0 --1])))
+    ::  no real roots, and a constant: both ~ without crashing
+    %+  expect-eq  !>(`(list ivl:rr)`~)  !>((isolate:rr ~[--1 --0 --1]))
+    %+  expect-eq  !>(`(list ivl:rr)`~)  !>((isolate:rr ~[--5]))
+    ::  a repeated factor is isolated once, not twice
+    %+  expect-eq  !>(`@ud`2)  !>((lent (isolate:rr ~[--4 --0 -4 --0 --1])))
+  ==
+++  test-r2-isolate-properties
+  =/  vs  r2vecs
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  =/  p=zol           p.i.vs
+  =/  ivs             (isolate:rr p)
+  =/  q=zol           (sqpart:rr p)
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      %+  weld
+        ;:  weld
+          ::  one interval per distinct real root
+          %+  expect-eq  !>((nroots:rr p))  !>((lent ivs))
+          %+  expect-eq  !>((lent ms.i.vs))  !>((lent ivs))
+          ::  ascending and pairwise non-overlapping
+          %-  expect  !>((disjoint-asc ivs))
+        ==
+      ::  each interval holds EXACTLY ONE root -- checked by +count, not
+      ::  by comparing approximations, and degenerate ones are exact hits
+      =/  bs  ivs
+      |-  ^-  tang
+      ?~  bs  ~
+      %+  weld
+        ?:  =(%eq (cmp:qq lo.i.bs hi.i.bs))
+          %+  expect-eq  !>(`ord`%eq)  !>((sign-at:rr q lo.i.bs))
+        %+  expect-eq  !>(`@ud`1)
+        !>((count:rr q lo.i.bs hi.i.bs))
+      $(bs t.bs)
+  ==
+++  test-r2-isolate-rational
+  ::  an interval is degenerate exactly when its root is rational -- the
+  ::  two arms have to agree, and this is where they are checked against
+  ::  each other rather than against an oracle
+  =/  vs  r2vecs
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  =/  p=zol   p.i.vs
+  =/  ivs     (isolate:rr p)
+  =/  rats    (rational-roots:rr p)
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      ;:  weld
+        ::  same count of degenerate intervals as rational roots
+        %+  expect-eq
+          !>((lent rats))
+        !>((lent (skim ivs |=(iv=ivl:rr =(%eq (cmp:qq lo.iv hi.iv))))))
+        ::  and the same values, in the same ascending order
+        %+  expect-eq
+          !>((turn rats |=([r=frac m=@ud] r)))
+        !>  %+  turn
+              (skim ivs |=(iv=ivl:rr =(%eq (cmp:qq lo.iv hi.iv))))
+            |=(iv=ivl:rr lo.iv)
+      ==
+  ==
+++  test-r2-refine
+  =/  p=zol   ~[-2 --0 --1]
+  =/  ivs     (isolate:rr p)
+  =/  iv      (snag 1 ivs)
+  ;:  weld
+    ::  the starting interval is (0, 3], of width 3
+    %+  expect-eq  !>(`frac`[--3 1])  !>((wid iv))
+    ::  each bisection halves the width, exactly
+    %+  expect-eq  !>(`frac`[--3 2])   !>((wid (refine:rr p iv 1)))
+    %+  expect-eq  !>(`frac`[--3 8])   !>((wid (refine:rr p iv 3)))
+    %+  expect-eq  !>(`frac`[--3 64])  !>((wid (refine:rr p iv 6)))
+    ::  refining zero times is the identity
+    %+  expect-eq  !>(`ivl:rr`iv)  !>((refine:rr p iv 0))
+    ::  and refinement composes: 3 then 3 is 6
+    %+  expect-eq
+      !>((refine:rr p iv 6))
+    !>((refine:rr p (refine:rr p iv 3) 3))
+    ::  the root stays bracketed however far this goes
+    %+  expect-eq  !>(`@ud`1)
+    !>((count:rr p lo:(refine:rr p iv 10) hi:(refine:rr p iv 10)))
+    ::  sqrt 2 to width 3/64: [45/32, 93/64], verified by bracketing
+    %+  expect-eq
+      !>(`ivl:rr`[[--45 32] [--93 64]])
+    !>((refine:rr p iv 6))
+    ::  a degenerate interval is already exact and does not move
+    =/  z  (snag 0 (isolate:rr ~[--0 -1 --0 --1]))
+    %+  expect-eq  !>(`ivl:rr`z)  !>((refine:rr ~[--0 -1 --0 --1] z 20))
+  ==
+++  test-r2-refine-properties
+  ::  over the corpus: refining keeps exactly one root bracketed, and the
+  ::  width falls by 2^k
+  =/  vs  r2vecs
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  =/  p=zol  p.i.vs
+  =/  q=zol  (sqpart:rr p)
+  =/  ivs    (isolate:rr p)
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      =/  bs  ivs
+      |-  ^-  tang
+      ?~  bs  ~
+      =/  rf  (refine:rr p i.bs 4)
+      %+  weld
+        ?:  =(%eq (cmp:qq lo.i.bs hi.i.bs))
+          ::  degenerate: unchanged
+          (expect-eq !>(`ivl:rr`i.bs) !>(`ivl:rr`rf))
+        ;:  weld
+          %+  expect-eq  !>(`@ud`1)  !>((count:rr q lo.rf hi.rf))
+          %+  expect-eq  !>((mul:qq (wid i.bs) [--1 16]))  !>((wid rf))
+          ::  and the narrowed interval sits inside the original
+          %-  expect  !>(?!(=(%gt (cmp:qq lo.i.bs lo.rf))))
+          %-  expect  !>(?!(=(%lt (cmp:qq hi.i.bs hi.rf))))
+        ==
+      $(bs t.bs)
+  ==
+++  test-r2-roots
+  =/  vs  r2vecs
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  =/  p=zol  p.i.vs
+  =/  rts    (roots:rr p)
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      ;:  weld
+        ::  multiplicities match SymPy's, in ascending root order
+        %+  expect-eq
+          !>(`(list @ud)`ms.i.vs)
+        !>((turn rts |=(r=rrt:rr m.r)))
+        ::  the intervals are exactly +isolate's
+        %+  expect-eq
+          !>((isolate:rr p))
+        !>((turn rts |=(r=rrt:rr iv.r)))
+        ::  and counting with multiplicity never exceeds the degree
+        %-  expect
+        !>  %+  lte
+              %+  roll  (turn rts |=(r=rrt:rr m.r))
+              |=([x=@ud acc=@ud] (add x acc))
+            (deg:zx p)
+      ==
+  ==
+++  test-r2-crash
+  ;:  weld
+    (expect-fail |.((isolate:rr ~)))
+    (expect-fail |.((roots:rr ~)))
+    ::  a constant and a rootless polynomial both give ~, no crash
+    %+  expect-eq  !>(`(list rrt:rr)`~)  !>((roots:rr ~[--5]))
+    %+  expect-eq  !>(`(list rrt:rr)`~)  !>((roots:rr ~[--1 --0 --1]))
+    (expect-success |.((isolate:rr ~[--5])))
+    (expect-success |.((refine:rr ~[-2 --0 --1] [[--0 1] [--3 1]] 12)))
+    ::  SD_3: eight real roots in a narrow band, all irrational, so none
+    ::  of them collapses to a point
+    %+  expect-eq  !>(`@ud`8)
+    !>((lent (isolate:rr ~[--576 --0 -960 --0 --352 --0 -40 --0 --1])))
+    %+  expect-eq  !>(`(list frac)`~)
+    !>  %+  turn
+          %+  skim  (isolate:rr ~[--576 --0 -960 --0 --352 --0 -40 --0 --1])
+          |=(iv=ivl:rr =(%eq (cmp:qq lo.iv hi.iv)))
+        |=(iv=ivl:rr lo.iv)
+  ==
 --

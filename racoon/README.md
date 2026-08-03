@@ -41,7 +41,7 @@ underdetermined, two-sided crash tables, and no `~|` anywhere.
 | Candidate | Note |
 |---|---|
 | ~~Integer factorization~~ | **Built**, as `/lib/racoon-zfac` — see below. It did not need `nz` reopened |
-| Real-root isolation, Sturm/Descartes | **Specified** (`raccoon-spec.md` §R); **phases R0 and R1 built** — see below. R2 (canonical isolation, refinement) remains |
+| Real-root isolation, Sturm/Descartes | **Complete** — specified in `raccoon-spec.md` §R, all three phases built. See below |
 | van Hoeij recombination | Would attack the known cost cliff — Zassenhaus is exponential in the worst case, and `SD_4`+ is out of scope until this lands. Needs LLL, which both specs fence out, so it requires escalation first |
 | Sparse multivariate | The largest and least specified |
 
@@ -58,7 +58,7 @@ racoon/
     lib/racoon-rs.hoon        Reed-Solomon codec over F_p
     lib/racoon-fp3.hoon       extension fields F_p[x]/(m)
     lib/racoon-zfac.hoon      integer factorization and its consequences
-    lib/racoon-roots.hoon     real roots -- Milestone C phases R0, R1
+    lib/racoon-roots.hoon     real roots -- Milestone C, phase R complete
     gen/racoon-bench.hoon     benchmark generator
     gen/racoon-factor.hoon    factor a polynomial from the dojo
     gen/racoon-gcd.hoon       gcd of two polynomials from the dojo
@@ -188,9 +188,10 @@ divisor of it works, and a primitive root really does generate every unit.
 
 ## Real roots
 
-`/lib/racoon-roots` is Milestone C phases R0 and R1: an **exact count** of
+`/lib/racoon-roots` is Milestone C phase R, complete: an **exact count** of
 the distinct real roots of an integer polynomial in any rational range,
-and the **exact rational roots** themselves. The library is named for real
+the **exact rational roots**, and a **canonical isolating interval** for
+every root with refinement on demand. The library is named for real
 algebraic numbers and, until this, produced none.
 
 ```
@@ -204,12 +205,10 @@ sqpart  zol -> zol               squarefree part, p / gcd(p, p')
 lowz    zol -> [k=@ud q=zol]     split off the factor x^k
 
 rational-roots  zol -> (list [r=frac m=@ud])    exact, ascending
+isolate         zol -> (list ivl)               canonical, disjoint
+roots           zol -> (list rrt)               plus multiplicities
+refine    [zol ivl @ud] -> ivl                  bisect k times
 ```
-
-Phase R2 — canonical isolation and refinement of the *irrational* roots —
-is specified in §R and not yet built. Everything it adds is bookkeeping on
-a count that is already right, which is why R0 is the layer worth
-over-testing.
 
 **Every arm is `free`.** Counting roots has one right answer, so a jet may
 use Descartes with Taylor shifts, VCA, or anything else. Sturm is the
@@ -239,6 +238,54 @@ squarefree part itself, so a repeated factor is counted once.
 **No floating point, now or later.** Every endpoint is an exact `frac` and
 stays one; `refine` in phase R2 narrows on demand. Lagoon owns
 approximation.
+
+### What an isolated root is
+
+**A root isolated to an interval is an exact object, not an
+approximation.** The pair (polynomial, interval) determines one real
+algebraic number and no other, which is how every serious system
+represents them — SymPy's `CRootOf`, PARI, Maple. `refine` narrows the
+interval to any width without ever leaving ℚ, so there is no precision to
+lose and no rounding to accumulate.
+
+```
+isolate(x^2 - 2)          -> [[-3 0] [0 3]]
+refine(x^2 - 2, [0 3], 6) -> [45/32, 93/64]      width exactly 3/2^6
+isolate(x^3 - x)          -> [[-1 -1] [0 0] [1 1]]   all rational, exact
+```
+
+**Isolation is canonical**, which is what keeps every arm `free`. Given
+the Cauchy bound B, the interval for a root is the *shallowest* node of
+the binary subdivision tree of (−B, B] that holds it and no other root —
+unique by construction, and a function of the polynomial alone. A jet may
+use Descartes or VCA and must land on the same intervals.
+
+**The half-open convention is what makes this exact.** A node `(lo, hi]`
+splits into `(lo, mid]` and `(mid, hi]`, which partition it with no
+overlap and no gap — so a root can be neither double-counted nor lost
+between children, *including* one landing exactly on `mid`. A closed
+convention needs a special case there; this needs none.
+
+**A node whose one root is rational collapses to that exact point.** That
+is also what keeps the intervals pairwise disjoint, and it is a
+correction to the spec made while building: §R3 originally said rational
+roots were *divided out* before subdividing, which breaks disjointness —
+a node isolating an irrational root of the reduced polynomial can still
+contain a rational root that was removed from the polynomial but not from
+the number line. `SPEC-QUESTIONS.md` R3 records it.
+
+### What this does not do
+
+**It isolates roots; it does not do arithmetic on them.** Adding or
+multiplying two real algebraic numbers means computing the minimal
+polynomial of the sum or product — resultant work — and then isolating
+the right root of *that*. Racoon has `res:zx`, so the machinery is
+present, but §R8 fences the capability out as separate work and none of
+it is built.
+
+Concretely: hand this library `x⁴ − 10x² + 1` and it will isolate all four
+roots exactly, one of which is √2 + √3. What it will not do is *derive*
+that polynomial from √2 and √3.
 
 **Rational roots come back exact, and that is load-bearing.**
 `rational-roots` returns values, never intervals — which is precisely the
@@ -394,7 +441,7 @@ alone. Do not read a trend into two points.
 -test /=base=/tests/lib/racoon ~
 ```
 
-223 arms, all green. Three kinds:
+230 arms, all green. Three kinds:
 
 - **Behavioral** — known values and adversarial families. `is-prime` gets eight
   Carmichael numbers and five strong pseudoprimes rather than random odds,

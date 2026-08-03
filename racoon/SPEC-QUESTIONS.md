@@ -159,3 +159,31 @@ a consumer; declaring its two result types locally costs nothing and needs
 no escalation. `$ord` is reused from §6 unchanged for sign tests, which is
 what that type is for. Types carry no battery-axis consequence, so this can
 be revisited freely if the shapes ever need to be shared.
+
+## R3 — §R3's "divided out" clause was wrong (CORRECTED)
+
+**Status:** corrected in `raccoon-spec.md` §R3 while building phase R2.
+Recorded because it changes pinned material, and because the reasoning is
+not obvious from the outside.
+
+§R3 originally said rational roots are "divided out before any
+subdivision happens." Building it showed that breaks the **pairwise
+disjointness** the same section requires.
+
+Dividing them out leaves `q` with only irrational roots, and the
+subdivision then isolates those. But a node isolating an irrational root
+of `q` can still *contain* a rational root of `p` — they were removed from
+`q`, not from the number line. That node and the degenerate interval for
+the rational root then overlap, and the reported intervals are no longer
+disjoint. Concretely, `(x - 1)(x^2 - 2)` has `B = 3` for the reduced
+`x^2 - 2`, and the node isolating `sqrt 2` can be a range whose closure
+holds the rational root 1.
+
+**The fix:** subdivide the whole squarefree part, so every node counts
+*every* distinct real root, and collapse a node whose single root is
+rational to that exact point. The point replaces the node it sat in, so
+it cannot overlap a sibling, and the canonical-interval definition is
+unchanged — still the shallowest node holding exactly one root.
+
+No arm signature changed and the products are the same shape; only the
+route to them, and the guarantee, differ.
