@@ -24,6 +24,37 @@ were declared empty and reserved for Milestone C — declaring them up front
 keeps the `%baloon` battery from moving later, which is Racoon's Q5 applied
 in advance rather than retrofitted. **Milestone C is now built**; see below.
 
+**Milestone B is deferred** until there are more clients, in step with
+Racoon. Nothing here is jetted, so the freeze discipline is about keeping
+the *option* of jets rather than serving existing ones.
+
+## Layout
+
+```
+baloon/
+  desk/
+    sur/baloon.hoon           shared types
+    lib/baloon.hoon           the library -- qm zm mm
+    lib/baloon-vectors.hoon   generated vectors -- never hand-edited
+    lib/baloon-fmt.hoon       rendering and parsing, all three rings
+    tests/lib/baloon.hoon     test suite
+    gen/baloon-bench.hoon     benchmark generator
+    gen/baloon-det.hoon       parse, print, and analyze a matrix
+  tools/genvec.py             SymPy vector generator
+  tools/requirements.txt      pinned SymPy version
+  scripts/sync.sh             copy desk/ into the pier
+  README.md                   this file
+  SPEC-QUESTIONS.md           escalation log
+```
+
+`baloon-fmt` is a **consumer**: it imports the frozen library like any other
+caller and is not part of it. So is anything else built on top —
+`minpoly` and rational eigenvectors will go in a consumer library rather
+than into `+qm`, which is the substance of resolved question B2.
+
+Baloon's desk files sit alongside Racoon's in the same `%base`, so sync
+Racoon first if the pier is fresh.
+
 ## Every arm is `free`
 
 Racoon needed five pinned algorithms because their outputs were

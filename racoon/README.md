@@ -30,6 +30,20 @@ log for why that had to happen up front rather than phase by phase.
 
 This is the contract Milestone B jets are written against.
 
+**Milestone B is deferred** until there are more clients. There are now
+three — `racoon-fmt`, `racoon-rs`, and `racoon-fp3` — plus Baloon, which
+depends on Racoon and nothing else. Everything in Milestone A was written to
+be jettable: canonical outputs, five pinned algorithms where the output was
+underdetermined, two-sided crash tables, and no `~|` anywhere.
+
+**Milestone C has not started.** The candidates, in §13 of the spec:
+
+| Candidate | Note |
+|---|---|
+| Real-root isolation, Sturm/Descartes | The *Real* in Real AlgebraiCs, which the library does not yet deliver. Builds on frozen `zx`/`qx` — `gcd`, `deriv`, and `res` are all in place. Listed as a candidate, not a design; it wants a spec section before code |
+| van Hoeij recombination | Would attack the known cost cliff — Zassenhaus is exponential in the worst case, and `SD_4`+ is out of scope until this lands. Needs LLL, which both specs fence out, so it requires escalation first |
+| Sparse multivariate | The largest and least specified |
+
 ## Layout
 
 ```
