@@ -187,3 +187,35 @@ unchanged — still the shallowest node holding exactly one root.
 
 No arm signature changed and the products are the same shape; only the
 route to them, and the guarantee, differ.
+
+## R4 — is van Hoeij a hard dependency of phase A? (OPEN, non-blocking)
+
+**Status:** open. Does **not** block phases A0–A1, and does not block A2
+at degrees 2 and 3. Blocks A2 at degree 4 and above.
+
+§A8 works it out: `deg(α·β) <= deg α · deg β`, so two degree-4 algebraic
+numbers give a resultant of degree 16, and extracting the minimal
+polynomial means factoring it. §9 already fences `SD_4` and beyond out of
+scope pending van Hoeij — and `SD_4` is degree 16. The two limits are the
+same limit.
+
+**Recommendation: build phase A anyway, and let it hit the cliff.**
+Degrees 2 and 3 cover every quadratic and cubic irrational, which is the
+overwhelming majority of what anyone computes with, and they are entirely
+unaffected. Deferring the whole capability for a case it does not yet
+need would be the wrong trade.
+
+**What that requires of the implementation:** the factorization step must
+be a single call, so that van Hoeij drops in without restructuring A2.
+`+factor:zx` is already marked `free` in §9 with the note that jets may
+use van Hoeij or anything else, so the interface is right; this is about
+keeping the *consumer* equally replaceable.
+
+**The escalation, when it comes**, is §13's LLL fence, which both this
+spec and `baloon-spec.md` state. Note the substrate now partly exists:
+Baloon Milestone C provides integer matrices with `det`, `mul`, and
+Hermite and Smith normal forms, which is what LLL operates on. But
+`/lib/baloon` depends on `/lib/racoon`, so Racoon cannot import it —
+either LLL lives in Racoon, duplicating matrix machinery, or van Hoeij
+lives in a consumer that imports both. **That choice should be made
+before any LLL code is written, not after.**

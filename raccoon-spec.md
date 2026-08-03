@@ -449,3 +449,169 @@ number *arithmetic*: this isolates roots, it does not add or multiply them,
 and a field ℚ(α) is a separate piece of work. No real closure, no
 quantifier elimination, no Thom encodings. `+refine` narrows on demand and
 that is the whole of the precision story.
+
+---
+
+# Milestone C — algebraic number arithmetic
+
+**Engineering Specification v0.2 — Milestone C, phase A: arithmetic on real algebraic numbers**
+
+Phase R isolates real roots; it does not add or multiply them, and §R8
+fenced that out as separate work. This is that work.
+
+The capability is: given two real algebraic numbers, produce their sum,
+difference, product, and quotient **as real algebraic numbers**, exactly,
+with no floating point anywhere. `sqrt 2 + sqrt 3` becomes a first-class
+value rather than a polynomial someone had to know to write down.
+
+## A1. Where it lives
+
+**`/lib/racoon-alg`, a consumer**, importing `/lib/racoon` and
+`/lib/racoon-roots`. Sixth application of the rule after `racoon-fmt`,
+`racoon-rs`, `racoon-fp3`, `racoon-zfac`, and `racoon-roots`. `%zx` and
+`%qx` stay frozen; nothing inside them needs this.
+
+It reuses `$ivl` from `/lib/racoon-roots` rather than redeclaring it.
+
+## A2. Representation
+
+```hoon
+::    $anum: a real algebraic number.
+::
+::  .m is the MINIMAL polynomial: primitive, positive leading
+::  coefficient, irreducible over Z.  .iv is the canonical isolating
+::  interval of this root of m, exactly as +isolate:roots produces it.
++$  anum  [m=zol iv=ivl]
+```
+
+**This form is canonical, and that buys more than tidiness.** The minimal
+polynomial of a real algebraic number is unique under those three
+conditions, and §R3 already makes the isolating interval unique. So:
+
+- **Equality is structural.** `=(a b)` decides it. No refinement loop, no
+  tolerance, no separate `+equals` arm.
+- **Every arm is `free`.** A jet may use any algorithm and must land on
+  the same pair.
+
+The price is that every operation must **reduce to the minimal
+polynomial**, which means factoring (§A8). That is the central cost of
+this design and it is paid deliberately: the alternative — carrying any
+polynomial that happens to vanish at α — makes equality undecidable
+without a gcd on every comparison, and makes nothing canonical.
+
+## A3. Canonical conventions (normative)
+
+| Item | Convention |
+|---|---|
+| **Minimal polynomial** | Primitive, `lc > 0`, irreducible over ℤ. Extracted from the resultant by `+firr:zx`, which returns `~[f]` exactly when `f` is already irreducible — so the common case costs one irreducibility test and no factorization |
+| **Bivariate resultants by EVALUATION–INTERPOLATION** | `res:zx` is univariate over ℤ; the sum and product formulas need `Res_y` of polynomials in `ℤ[x][y]`, which Racoon cannot form symbolically and Baloon's polynomial-entry determinants cannot be reached (Baloon depends on Racoon, not the reverse). Instead: `Res_y` has degree at most `deg p · deg q` in `x`, so evaluate at that many integer points plus one — each evaluation is a *univariate* integer resultant — and interpolate over ℚ, then `+clear:qx`. **Only existing frozen arms are needed** |
+| **Specialization is valid here** | Evaluation commutes with the resultant only when the degree in `y` does not drop at the evaluation point. For `q(x − y)` the leading `y`-coefficient is `±lc(q)`, constant in `x`, so it never drops. For `y^d · q(x/y)` it is `q(0)`, which vanishes only when `q = y`, i.e. `β = 0` — handled as a special case before any resultant is formed |
+| **Sum, difference, product, inverse** | `α+β`: `Res_y(p(y), q(x−y))`. `α−β`: `α + (−β)`. `α·β`: `Res_y(p(y), y^deg q · q(x/y))`. `1/α`: the coefficient reversal of `p`. `−α`: `p(−x)`. Each yields a polynomial *having* the answer as a root; the minimal polynomial is the irreducible factor that does |
+| **Root selection** | The resultant's root set is a superset of the answer. Refine `α` and `β` alternately, propagating through **interval arithmetic**, until the resulting box meets exactly one isolating interval of the minimal polynomial. Terminates because the roots are distinct and the box shrinks to a point |
+| **Interval arithmetic** | Sum: `[lo₁+lo₂, hi₁+hi₂]`. Negation: `[−hi, −lo]`. Product: the min and max of the four corner products — **sign-aware, not `[lo₁·lo₂, hi₁·hi₂]`**, which is wrong whenever an interval straddles zero |
+| `+cmp` | **Structural equality is tested FIRST.** Only then refine both until the intervals separate. Without that order the loop never terminates on equal inputs, which is the classic way this is written wrong |
+| `+approx` | `[anum @ud] -> frac`, within `2^-k`. Pinned as the midpoint of the first canonical refinement whose width is at most `2^-k`, so the product is a function of the input and `k` alone |
+| **Degeneracy to ℚ** | When the minimal polynomial is linear, the number *is* rational. `α − α`, `α · α⁻¹`, and `sqrt 2 · sqrt 2` must come back as exact rationals, not as degree-1 algebraic numbers wearing a disguise. `+to-q` produces `[~ r]` exactly then |
+
+## A4. Public API
+
+| Arm | Signature | Notes |
+|---|---|---|
+| `make` | `[zol ivl] -> anum` | Canonicalize: reduce to the minimal polynomial and re-isolate. The only entry point that accepts a non-minimal polynomial |
+| `of-q` | `frac -> anum` | Embed a rational; `m` is linear |
+| `to-q` | `anum -> (unit frac)` | `[~ r]` iff `deg m = 1` |
+| `deg` | `anum -> @ud` | Degree of the extension ℚ(α) over ℚ |
+| `approx` | `[anum @ud] -> frac` | Within `2^-k` |
+| `cmp` | `[anum anum] -> ord` | Equality structural, order by refinement |
+| `sign` `is-zero` | `anum -> ord` / `?` | |
+| `neg` `inv` | `anum -> anum` | `inv` crashes on zero |
+| `add` `sub` `mul` `div` | `[anum anum] -> anum` | `div` crashes on a zero divisor |
+| `pow` | `[anum @s] -> anum` | Negative exponents via `inv` |
+| `root` | `[anum @ud] -> (unit anum)` | The real `k`-th root, `~` when none exists |
+
+Every arm is **`free`**.
+
+## A5. Crash table (normative — every row gets a test)
+
+| Arm | Condition | Behavior |
+|---|---|---|
+| `make` | `m = ~`, or `iv` holds no root of `m` | crash |
+| `inv` `div` | the argument is zero | crash |
+| `pow` | negative exponent of zero | crash |
+| `root` | `k = 0` | crash |
+| `root` | no real `k`-th root exists (even `k`, negative `α`) | **no crash**: product is `~` |
+| `to-q` | the number is irrational | **no crash**: product is `~` |
+
+No `~|` anywhere (R3).
+
+## A6. Phases
+
+- **A0 — representation.** `$anum`, `make`, `of-q`, `to-q`, `deg`,
+  `approx`, `cmp`, `sign`, `is-zero`. No resultants yet; `make` is where
+  the factor-and-select machinery first appears.
+- **A1 — unary.** `neg`, `inv`, `pow`. Both formulas are coefficient
+  manipulations, so this phase needs no bivariate resultant at all and is
+  a cheap check on `make`.
+- **A2 — binary.** `add`, `sub`, `mul`, `div`. The evaluation–
+  interpolation resultant and root selection land here.
+- **A3 — `root`.** The real `k`-th root, via `Res_y(p(y), y^k − x)`.
+
+## A7. Testing
+
+1. **Oracle.** SymPy `minimal_polynomial`, which is exactly the canonical
+   form §A2 pins. Verified before pinning, per §11.3:
+   `minimal_polynomial(sqrt 2 * sqrt 3)` is `x² − 6`, **degree 2 where the
+   resultant has degree 4** — so the factor-and-select step is load-bearing
+   and not decoration. A test suite that only used degree-preserving cases
+   would pass with that step deleted.
+2. **Cases that must degenerate.** `α − α = 0`, `α · α⁻¹ = 1`,
+   `sqrt 2 · sqrt 2 = 2`, `sqrt 2 + (−sqrt 2) = 0`. Each must produce an
+   exact rational through `+to-q`, not a degree-1 `anum`. These are the
+   cases where a wrong implementation looks right until it is compared.
+3. **Cross-checks needing no oracle.** `approx` brackets the value
+   (`+count:roots` on the minimal polynomial, exactly — no float
+   comparison); `add` is commutative and associative on triples;
+   `mul`/`div` and `add`/`sub` invert each other; `cmp` is a total order
+   consistent with `approx`; `deg(α+β)` divides `deg α · deg β`.
+4. **Adversarial.** `sqrt 2 + sqrt 3` (degree 4, the SD_2 polynomial);
+   `sqrt 2 · sqrt 3 = sqrt 6` (degree collapse); the golden ratio;
+   `2^(1/3)` and its powers; nested radicals; two numbers with the *same*
+   minimal polynomial but different intervals, which must never compare
+   equal.
+5. **Benchmarks.** `add` and `mul` at degrees 2, 3, and 4, and the point
+   where §A8 bites. Recorded, no gates.
+
+## A8. The cost cliff — read this before starting A2
+
+`deg(α+β)` and `deg(α·β)` are at most `deg α · deg β`. Two degree-4
+numbers therefore give a resultant of **degree 16**, and extracting the
+minimal polynomial means factoring it over ℤ.
+
+§9 records that `factor:zx` uses Zassenhaus recombination, exponential in
+the worst case, and that **Swinnerton–Dyer `SD_4` and beyond are
+explicitly out of scope until a van Hoeij milestone.** `SD_4` has degree
+16. So arithmetic on degree-4 algebraic numbers lands precisely on the
+cliff §9 already fenced off.
+
+This is not a reason to defer phase A — degrees 2 and 3 are the common
+case, cover every quadratic and cubic irrational, and are unaffected. It
+is a reason to state plainly that **van Hoeij is a dependency of phase A
+at higher degrees, not an optional optimization**, and to build A2 so the
+factorization step is a single call that a better algorithm can replace.
+
+Two mitigations belong in the implementation: take the squarefree part
+before factoring, and try `+firr:zx` first, since a resultant that is
+already irreducible needs no factorization at all.
+
+## A9. Out of scope — hard fence
+
+No complex algebraic numbers; this is the *real* line, as the backronym
+says. No general number fields, primitive-element computation, or field
+towers — a ℚ(α) representation with polynomial arithmetic mod the minimal
+polynomial is a legitimate companion to this one and is *not* specified
+here; `/lib/racoon-fp3` already shows the shape over 𝔽p. No Galois
+theory, no splitting fields. No real closure, no quantifier elimination,
+no Thom encodings, no cylindrical algebraic decomposition. No symbolic
+radical *expressions*: this computes with `sqrt 2` as a number, and never
+produces the string "√2" — that is a printing concern and belongs in a
+`-fmt` consumer.
