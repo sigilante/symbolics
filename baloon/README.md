@@ -41,6 +41,7 @@ baloon/
     tests/lib/baloon.hoon     test suite
     gen/baloon-bench.hoon     benchmark generator
     gen/baloon-det.hoon       parse, print, and analyze a matrix
+    gen/baloon-lll.hoon       reduce an integer lattice basis
   tools/genvec.py             SymPy vector generator
   tools/requirements.txt      pinned SymPy version
   scripts/sync.sh             copy desk/ into the pier

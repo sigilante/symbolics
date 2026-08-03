@@ -17,7 +17,7 @@
 ::  anyone doing mathematics, which is exactly the wrong signal here.
 ::
 /-  *racoon
-/+  racoon
+/+  racoon, rr=racoon-roots
 =/  nz  nz:racoon
 =/  qq  qq:racoon
 =/  zx  zx:racoon
@@ -182,6 +182,96 @@
   ?~  ps  (dot c.f)
   =/  body=tape  (chain ps)
   ?:(=(1 c.f) body :(weld (dot c.f) " * " body))
+::
++|  %algebraic
+::
+::  The Milestone C types.  This chapter is why the library imports
+::  /lib/racoon-roots: rendering an algebraic number means refining its
+::  interval, and there is no way to do that without the polynomial.
+::  Nothing imports this library in turn, so there is no cycle.
+::
+::  $ivl and $anum are spelled out structurally here rather than imported
+::  as names, so a caller who wants only the printers does not also pull
+::  in /lib/racoon-alg.
+::
+::    +shodec:  a rational as a decimal string, exact to k places
+::
+::  Truncated toward zero, NOT rounded, and not floating point: the digits
+::  are produced by repeated exact division, so every one of them is
+::  right and the k+1-th simply is not shown.  This is the one place the
+::  project renders a decimal at all, and it renders it exactly.
+++  shodec
+  |=  [f=frac k=@ud]
+  ^-  tape
+  =/  low=?   ?!((syn:si p.f))
+  =/  n=@ud   (abs:si p.f)
+  =/  d=@ud   q.f
+  =/  ip=@ud  (div n d)
+  =/  digits=tape
+    =/  r=@ud  (mod n d)
+    =/  i=@ud  0
+    =|  out=tape
+    |-  ^-  tape
+    ?:  =(i k)  (flop out)
+    =/  r2=@ud  (mul r 10)
+    $(i +(i), r (mod r2 d), out [(add '0' (div r2 d)) out])
+  =/  body=tape  ?:(=(0 k) (dot ip) :(weld (dot ip) "." digits))
+  ?:(low ['-' body] body)
+::    +shonf:  an integer factorization, as 2^3 * 3^2 * 5
+::
+::  Bare exponents rather than +wrap's parentheses: (2)^3 reads as an
+::  expression, 2^3 reads as a number.
+++  shonf
+  |=  fs=(list [p=@ud m=@ud])
+  ^-  tape
+  ?~  fs  "1"
+  %-  chain
+  %+  turn  fs
+  |=  [p=@ud m=@ud]
+  ^-  tape
+  ?:(=(1 m) (dot p) :(weld (dot p) "^" (dot m)))
+::    +shoiv:  an isolating interval
+::
+::  A degenerate interval is an EXACT value and prints as one, with no
+::  brackets -- that distinction is the whole point of phase R1 and the
+::  rendering should not hide it.
+++  shoiv
+  |=  iv=[lo=frac hi=frac]
+  ^-  tape
+  ?:  =(lo.iv hi.iv)  (shof lo.iv)
+  :(weld "[" (shof lo.iv) ", " (shof hi.iv) "]")
+::    +shoapp:  the k-digit decimal of the root of p inside iv
+::
+::  Refines until the truncations of the two ENDPOINTS AGREE, and only
+::  then prints.  Taking the lower endpoint alone would be a lower bound
+::  rather than the expansion -- sqrt 2 came out as 1.414213562372 that
+::  way, one in the last place below the true 1.414213562373 -- and a
+::  trailing "..." would then be claiming digits that are not right.
+::
+::  Terminates for an irrational root: it is never exactly a k-digit
+::  decimal, so some neighbourhood of it truncates uniformly, and the
+::  interval eventually fits inside that.
+++  shoapp
+  |=  [p=zol iv=[lo=frac hi=frac] k=@ud]
+  ^-  tape
+  ?:  =(lo.iv hi.iv)  (shodec lo.iv k)
+  =/  cur=[lo=frac hi=frac]  iv
+  |-  ^-  tape
+  =/  a=tape  (shodec lo.cur k)
+  ?:  =(a (shodec hi.cur k))  a
+  $(cur (refine:rr p cur 1))
+::    +shoan:  a real algebraic number
+::
+::  A decimal approximation, then the polynomial it is a root of.  An
+::  exactly rational one prints as the rational and nothing else, since
+::  naming a linear minimal polynomial would be noise.
+++  shoan
+  |=  [a=[m=zol iv=[lo=frac hi=frac]] k=@ud]
+  ^-  tape
+  ?:  =(1 (deg:zx m.a))
+    ::  linear: the root is rational, and .iv already holds it exactly
+    (shof lo.iv.a)
+  :(weld (shoapp m.a iv.a k) "...  root of " (shoz m.a))
 ::
 +|  %parsing
 ::    +xpow:  "x" or "x^k", producing the exponent

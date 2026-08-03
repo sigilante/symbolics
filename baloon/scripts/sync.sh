@@ -51,6 +51,7 @@ lib/baloon-vectors.hoon
 tests/lib/baloon.hoon
 gen/baloon-bench.hoon
 gen/baloon-det.hoon
+gen/baloon-lll.hoon
 "
 
 copied=0

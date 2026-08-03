@@ -56,6 +56,9 @@ gen/racoon-factor.hoon
 gen/racoon-gcd.hoon
 gen/racoon-rs.hoon
 gen/racoon-fp3.hoon
+gen/racoon-zfac.hoon
+gen/racoon-roots.hoon
+gen/racoon-alg.hoon
 "
 
 copied=0

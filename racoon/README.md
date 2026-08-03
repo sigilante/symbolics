@@ -66,6 +66,9 @@ racoon/
     gen/racoon-gcd.hoon       gcd of two polynomials from the dojo
     gen/racoon-rs.hoon        Reed-Solomon round-trip demonstration
     gen/racoon-fp3.hoon       Goldilocks extension field demonstration
+    gen/racoon-zfac.hoon      factor an integer and its consequences
+    gen/racoon-roots.hoon     isolate the real roots of a polynomial
+    gen/racoon-alg.hoon       arithmetic on two algebraic numbers
   tools/genvec.py             SymPy vector generator
   tools/requirements.txt      pinned SymPy version
   scripts/sync.sh             copy desk/ into the pier
@@ -379,6 +382,39 @@ canonical form §A2 pins. Confirmed before pinning, per §11.3, that
 degree 4**. A suite built only from degree-preserving cases would pass
 with the factor-and-select step deleted, so the collapsing cases carry
 the weight.
+
+## Driving it from the dojo
+
+Every library has a generator now. Nothing below is floating point: the
+decimals are exact digits of exact rationals, produced by repeated exact
+division.
+
+```
++racoon-zfac 360
+360  =  2^3 * 3^2 * 5
+radical        30
+totient        96
+primitive root none (not cyclic)
+
++racoon-roots 'x^3 - x - 1'
+distinct real     1
+Cauchy bound      2
+  1.324717957244...  in [-2, 2]
+
++racoon-alg 'x^2 - 2' 'x^2 - 3'
+a        1.414213562373...  root of x^2 - 2
+a + b    3.146264369941...  root of x^4 - 10x^2 + 1
+a * b    2.449489742783...  root of x^2 - 6
+a^2      2
+deg a*b 2 -- not the product
+```
+
+**`+shoapp` refines until both endpoints truncate alike**, and only then
+prints. Taking the lower endpoint alone gives a *bound*, not the
+expansion — √2 came out as `1.414213562372`, one in the last place below
+the true value, and a trailing `...` would then be claiming digits that
+are not right. It terminates because an irrational root is never exactly
+a k-digit decimal, so some neighbourhood of it truncates uniformly.
 
 ## Reference vectors
 
