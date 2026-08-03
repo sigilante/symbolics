@@ -128,3 +128,34 @@ Say so and I will revert the reservation.
   order: `*?(%lt %eq %gt)` is `%gt`, whereas `*?(%lt %gt %eq)` is `%eq`.
   `$ord` is declared in the latter order so that a bunted comparison reads
   as "equal" rather than "greater than". Do not reorder the members.
+
+---
+
+## R1 — should `+deriv` be public on `%zx`? (OPEN, non-blocking)
+
+**Status:** open. Does **not** block Milestone C phase R; recorded so the
+duplication is a decision rather than an accident.
+
+The formal derivative is `+zderiv` in `+pv`, private. `/lib/racoon-roots`
+needs it for the Sturm chain and, being a consumer, cannot reach it — so it
+recomputes it in four lines.
+
+**Recommendation: leave it private for now, and duplicate.** Promoting it
+means adding an arm to `%zx`, which moves the battery axes of every arm
+frozen at the P2 gate — the ones Milestone B jets resolve against. Four
+lines of duplication is a smaller harm than reopening a frozen core for a
+convenience, and the derivative is cheap enough that no jet would want it
+anyway.
+
+**Revisit if** a Milestone C escalation opens `%zx` for a batch of changes.
+`deriv` is genuinely public-shaped — it is a total, canonical, ordinary
+operation on `zol` — and if that core is being reordered regardless, it
+should go in then. Not for this alone.
+
+## R2 — `$ivl` and `$rrt` are declared in the consumer, not `sur` (RESOLVED)
+
+Recorded so it is not relitigated. §6 is pinned, and `/lib/racoon-roots` is
+a consumer; declaring its two result types locally costs nothing and needs
+no escalation. `$ord` is reused from §6 unchanged for sign tests, which is
+what that type is for. Types carry no battery-axis consequence, so this can
+be revisited freely if the shapes ever need to be shared.

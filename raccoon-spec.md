@@ -301,3 +301,150 @@ Kernel style throughout: `::` comment header per arm stating the mathematical co
 - `urbit/numerics` — precedent for the whole shape: Hoon-normative library, jet registration in `/lib/math.hoon`, testing style, benchmark discipline.
 - Davis, "Jet-Accelerated Code and the Co-Design Problem" (USTJ) — the three-valued jet contract this spec is written against.
 - Davis, "A Deterministic Numerical Stack" (USTJ) — the sibling project; Lagoon's kind-dispatch informed the (rejected, for now) generic-ring design; concrete per-ring cores won on simplicity.
+
+---
+
+# Milestone C — real-root isolation
+
+**Engineering Specification v0.2 — Milestone C, phase R: the Real in Real AlgebraiCs**
+
+Milestone B (jets) is deferred; C proceeds ahead of it. This section
+specifies one of §13's three candidates. The other two — van Hoeij
+recombination and sparse multivariate — remain unspecified, and van Hoeij
+additionally needs an LLL escalation before any code (§R7).
+
+The library is named for real algebraic numbers and does not yet produce
+any. This closes that.
+
+## R1. Where it lives, and why not in `+zx`
+
+**`/lib/racoon-roots`, a consumer.** `%zx` and `%qx` froze under R6 at
+Milestone A's P2 gate, and adding an arm to either would move the battery
+axes of arms that Milestone B jets resolve against. Nothing inside the
+frozen library needs root isolation, so nothing needs it there.
+
+This is now the fourth application of that rule — `/lib/racoon-fmt`,
+`/lib/racoon-rs`, `/lib/racoon-fp3`, `/lib/racoon-zfac` — and Baloon's
+resolved question B2. A frozen interface reopened for every good idea was
+never frozen.
+
+**Consequence, recorded rather than worked around:** the formal derivative
+is `+zderiv` in `+pv`, private, so this library recomputes it in four
+lines. That is a real duplication and the right trade against unfreezing
+`%zx` for one arm. See `SPEC-QUESTIONS.md` R1.
+
+**It consumes `/lib/racoon-zfac`.** Exact rational roots come from the
+rational root theorem, whose candidate set is the divisors of the trailing
+and leading coefficients — which is `+divisors:zfac`. Integer factorization
+landing first is what makes §R3's exactness clause affordable.
+
+## R2. Types
+
+Declared locally, not in `sur/racoon.hoon`: §6 is pinned, and a consumer
+adding to it would be an escalation for no gain. `$ord` from §6 is reused
+as-is for sign tests, which is what it is for.
+
+```hoon
+::    $ivl: an isolating interval for exactly one real root.
+::
+::  Endpoints are canonical $frac.  lo <= hi always.  lo = hi means the
+::  root is EXACTLY that rational and the interval is degenerate -- not an
+::  approximation that happens to be tight.
++$  ivl  [lo=frac hi=frac]
+::    $rrt: a real root, isolated, with its multiplicity in the input.
++$  rrt  [iv=ivl m=@ud]
+```
+
+## R3. Canonical conventions (normative)
+
+The hard problem here is that **isolating intervals are not unique** — any
+sufficiently small interval around a root isolates it. An arm that returned
+"whatever the bisection produced" would have to be `pinned`, and every jet
+would have to replicate the subdivision exactly. That is the wrong trade,
+so the output is made canonical instead and every arm below is `free`.
+
+| Item | Convention |
+|---|---|
+| `+bound` | The Cauchy bound `1 + max(\|a_i\|)/\|a_n\|` over `i < n`, as a `frac`. Pinned as a *value*, not an algorithm: every arm's canonical output is stated relative to it, so a different bound would give a different — equally valid, but different — answer |
+| **Canonical interval** | Consider the infinite binary subdivision tree of `[−B, B]`. The nodes containing a given root α form a chain from the whole interval downward. **The canonical isolating interval for α is the shallowest node in that chain containing no other root.** Unique by construction, a function of the polynomial alone, and independent of how it was found |
+| **Exact roots are exact** | A rational root is returned as a degenerate `[α α]`, never as an interval around it. Rational roots are found first, by the rational root theorem over `+divisors:zfac`, and divided out before any subdivision happens. This also removes the only case where a root could land on a subdivision boundary |
+| `+isolate` | Ascending by `+cmp:qq` on `lo`. Intervals are pairwise disjoint. Exactly one root per interval — that is the postcondition, not an aspiration |
+| `+roots` | Ascending likewise, each carrying its multiplicity in the *input*. Obtained from `+sqfree:zx`: isolation runs on each squarefree factor, which is the only form Sturm is valid on |
+| `+refine` | `[p iv k]` bisects `k` times, keeping the half that contains the root. Canonical given `k`, since the starting interval is canonical and bisection is deterministic. Returns a degenerate interval unchanged |
+| `+sign-at` | `[p x] -> ord`, the sign of `p(x)` for rational `x`. `%eq` exactly when `x` is a root. Reuses §6's `$ord` |
+| **Reference algorithm** | **Sturm sequences.** The chain is `p, p′, −rem(p, p′), …`; the root count in `(a, b]` is the drop in sign changes from `a` to `b`. Chosen over Descartes/VCA for the reference because it is simpler and more obviously correct, which is this project's stated order of priorities. Jets may use VCA, Descartes with Taylor shifts, or anything else — the output is canonical, so they need only agree on the answer |
+
+## R4. Public API
+
+| Arm | Signature | Notes |
+|---|---|---|
+| `bound` | `zol -> frac` | Cauchy bound; every root lies in `(−B, B)` |
+| `deriv` | `zol -> zol` | Formal derivative. Duplicates private `+zderiv:pv`; see R1 |
+| `sturm` | `zol -> (list zol)` | The Sturm chain of a squarefree `p` |
+| `sign-at` | `[zol frac] -> ord` | |
+| `count` | `[zol frac frac] -> @ud` | Distinct real roots in `(a, b]` |
+| `nroots` | `zol -> @ud` | Distinct real roots, all of ℝ |
+| `rational-roots` | `zol -> (list [r=frac m=@ud])` | Exact, ascending, via `divisors:zfac` |
+| `isolate` | `zol -> (list ivl)` | Canonical isolating intervals, ascending |
+| `roots` | `zol -> (list rrt)` | Isolation plus multiplicities, via `sqfree:zx` |
+| `refine` | `[zol ivl @ud] -> ivl` | Bisect `k` times |
+
+Every arm is **`free`**. There is no `pinned` column, by construction —
+that is what §R3 buys.
+
+## R5. Crash table (normative — every row gets a test)
+
+| Arm | Condition | Behavior |
+|---|---|---|
+| any arm | `p = ~`, the zero polynomial | crash. Every real is a root; there is no list to return and no sentinel that would not be a lie — the same reasoning as `+factor:zfac` on 0 |
+| `sturm` | `p` not squarefree | crash. The chain's root count is only valid there, and returning a silently wrong count is worse |
+| `count` `refine` | `a > b`, or `lo > hi` | crash |
+| `count` | no roots in the range | **no crash**: product is `0` |
+| `isolate` `roots` `rational-roots` | `p` has no real roots | **no crash**: product is `~` |
+| `isolate` `roots` | `p` is a nonzero constant | **no crash**: product is `~` |
+| `refine` | degenerate interval | **no crash**: returned unchanged |
+
+No `~|` anywhere (R3).
+
+## R6. Phases
+
+- **R0 — foundations.** `bound`, `deriv`, `sign-at`, `sturm`, `count`,
+  `nroots`. This is the whole correctness core; everything after is
+  bookkeeping on top of an exact root count.
+- **R1 — exactness.** `rational-roots`. Depends on `/lib/racoon-zfac`.
+- **R2 — isolation.** `isolate`, `roots`, `refine`.
+
+## R7. Testing
+
+1. **Oracles.** SymPy `Poly.count_roots`, `Poly.intervals`,
+   `Poly.real_roots`, and `CRootOf` for exact comparison. **Verify each
+   convention against the definition before pinning it** (§11.3): SymPy's
+   `intervals()` does *not* use this section's canonical subdivision, so it
+   is an oracle for the root *count* and for containment, **not** for the
+   interval endpoints. Endpoints are checked structurally instead — each
+   interval contains exactly one root by `+count`, they are disjoint and
+   ascending, and no shallower dyadic node isolates.
+2. **Cross-checks that need no oracle.** `nroots` ≤ `deg`; the multiplicities
+   from `roots` sum to at most `deg`; `sign-at` differs at the two endpoints
+   of every non-degenerate isolating interval; `refine` preserves
+   containment and halves the width; `rational-roots` are genuine roots by
+   `+eval:qx`; every rational root also appears in `roots` as a degenerate
+   interval.
+3. **Adversarial families.** Swinnerton–Dyer `SD_2` and `SD_3` — already in
+   the corpus, and the point of them here is different: `SD_3` has eight
+   real roots in a narrow band, which is precisely what defeats a careless
+   isolator. Also: Wilkinson-style products of close linear factors,
+   Chebyshev polynomials (all roots real, in `[−1, 1]`), cyclotomics (no
+   real roots beyond ±1), polynomials with a rational root adjacent to an
+   irrational one, repeated factors, and constants.
+4. **Benchmarks.** `isolate` at degrees 8/16/32, and `SD_3`. Recorded in
+   `README.md`, no gates.
+
+## R8. Out of scope — hard fence
+
+No complex roots. No numerical refinement to floating point — Lagoon owns
+that, and the endpoints here stay exact rationals forever. No algebraic
+number *arithmetic*: this isolates roots, it does not add or multiply them,
+and a field ℚ(α) is a separate piece of work. No real closure, no
+quantifier elimination, no Thom encodings. `+refine` narrows on demand and
+that is the whole of the precision story.
