@@ -251,7 +251,7 @@ A phase closes when: the library compiles clean; all tests for this and prior ph
 
 ## 13. Out of scope — hard fence
 
-No floating point (Lagoon owns it). No matrices over ℤ or ℤ/n in Milestone A — `+zm` and `+mm` are declared but empty, and are Milestone C. No Hermite or Smith normal form. No LLL. No LU/QR/SVD decompositions. No eigenvectors, and no eigenvalues outside ℚ. No sparse representation. No symbolic matrix entries. No performance work beyond recording baselines. No jets.
+No floating point (Lagoon owns it). No matrices over ℤ or ℤ/n in Milestone A — `+zm` and `+mm` are declared but empty, and are Milestone C. ~~No Hermite or Smith normal form. No LLL.~~ **Both lifted** — the normal forms by Milestone C phase C2, and LLL by `raccoon-spec.md` §V. These are Milestone A fences; the Milestone C sections supersede them. No LU/QR/SVD decompositions. No eigenvectors, and no eigenvalues outside ℚ. No sparse representation. No symbolic matrix entries. No performance work beyond recording baselines. No jets.
 
 Milestone C candidates, for context: integer linear algebra with HNF and SNF; matrices over ℤ/n and 𝔽p; eigenvectors for rational eigenvalues; minimal polynomial; PLU with a deterministic pivot convention.
 

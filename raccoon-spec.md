@@ -281,7 +281,7 @@ A phase closes when: library compiles clean; all tests for this and prior phases
 
 ## 13. Out of scope — hard fence
 
-No floating point (numerics owns it). No multivariate polynomials, no Gröbner bases. No symbolic expression front end, no simplifier, no integration/Risch. No LLL / van Hoeij. No primality *proving*. No performance work beyond recording baselines. No C/Rust jets, no runtime modifications. No `%base` changes beyond adding the listed files. Milestone C candidates, for context only: van Hoeij recombination; real-root isolation via Sturm/Descartes (the "Real" in the backronym); sparse multivariate.
+No floating point (numerics owns it). No multivariate polynomials, no Gröbner bases. No symbolic expression front end, no simplifier, no integration/Risch. ~~No LLL / van Hoeij.~~ **Lifted — see §V.** This is a Milestone A fence, and §V supersedes it exactly as §R and §A supersede the real-root and algebraic-number lines above. No primality *proving*. No performance work beyond recording baselines. No C/Rust jets, no runtime modifications. No `%base` changes beyond adding the listed files. Milestone C candidates, for context only: van Hoeij recombination; real-root isolation via Sturm/Descartes (the "Real" in the backronym); sparse multivariate.
 
 ## 14. Escalation and decision authority
 
@@ -615,3 +615,136 @@ no Thom encodings, no cylindrical algebraic decomposition. No symbolic
 radical *expressions*: this computes with `sqrt 2` as a number, and never
 produces the string "√2" — that is a printing concern and belongs in a
 `-fmt` consumer.
+
+---
+
+# Milestone C — van Hoeij recombination
+
+**Engineering Specification v0.2 — Milestone C, phase V: lattice reduction and van Hoeij**
+
+§9 records the cost cliff: `factor:zx` recombines Hensel-lifted modular
+factors by **Zassenhaus**, enumerating subsets, which is exponential in
+the number of modular factors. `SD_4` and beyond are out of scope because
+of it, and §A8 showed the same wall stops algebraic arithmetic at degree
+4. This replaces that step.
+
+## V1. Where it lives
+
+**`baloon/desk/lib/vanhoeij.hoon`, a consumer importing BOTH libraries.**
+Escalation R4, decided: LLL operates on integer lattice bases, which is
+exactly `$zmat`, and Baloon Milestone C already supplies `det`, `mul`,
+`rank`, and the Hermite form over ℤ. Racoon cannot import Baloon — the
+dependency runs the other way — so putting LLL in Racoon would mean
+duplicating all of it. It goes on the Baloon side instead, where both
+libraries are in scope, and Racoon stays the lower layer.
+
+**Both §13 fences are lifted** (`raccoon-spec.md` and `baloon-spec.md`),
+recorded there and in `racoon/SPEC-QUESTIONS.md` R4. They were Milestone A
+fences; this section supersedes them.
+
+## V2. LLL — and the one `pinned` arm outside Racoon
+
+| Item | Convention |
+|---|---|
+| `+lll` | `zmat -> zmat`. An LLL-reduced basis of the **same lattice**. Requires full row rank, asserted |
+| **`pinned`, not `free`** | A lattice has *many* LLL-reduced bases, so the output is underdetermined by the specification and a jet cannot be allowed to pick a different one. This is the first `pinned` arm outside Racoon's five, and it is pinned for the same reason `egcd:nz` is: the answer is not unique, so the *procedure* is the contract |
+| **What is pinned, exactly** | δ = 3/4; classic Lenstra–Lenstra–Lovász; size-reduce row `k` against rows `k−1 … 0` in **descending** index order; rounding to the nearest integer with **ties away from zero**; start at `k = 1` (zero-indexed); on a swap set `k = max(k−1, 1)`. The *method of computing the Gram–Schmidt data is NOT pinned* — exact rational GSO and an incrementally updated one are mathematically equal, so they yield the same reductions and the same output |
+| **Exact rationals throughout** | No floating point. The classic LLL failure mode is a GSO computed in floating point drifting until the Lovász test flips wrongly; here it cannot happen |
+
+**`+lll` being `pinned` does not make `factor` pinned.** Every candidate
+factor van Hoeij proposes is verified by trial division, so the
+factorization is canonical no matter which reduced basis LLL returned.
+The pinning stops at the lattice arm.
+
+## V3. Van Hoeij recombination
+
+For `f ∈ ℤ[x]` squarefree with modular factors `g_1 … g_r` lifted to
+`p^a`, a true factor `F` satisfies `F = lc_F · ∏_{i∈S} g_i mod p^a` for
+some `S ⊆ {1..r}`. Write `S` as a 0-1 vector `v ∈ {0,1}^r`.
+
+**The linear condition.** For monic `g`, the power sums `s_j` of its
+roots are computable from its coefficients by Newton's identities, and
+they are additive over products: `s_j(∏_{i∈S} g_i) = Σ_{i∈S} s_j(g_i)`.
+Since `F` has integer coefficients, its power sums are **integers of
+bounded size** — bounded by `n · B^j` for a root bound `B`. So
+
+```
+Σ_i v_i · s_j(g_i)  ≡  (a small integer)   mod p^a
+```
+
+which is a knapsack condition, and the 0-1 solutions are **short vectors**
+in the lattice generated by
+
+```
+[  I_r        C   ]        C the r×m matrix of scaled power sums
+[  0     p^a · I_m ]
+```
+
+LLL-reduce, read the 0-1 patterns off the short vectors, and verify.
+
+## V4. Correctness does not depend on the lattice
+
+**This is the load-bearing design decision.** Every candidate subset,
+however it was proposed, is confirmed by **trial division into `f`**, and
+if the lattice pass fails to produce a complete factorization the
+algorithm **falls back to Zassenhaus enumeration** over whatever factors
+remain.
+
+So the lattice step is an *accelerator*, never an oracle. A bug in the
+bound, the scaling, the choice of `j`'s, or the LLL itself can make this
+slower; it cannot make it wrong. That is what makes a heuristic-shaped
+algorithm safe to pin as `free`, and it is the only reason phase V is
+approachable at all.
+
+## V5. Crash table (normative)
+
+| Arm | Condition | Behavior |
+|---|---|---|
+| `lll` | empty basis, or rows of differing length | crash |
+| `lll` | rows not linearly independent | crash — asserted through `rank:zm` |
+| `factor` | `f = ~` | crash |
+| `factor` | `f` not squarefree | crash — recombination is defined on distinct factors |
+
+No `~|` anywhere.
+
+## V6. Phases
+
+- **V0 — LLL.** Self-contained, independently useful, and verifiable
+  without van Hoeij existing.
+- **V1 — recombination.** Power sums, the lattice, extraction, trial
+  division, and the Zassenhaus fallback.
+
+## V7. Testing
+
+1. **LLL is verified STRUCTURALLY, not against another program.** SymPy
+   has `DomainMatrix.lll()`, but an LLL-reduced basis is **not unique** —
+   two correct implementations at the same δ can return different bases —
+   so matching its output is neither necessary nor sufficient. §11.3 says
+   confirm a convention before pinning it against a tool; here the
+   conclusion is that the tool is the wrong oracle. Instead check the
+   definition, which is exact and complete:
+   - **size-reduced**: `|μ_ij| ≤ 1/2` for all `j < i`
+   - **Lovász**: `‖b*_k‖² ≥ (3/4 − μ²_{k,k−1})·‖b*_{k−1}‖²`
+   - **same lattice**: `hnf:zm` of the input equals `hnf:zm` of the
+     output. This needs no oracle at all, and is exactly the check
+     Baloon's Milestone C made possible
+   Any basis satisfying all three *is* an LLL-reduced basis of that
+   lattice. That is the whole specification.
+2. **Determinant invariance.** For a square basis, `|det:zm|` is
+   unchanged — the transform is unimodular.
+3. **Van Hoeij against Zassenhaus.** The two must agree on every input,
+   which makes `factor:zx` itself the oracle: it is already verified
+   against SymPy over the Milestone A corpus.
+4. **The point of the exercise.** `SD_4` — degree 16, sixteen modular
+   factors, the case §9 fenced out — must factor. That is the test that
+   says this worked.
+5. **Benchmarks.** `SD_3` and `SD_4` both ways, recorded in the README.
+   This is the one place in the project where a speed difference is the
+   deliverable rather than a footnote.
+
+## V8. Out of scope — hard fence
+
+No floating-point or heuristic LLL variants; exact rationals only. No
+BKZ, no deep insertion, no block reduction. No lattice cryptography, no
+CVP or SVP solvers beyond what recombination needs. No multivariate or
+algebraic-function-field factorization.
