@@ -42,7 +42,8 @@ underdetermined, two-sided crash tables, and no `~|` anywhere.
 |---|---|
 | ~~Integer factorization~~ | **Built**, as `/lib/racoon-zfac` — see below. It did not need `nz` reopened |
 | Real-root isolation, Sturm/Descartes | **Complete** — specified in `raccoon-spec.md` §R, all three phases built. See below |
-| van Hoeij recombination | Would attack the known cost cliff — Zassenhaus is exponential in the worst case, and `SD_4`+ is out of scope until this lands. Needs LLL, which both specs fence out, so it requires escalation first |
+| ~~van Hoeij recombination~~ | **Specified** (§V), LLL built (`baloon/desk/lib/vanhoeij.hoon`). **The benchmark was wrong and was measured**: `factor:zx` does `SD_4` in 302 ms, not "out of scope". The cliff is `SD_5` at 204 s and `SD_6` beyond reach — see §V0 |
+| van Hoeij recombination, original entry | Would attack the known cost cliff — Zassenhaus is exponential in the worst case, and `SD_4`+ is out of scope until this lands. Needs LLL, which both specs fence out, so it requires escalation first |
 | Sparse multivariate | The largest and least specified |
 
 ## Layout

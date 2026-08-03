@@ -252,7 +252,7 @@ All Phase 1 arms: **free** (canonical outputs). The classical spec algorithms ex
 | `sqfree:zx` | Yun's algorithm (char 0) | standard Yun | free |
 | `factor:zx` | `[a=zol] -> zfac` | Pinned pipeline: (1) strip sign/content into `c`; (2) `sqfree`; (3) per squarefree part `g`: choose `p` = smallest odd prime with `p ∤ lc(g)` and `g mod p` squarefree, scanning ascending; (4) `factor:mx p` on `g mod p`; (5) multifactor **quadratic** Hensel lift (vzGG §15.4–15.5), balanced factor tree splitting the factor list at `⌈r/2⌉` recursively, lift to the least `p^(2^k) > 2 * mig(g) * |lc(g)|`; (6) **Zassenhaus recombination**, pinned enumeration: subsets by cardinality ascending (up to `⌊r/2⌋`, complement rule for the rest), within a cardinality lexicographic ascending on index tuples; candidate = symmetric lift of `lc(g) * prod(subset)`, take `pp`, trial-divide into remaining `g`; on success remove indices and continue at same cardinality; (7) assemble `zfac`, sorted, factors primitive `lc > 0` | free (a factorization into irreducibles over ℤ is unique up to the pinned ordering; jets may use van Hoeij or anything else) |
 
-Known cost cliff: Zassenhaus recombination is exponential in the worst case. Swinnerton–Dyer `SD_3` must pass in the test suite; `SD_4`+ is explicitly out of scope until a van Hoeij milestone (see §13).
+Known cost cliff: Zassenhaus recombination is exponential in the worst case. Swinnerton–Dyer `SD_3` must pass in the test suite; `SD_4`+ was declared out of scope until a van Hoeij milestone (see §13). **`SD_4` was measured and that claim is wrong — see §V0.** The cliff is real but sits one step further out than this line assumed.
 
 Also, at this point move /lib/racoon-vectors.hoon into /tests/lib and update any path references in the test file. The vectors are now part of the test suite, not the library.
 
@@ -628,6 +628,44 @@ the number of modular factors. `SD_4` and beyond are out of scope because
 of it, and §A8 showed the same wall stops algebraic arithmetic at degree
 4. This replaces that step.
 
+## V0. The benchmark was wrong, and it was measured
+
+§9 said `SD_4` and beyond were out of scope pending van Hoeij, and §A8
+built on that. **Measured before building anything, `factor:zx` factors
+`SD_4` correctly in 302 ms.** The premise was false.
+
+The reason is that Zassenhaus's cost depends on the number of *modular*
+factors `r`, not the degree, and it enumerates subsets only up to
+`⌊r/2⌋` because the complement rule covers the rest:
+
+| | degree | `r` mod a good prime | subsets tried | `factor:zx` |
+|---|---:|---:|---:|---|
+| `SD_3` | 8 | 4 | 10 | fast |
+| `SD_4` | 16 | **8** | **162** | **302 ms** |
+| `SD_5` | 32 | **16** | **39,202** | **204 s** — 676× |
+| `SD_6` | 64 | 32 | ~2.1 × 10⁹ | out of reach |
+
+Both were run to completion and both answers are correct: `SD_4` and
+`SD_5` are irreducible, and `factor:zx` says so.
+
+`SD_4` has degree 16 but only eight modular factors, because every
+Swinnerton–Dyer polynomial splits into pieces of degree at most 2 — its
+Galois group is elementary abelian of exponent 2, so no Frobenius element
+has order above 2. Degree 16 over degree-2 pieces is `r = 8`, not 16. The
+original line conflated the two.
+
+**The retargeted claim: `SD_5` at 204 s is what van Hoeij has to beat, and
+`SD_6` is what it has to make possible at all.** 242× the subsets and
+eighteen-digit coefficients gave 676× the wall time, which is the
+exponential showing itself; one more step multiplies the subset count by
+another 53,000 and ends the line entirely. That is the benchmark §V7 now
+names.
+
+This correction is recorded rather than quietly patched because it
+changes what phase V is *for*, and because the general lesson is the
+project's own §11.3 in a new place: **a fence stated from theory and
+never measured is a claim, not a fact.**
+
 ## V1. Where it lives
 
 **`baloon/desk/lib/vanhoeij.hoon`, a consumer importing BOTH libraries.**
@@ -735,9 +773,8 @@ No `~|` anywhere.
 3. **Van Hoeij against Zassenhaus.** The two must agree on every input,
    which makes `factor:zx` itself the oracle: it is already verified
    against SymPy over the Milestone A corpus.
-4. **The point of the exercise.** `SD_4` — degree 16, sixteen modular
-   factors, the case §9 fenced out — must factor. That is the test that
-   says this worked.
+4. **The point of the exercise.** `SD_5`, not `SD_4` — see §V0 for why the
+   original target was wrong.
 5. **Benchmarks.** `SD_3` and `SD_4` both ways, recorded in the README.
    This is the one place in the project where a speed difference is the
    deliverable rather than a footnote.
