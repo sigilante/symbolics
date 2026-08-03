@@ -46,6 +46,7 @@ files="
 sur/baloon.hoon
 lib/baloon.hoon
 lib/baloon-fmt.hoon
+lib/vanhoeij.hoon
 lib/baloon-vectors.hoon
 tests/lib/baloon.hoon
 gen/baloon-bench.hoon

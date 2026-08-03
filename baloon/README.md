@@ -37,6 +37,7 @@ baloon/
     lib/baloon.hoon           the library -- qm zm mm
     lib/baloon-vectors.hoon   generated vectors -- never hand-edited
     lib/baloon-fmt.hoon       rendering and parsing, all three rings
+    lib/vanhoeij.hoon         lattice reduction -- imports BOTH libraries
     tests/lib/baloon.hoon     test suite
     gen/baloon-bench.hoon     benchmark generator
     gen/baloon-det.hoon       parse, print, and analyze a matrix
@@ -55,7 +56,56 @@ than into `+qm`, which is the substance of resolved question B2.
 Baloon's desk files sit alongside Racoon's in the same `%base`, so sync
 Racoon first if the pier is fresh.
 
-## Every arm is `free`
+## Lattice reduction
+
+`/lib/vanhoeij` is Milestone C phase V0 — LLL over ℤ, the prerequisite for
+van Hoeij recombination (`raccoon-spec.md` §V).
+
+**It lives here because it is a consumer of *both* libraries.** LLL
+operates on integer lattice bases — that is exactly `$zmat` — and
+Milestone C already supplies `det`, `mul`, `rank`, and the Hermite form
+over ℤ. Racoon cannot import Baloon, since the dependency runs the other
+way, so putting LLL in Racoon would have meant duplicating all of it.
+Escalation R4 in `racoon/SPEC-QUESTIONS.md` records the decision.
+
+**`+lll` is `pinned`, not `free`** — the first pinned arm outside Racoon's
+five. A lattice has *many* LLL-reduced bases, so the output is
+underdetermined by the specification and a jet cannot be allowed to pick a
+different one. The procedure is the contract, exactly as for `egcd:nz`.
+What is pinned is δ = 3/4, the classic algorithm, descending-order size
+reduction, ties-away-from-zero rounding, and the swap rule — **not** how
+the Gram–Schmidt data is computed, since exact rational GSO and an
+incrementally updated one are mathematically equal and yield the same
+output.
+
+Pinning stops there: van Hoeij's `factor` will stay `free`, because every
+candidate is verified by trial division regardless of which reduced basis
+LLL returned.
+
+**Exact rationals throughout.** The classic LLL failure mode is a
+Gram–Schmidt computed in floating point drifting until the Lovász test
+flips the wrong way. Here it cannot happen.
+
+**Verified structurally, not against another program.** SymPy has
+`DomainMatrix.lll`, but an LLL-reduced basis is **not unique** — two
+correct implementations at the same δ can return different bases — so
+matching its output is neither necessary nor sufficient. §11.3 says
+confirm a convention before pinning it against a tool; here the conclusion
+is that the tool is the wrong oracle. The definition is checked instead,
+and it is complete:
+
+- **size-reduced**: `|μ_ij| ≤ 1/2`
+- **Lovász**: `‖b*_k‖² ≥ (3/4 − μ²_{k,k−1})·‖b*_{k−1}‖²`
+- **same lattice**: `hnf:zm` of the input equals `hnf:zm` of the output —
+  which needs no oracle at all, and is exactly the check phase C2 made
+  possible
+
+Any basis satisfying all three *is* an LLL-reduced basis of that lattice.
+`+reduced` is exposed so callers can assert it too. On the worked example
+the output happens to agree with SymPy's, which is worth noting and is not
+a guarantee.
+
+## Every arm in `+qm`, `+zm`, and `+mm` is `free`
 
 Racoon needed five pinned algorithms because their outputs were
 underdetermined — `egcd`'s cofactors, the Miller–Rabin witness schedule, the
@@ -99,7 +149,7 @@ its argument order.
 -test /=base=/tests/lib/baloon ~
 ```
 
-106 arms, all green. Behavioral, property, crash-row, and vector-driven.
+112 arms, all green. Behavioral, property, crash-row, and vector-driven.
 §8 is treated as a two-sided contract: every crash row has a dedicated test
 and every non-crash boundary has a matching expected-success test.
 
@@ -350,7 +400,7 @@ decidable directly. The Smith diagonal *is* checked against SymPy's
 convention-independent. That turned out to be the better test either way:
 it verifies the definition rather than agreement with another program.
 
-106 test arms, all green.
+112 test arms, all green.
 
 ## Decision log
 

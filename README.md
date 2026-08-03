@@ -1,7 +1,7 @@
 #   Symbolic Libraries for Urbit
 
 **Status ~2026.8.2:  Racoon Milestone A and Baloon Milestones A and C are
-complete, and both interfaces are frozen.  345 tests green.  Jets are
+complete, and both interfaces are frozen.  351 tests green.  Jets are
 next.**
 
 ![An evocative scene of a mysterious futuristic castle in the style of Flash Gordon](./img/hero.jpeg)
@@ -22,7 +22,7 @@ one, and the two are siblings rather than layers.
 | | Milestone A | Milestone B | Milestone C | Tests |
 |---|---|---|---|---:|
 | **Racoon** | complete, frozen | deferred | in progress — see below | 239 |
-| **Baloon** | complete, frozen | deferred | complete | 106 |
+| **Baloon** | complete, frozen | deferred | complete | 112 |
 
 **Milestone A** is the Hoon library as authoritative specification, with
 tests, reference vectors, and jet registration hints in place.  **Milestone
@@ -37,8 +37,8 @@ declared empty from the outset for exactly that purpose.
 
 Racoon's Milestone C is under way rather than done: integer factorization
 is built, real-root isolation (§R) and algebraic number arithmetic (§A)
-are specified and complete, and van Hoeij recombination and sparse
-multivariate remain unspecified.
+are specified and complete, van Hoeij is specified (§V) with its LLL
+phase built, and sparse multivariate remains unspecified.
 
 ##  Libraries
 
@@ -93,6 +93,7 @@ baloon/
     lib/baloon.hoon             the library -- qm zm mm
     lib/baloon-vectors.hoon     generated vectors -- never hand-edited
     lib/baloon-fmt.hoon         rendering and parsing, all three rings
+    lib/vanhoeij.hoon           LLL lattice reduction -- imports both
     tests/lib/baloon.hoon       test suite
     gen/                        dojo generators: bench det
   tools/genvec.py               SymPy vector generator
