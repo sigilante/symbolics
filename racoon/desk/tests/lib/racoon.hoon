@@ -11,6 +11,7 @@
 /+  *test, racoon, vec=racoon-vectors, fmt=racoon-fmt, rs=racoon-rs
 /+  fp=racoon-fp3
 /+  zf=racoon-zfac
+/+  rr=racoon-roots
 =/  nz  nz:racoon
 =/  qq  qq:racoon
 =/  zx  zx:racoon
@@ -2952,5 +2953,469 @@
     %-  expect  !>(!(is-prime-power:zf 1))
     %-  expect  !>(!(is-prime-power:zf 0))
     %-  expect  !>(!(is-prime-power:zf 12))
+  ==
+::    +strictly-down:  is this list strictly decreasing?
+++  strictly-down
+  |=  ks=(list @ud)
+  ^-  ?
+  ?~  ks  %.y
+  =/  prev=@ud         i.ks
+  =/  rest=(list @ud)  t.ks
+  |-  ^-  ?
+  ?~  rest  %.y
+  ?.  (lth i.rest prev)  %.n
+  $(rest t.rest, prev i.rest)
+::  Real-root data from SymPy: the derivative, the Cauchy bound as
+::  SPEC R3 pins it, and the count of DISTINCT real roots -- which is
+::  what Poly.count_roots returns, confirmed against (x-1)^2(x+2)
+::  giving 2 and not 3 before any of this was pinned (SPEC R7/11.3).
+++  rrvecs
+  ^-  (list [p=zol dv=zol bd=frac nr=@ud])
+  :~
+    :*  ~[--0 --1]
+        ~[--1]
+        [--1 1]
+        1
+    ==
+    :*  ~[-3 --2]
+        ~[--2]
+        [--5 2]
+        1
+    ==
+    :*  ~[-1 --0 --1]
+        ~[--0 --2]
+        [--2 1]
+        2
+    ==
+    :*  ~[--1 --0 --1]
+        ~[--0 --2]
+        [--2 1]
+        0
+    ==
+    :*  ~[-2 --0 --1]
+        ~[--0 --2]
+        [--3 1]
+        2
+    ==
+    :*  ~[--0 -1 --0 --1]
+        ~[-1 --0 --3]
+        [--2 1]
+        3
+    ==
+    :*  ~[-2 --0 --0 --1]
+        ~[--0 --0 --3]
+        [--3 1]
+        1
+    ==
+    :*  ~[--0 -2 --1 --1]
+        ~[-2 --2 --3]
+        [--3 1]
+        3
+    ==
+    :*  ~[--2 -3 --0 --1]
+        ~[-3 --0 --3]
+        [--4 1]
+        2
+    ==
+    :*  ~[-1 --0 --0 --0 --1]
+        ~[--0 --0 --0 --4]
+        [--2 1]
+        2
+    ==
+    :*  ~[--1 --0 --0 --0 --1]
+        ~[--0 --0 --0 --4]
+        [--2 1]
+        0
+    ==
+    :*  ~[--24 -50 --35 -10 --1]
+        ~[-50 --70 -30 --4]
+        [--51 1]
+        4
+    ==
+    :*  ~[--1 --0 -10 --0 --1]
+        ~[--0 -20 --0 --4]
+        [--11 1]
+        4
+    ==
+    :*  ~[--576 --0 -960 --0 --352 --0 -40 --0 --1]
+        ~[--0 -1.920 --0 --1.408 --0 -240 --0 --8]
+        [--961 1]
+        8
+    ==
+    :*  ~[--0 --5 --0 -20 --0 --16]
+        ~[--5 --0 -60 --0 --80]
+        [--9 4]
+        5
+    ==
+    :*  ~[--1 --0 -32 --0 --160 --0 -256 --0 --128]
+        ~[--0 -64 --0 --640 --0 -1.536 --0 --1.024]
+        [--3 1]
+        8
+    ==
+    :*  ~[--1 --1 --1 --1 --1]
+        ~[--1 --2 --3 --4]
+        [--2 1]
+        0
+    ==
+    :*  ~[--1 --1 --1]
+        ~[--1 --2]
+        [--2 1]
+        0
+    ==
+    :*  ~[--1 -3 --0 --0 --0 --1]
+        ~[-3 --0 --0 --0 --5]
+        [--4 1]
+        3
+    ==
+    :*  ~[--3 -6 --3]
+        ~[-6 --6]
+        [--3 1]
+        1
+    ==
+    :*  ~[--1 --1 --1]
+        ~[--1 --2]
+        [--2 1]
+        0
+    ==
+    :*  ~[--0 --1 --0 -1]
+        ~[--1 --0 -3]
+        [--2 1]
+        3
+    ==
+    :*  ~[--4 --0 -4 --0 --1]
+        ~[--0 -8 --0 --4]
+        [--5 1]
+        2
+    ==
+    :*  ~[-1 --0 --0 --0 --0 --0 --1]
+        ~[--0 --0 --0 --0 --0 --6]
+        [--2 1]
+        2
+    ==
+    :*  ~[-14 --7]
+        ~[--7]
+        [--3 1]
+        1
+    ==
+    :*  ~[--5]
+        ~
+        [--1 1]
+        0
+    ==
+    :*  ~[-3]
+        ~
+        [--1 1]
+        0
+    ==
+  ==
+::  Root counts on half-open ranges (a, b].  Endpoints are chosen off
+::  the root set, so SymPy's INCLUSIVE count_roots agrees with the
+::  half-open convention here -- a difference that would otherwise be
+::  silent.  Squarefree inputs only, which is +count's precondition.
+++  cntvecs
+  ^-  (list [p=zol a=frac b=frac k=@ud])
+  :~
+    [~[--0 --1] [-5 1] [-3 2] 0]
+    [~[--0 --1] [-3 2] [-1 2] 0]
+    [~[--0 --1] [-1 2] [--1 3] 1]
+    [~[--0 --1] [--1 3] [--3 2] 0]
+    [~[--0 --1] [--3 2] [--5 2] 0]
+    [~[--0 --1] [--5 2] [--7 1] 0]
+    [~[-3 --2] [-5 1] [-3 2] 0]
+    [~[-3 --2] [-3 2] [-1 2] 0]
+    [~[-3 --2] [-1 2] [--1 3] 0]
+    [~[-3 --2] [--5 2] [--7 1] 0]
+    [~[-1 --0 --1] [-5 1] [-3 2] 0]
+    [~[-1 --0 --1] [-3 2] [-1 2] 1]
+    [~[-1 --0 --1] [-1 2] [--1 3] 0]
+    [~[-1 --0 --1] [--1 3] [--3 2] 1]
+    [~[-1 --0 --1] [--3 2] [--5 2] 0]
+    [~[-1 --0 --1] [--5 2] [--7 1] 0]
+    [~[--1 --0 --1] [-5 1] [-3 2] 0]
+    [~[--1 --0 --1] [-3 2] [-1 2] 0]
+    [~[--1 --0 --1] [-1 2] [--1 3] 0]
+    [~[--1 --0 --1] [--1 3] [--3 2] 0]
+    [~[--1 --0 --1] [--3 2] [--5 2] 0]
+    [~[--1 --0 --1] [--5 2] [--7 1] 0]
+    [~[-2 --0 --1] [-5 1] [-3 2] 0]
+    [~[-2 --0 --1] [-3 2] [-1 2] 1]
+    [~[-2 --0 --1] [-1 2] [--1 3] 0]
+    [~[-2 --0 --1] [--1 3] [--3 2] 1]
+    [~[-2 --0 --1] [--3 2] [--5 2] 0]
+    [~[-2 --0 --1] [--5 2] [--7 1] 0]
+    [~[--0 -1 --0 --1] [-5 1] [-3 2] 0]
+    [~[--0 -1 --0 --1] [-3 2] [-1 2] 1]
+    [~[--0 -1 --0 --1] [-1 2] [--1 3] 1]
+    [~[--0 -1 --0 --1] [--1 3] [--3 2] 1]
+    [~[--0 -1 --0 --1] [--3 2] [--5 2] 0]
+    [~[--0 -1 --0 --1] [--5 2] [--7 1] 0]
+    [~[-2 --0 --0 --1] [-5 1] [-3 2] 0]
+    [~[-2 --0 --0 --1] [-3 2] [-1 2] 0]
+    [~[-2 --0 --0 --1] [-1 2] [--1 3] 0]
+    [~[-2 --0 --0 --1] [--1 3] [--3 2] 1]
+    [~[-2 --0 --0 --1] [--3 2] [--5 2] 0]
+    [~[-2 --0 --0 --1] [--5 2] [--7 1] 0]
+    [~[--0 -2 --1 --1] [-5 1] [-3 2] 1]
+    [~[--0 -2 --1 --1] [-3 2] [-1 2] 0]
+    [~[--0 -2 --1 --1] [-1 2] [--1 3] 1]
+    [~[--0 -2 --1 --1] [--1 3] [--3 2] 1]
+    [~[--0 -2 --1 --1] [--3 2] [--5 2] 0]
+    [~[--0 -2 --1 --1] [--5 2] [--7 1] 0]
+    [~[-1 --0 --0 --0 --1] [-5 1] [-3 2] 0]
+    [~[-1 --0 --0 --0 --1] [-3 2] [-1 2] 1]
+    [~[-1 --0 --0 --0 --1] [-1 2] [--1 3] 0]
+    [~[-1 --0 --0 --0 --1] [--1 3] [--3 2] 1]
+    [~[-1 --0 --0 --0 --1] [--3 2] [--5 2] 0]
+    [~[-1 --0 --0 --0 --1] [--5 2] [--7 1] 0]
+    [~[--1 --0 --0 --0 --1] [-5 1] [-3 2] 0]
+    [~[--1 --0 --0 --0 --1] [-3 2] [-1 2] 0]
+    [~[--1 --0 --0 --0 --1] [-1 2] [--1 3] 0]
+    [~[--1 --0 --0 --0 --1] [--1 3] [--3 2] 0]
+    [~[--1 --0 --0 --0 --1] [--3 2] [--5 2] 0]
+    [~[--1 --0 --0 --0 --1] [--5 2] [--7 1] 0]
+    [~[--24 -50 --35 -10 --1] [-5 1] [-3 2] 0]
+    [~[--24 -50 --35 -10 --1] [-3 2] [-1 2] 0]
+    [~[--24 -50 --35 -10 --1] [-1 2] [--1 3] 0]
+    [~[--24 -50 --35 -10 --1] [--1 3] [--3 2] 1]
+    [~[--24 -50 --35 -10 --1] [--3 2] [--5 2] 1]
+    [~[--24 -50 --35 -10 --1] [--5 2] [--7 1] 2]
+    [~[--1 --0 -10 --0 --1] [-5 1] [-3 2] 1]
+    [~[--1 --0 -10 --0 --1] [-3 2] [-1 2] 0]
+    [~[--1 --0 -10 --0 --1] [-1 2] [--1 3] 2]
+    [~[--1 --0 -10 --0 --1] [--1 3] [--3 2] 0]
+    [~[--1 --0 -10 --0 --1] [--3 2] [--5 2] 0]
+    [~[--1 --0 -10 --0 --1] [--5 2] [--7 1] 1]
+    [~[--576 --0 -960 --0 --352 --0 -40 --0 --1] [-5 1] [-3 2] 2]
+    [~[--576 --0 -960 --0 --352 --0 -40 --0 --1] [-3 2] [-1 2] 1]
+    [~[--576 --0 -960 --0 --352 --0 -40 --0 --1] [-1 2] [--1 3] 0]
+    [~[--576 --0 -960 --0 --352 --0 -40 --0 --1] [--1 3] [--3 2] 1]
+    [~[--576 --0 -960 --0 --352 --0 -40 --0 --1] [--3 2] [--5 2] 1]
+    [~[--576 --0 -960 --0 --352 --0 -40 --0 --1] [--5 2] [--7 1] 2]
+    [~[--0 --5 --0 -20 --0 --16] [-5 1] [-3 2] 0]
+    [~[--0 --5 --0 -20 --0 --16] [-3 2] [-1 2] 2]
+    [~[--0 --5 --0 -20 --0 --16] [-1 2] [--1 3] 1]
+    [~[--0 --5 --0 -20 --0 --16] [--1 3] [--3 2] 2]
+    [~[--0 --5 --0 -20 --0 --16] [--3 2] [--5 2] 0]
+    [~[--0 --5 --0 -20 --0 --16] [--5 2] [--7 1] 0]
+    [~[--1 --0 -32 --0 --160 --0 -256 --0 --128] [-5 1] [-3 2] 0]
+    [~[--1 --0 -32 --0 --160 --0 -256 --0 --128] [-3 2] [-1 2] 3]
+    [~[--1 --0 -32 --0 --160 --0 -256 --0 --128] [-1 2] [--1 3] 2]
+    [~[--1 --0 -32 --0 --160 --0 -256 --0 --128] [--1 3] [--3 2] 3]
+    [~[--1 --0 -32 --0 --160 --0 -256 --0 --128] [--3 2] [--5 2] 0]
+    [~[--1 --0 -32 --0 --160 --0 -256 --0 --128] [--5 2] [--7 1] 0]
+    [~[--1 --1 --1 --1 --1] [-5 1] [-3 2] 0]
+    [~[--1 --1 --1 --1 --1] [-3 2] [-1 2] 0]
+    [~[--1 --1 --1 --1 --1] [-1 2] [--1 3] 0]
+    [~[--1 --1 --1 --1 --1] [--1 3] [--3 2] 0]
+    [~[--1 --1 --1 --1 --1] [--3 2] [--5 2] 0]
+    [~[--1 --1 --1 --1 --1] [--5 2] [--7 1] 0]
+    [~[--1 --1 --1] [-5 1] [-3 2] 0]
+    [~[--1 --1 --1] [-3 2] [-1 2] 0]
+    [~[--1 --1 --1] [-1 2] [--1 3] 0]
+    [~[--1 --1 --1] [--1 3] [--3 2] 0]
+    [~[--1 --1 --1] [--3 2] [--5 2] 0]
+    [~[--1 --1 --1] [--5 2] [--7 1] 0]
+    [~[--1 -3 --0 --0 --0 --1] [-5 1] [-3 2] 0]
+    [~[--1 -3 --0 --0 --0 --1] [-3 2] [-1 2] 1]
+    [~[--1 -3 --0 --0 --0 --1] [-1 2] [--1 3] 0]
+    [~[--1 -3 --0 --0 --0 --1] [--1 3] [--3 2] 2]
+    [~[--1 -3 --0 --0 --0 --1] [--3 2] [--5 2] 0]
+    [~[--1 -3 --0 --0 --0 --1] [--5 2] [--7 1] 0]
+    [~[--1 --1 --1] [-5 1] [-3 2] 0]
+    [~[--1 --1 --1] [-3 2] [-1 2] 0]
+    [~[--1 --1 --1] [-1 2] [--1 3] 0]
+    [~[--1 --1 --1] [--1 3] [--3 2] 0]
+    [~[--1 --1 --1] [--3 2] [--5 2] 0]
+    [~[--1 --1 --1] [--5 2] [--7 1] 0]
+    [~[--0 --1 --0 -1] [-5 1] [-3 2] 0]
+    [~[--0 --1 --0 -1] [-3 2] [-1 2] 1]
+    [~[--0 --1 --0 -1] [-1 2] [--1 3] 1]
+    [~[--0 --1 --0 -1] [--1 3] [--3 2] 1]
+    [~[--0 --1 --0 -1] [--3 2] [--5 2] 0]
+    [~[--0 --1 --0 -1] [--5 2] [--7 1] 0]
+    [~[-1 --0 --0 --0 --0 --0 --1] [-5 1] [-3 2] 0]
+    [~[-1 --0 --0 --0 --0 --0 --1] [-3 2] [-1 2] 1]
+    [~[-1 --0 --0 --0 --0 --0 --1] [-1 2] [--1 3] 0]
+    [~[-1 --0 --0 --0 --0 --0 --1] [--1 3] [--3 2] 1]
+    [~[-1 --0 --0 --0 --0 --0 --1] [--3 2] [--5 2] 0]
+    [~[-1 --0 --0 --0 --0 --0 --1] [--5 2] [--7 1] 0]
+    [~[-14 --7] [-5 1] [-3 2] 0]
+    [~[-14 --7] [-3 2] [-1 2] 0]
+    [~[-14 --7] [-1 2] [--1 3] 0]
+    [~[-14 --7] [--1 3] [--3 2] 0]
+    [~[-14 --7] [--3 2] [--5 2] 1]
+    [~[-14 --7] [--5 2] [--7 1] 0]
+  ==
+::
+::  Real-root isolation, phase R0 (/lib/racoon-roots).  The correctness
+::  core: an EXACT count of the distinct real roots in a rational range.
+::  Everything phase R2 will add is bookkeeping on a count already right,
+::  so this is the layer worth over-testing.
+::
+::  The adversarial family here is different from Milestone A's.  SD_3 is
+::  in the corpus for factorization because Zassenhaus recombination is
+::  exponential on it; it is here because its eight real roots sit in a
+::  narrow band, which is what defeats a careless isolator.  Chebyshev
+::  polynomials have every root real in (-1, 1); cyclotomics have none.
+::
+++  test-r0-bound
+  =/  vs  rrvecs
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      %+  expect-eq  !>(`frac`bd.i.vs)  !>((bound:rr p.i.vs))
+  ==
+++  test-r0-deriv
+  =/  vs  rrvecs
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      ;:  weld
+        %+  expect-eq  !>(`zol`dv.i.vs)  !>((deriv:rr p.i.vs))
+        ::  the derivative drops the degree by exactly one, or vanishes
+        %-  expect
+        !>  ?:  =(~ dv.i.vs)  =(0 (deg:zx p.i.vs))
+            =(+((deg:zx dv.i.vs)) (deg:zx p.i.vs))
+      ==
+  ==
+++  test-r0-nroots
+  =/  vs  rrvecs
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      ;:  weld
+        %+  expect-eq  !>(`@ud`nr.i.vs)  !>((nroots:rr p.i.vs))
+        ::  distinct real roots never exceed the degree
+        %-  expect  !>((lte nr.i.vs (deg:zx p.i.vs)))
+        ::  and are unchanged by taking the squarefree part, which is the
+        ::  whole point of counting DISTINCT roots
+        %+  expect-eq
+          !>(`@ud`nr.i.vs)
+        !>((nroots:rr (sqpart:rr p.i.vs)))
+      ==
+  ==
+++  test-r0-count
+  =/  vs  cntvecs
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      %+  expect-eq  !>(`@ud`k.i.vs)
+      !>((count:rr p.i.vs a.i.vs b.i.vs))
+  ==
+++  test-r0-count-additive
+  ::  counting is additive over adjacent ranges and empty on a point,
+  ::  which no oracle is needed to check
+  =/  ps=(list zol)
+    :~  ~[--0 --1]
+        ~[-1 --0 --1]
+        ~[--0 -1 --0 --1]
+        ~[--1 --0 -10 --0 --1]
+        ~[--576 --0 -960 --0 --352 --0 -40 --0 --1]
+    ==
+  ::  +-10 and not +-5: SD_3's roots are +-(sqrt2 + sqrt3 + sqrt5), about
+  ::  +-5.382, so a narrower range genuinely excludes one -- which +count
+  ::  reported correctly and this test had wrong.  None of these
+  ::  polynomials vanishes at -10, 1/3, or 10.
+  =/  a=frac  [-10 1]
+  =/  b=frac  [--1 3]
+  =/  c=frac  [--10 1]
+  =|  out=tang
+  |-  ^-  tang
+  ?~  ps  out
+  =/  p=zol  i.ps
+  %=  $
+    ps  t.ps
+    out
+      %+  weld  out
+      ;:  weld
+        %+  expect-eq
+          !>((count:rr p a c))
+        !>((add (count:rr p a b) (count:rr p b c)))
+        ::  a degenerate range holds nothing, and does not crash
+        %+  expect-eq  !>(`@ud`0)  !>((count:rr p b b))
+        (expect-success |.((count:rr p b b)))
+        ::  the whole line agrees with +nroots
+        %+  expect-eq  !>((nroots:rr p))  !>((count:rr p a c))
+      ==
+  ==
+++  test-r0-sturm
+  =/  p=zol  ~[--0 -1 --0 --1]
+  =/  ch     (sturm:rr p)
+  ;:  weld
+    ::  the chain opens with p and p'
+    %+  expect-eq  !>(`zol`p)             !>((snag 0 ch))
+    %+  expect-eq  !>((deriv:rr p))       !>((snag 1 ch))
+    ::  x^3 - x: chain is p, 3x^2-1, then a positive multiple of 2x/3,
+    ::  reduced to its primitive part, then a nonzero constant
+    %+  expect-eq  !>(`@ud`4)             !>((lent ch))
+    %+  expect-eq  !>(`zol`~[--0 --1])    !>((snag 2 ch))
+    ::  degrees strictly decrease, which is what makes it terminate
+    %-  expect  !>((strictly-down (turn ch |=(q=zol (deg:zx q)))))
+    ::  and the last term is a nonzero constant, since p is squarefree
+    %+  expect-eq  !>(`@ud`0)             !>((deg:zx (rear ch)))
+    ::  a linear polynomial has the shortest possible chain
+    %+  expect-eq  !>(`@ud`2)  !>((lent (sturm:rr ~[-3 --2])))
+    ::  a constant has a chain of one, and no roots
+    %+  expect-eq  !>(`@ud`1)  !>((lent (sturm:rr ~[--5])))
+    %+  expect-eq  !>(`@ud`0)  !>((nroots:rr ~[--5]))
+  ==
+++  test-r0-sign-at
+  =/  p=zol  ~[-2 --0 --1]
+  ;:  weld
+    ::  x^2 - 2 at 0, 2, -2, and at the rationals bracketing sqrt(2)
+    %+  expect-eq  !>(`ord`%lt)  !>((sign-at:rr p [--0 1]))
+    %+  expect-eq  !>(`ord`%gt)  !>((sign-at:rr p [--2 1]))
+    %+  expect-eq  !>(`ord`%gt)  !>((sign-at:rr p [-2 1]))
+    %+  expect-eq  !>(`ord`%lt)  !>((sign-at:rr p [--7 5]))
+    %+  expect-eq  !>(`ord`%gt)  !>((sign-at:rr p [--3 2]))
+    ::  %eq is exact, not a tolerance: 2x - 3 vanishes at 3/2 and nowhere
+    ::  a floating-point test would confuse with it
+    %+  expect-eq  !>(`ord`%eq)  !>((sign-at:rr ~[-3 --2] [--3 2]))
+    %+  expect-eq  !>(`ord`%lt)
+    !>((sign-at:rr ~[-3 --2] [--14.999 10.000]))
+    %+  expect-eq  !>(`ord`%gt)
+    !>((sign-at:rr ~[-3 --2] [--15.001 10.000]))
+  ==
+++  test-r0-crash
+  ;:  weld
+    ::  the zero polynomial: every real is a root, so there is no answer
+    ::  to give and no sentinel that would not be a lie
+    (expect-fail |.((bound:rr ~)))
+    (expect-fail |.((deriv:rr ~)))
+    (expect-fail |.((sign-at:rr ~ [--0 1])))
+    (expect-fail |.((sturm:rr ~)))
+    (expect-fail |.((nroots:rr ~)))
+    (expect-fail |.((sqpart:rr ~)))
+    (expect-fail |.((count:rr ~ [--0 1] [--1 1])))
+    ::  +sturm and +count require a squarefree input: the chain's count is
+    ::  valid only there, and a silently wrong count is worse than a crash
+    (expect-fail |.((sturm:rr ~[--2 -3 --0 --1])))
+    (expect-fail |.((count:rr ~[--2 -3 --0 --1] [--0 1] [--2 1])))
+    %-  expect  !>(!(is-squarefree:rr ~[--2 -3 --0 --1]))
+    ::  while +nroots takes the squarefree part itself and accepts it
+    (expect-success |.((nroots:rr ~[--2 -3 --0 --1])))
+    %+  expect-eq  !>(`@ud`2)  !>((nroots:rr ~[--2 -3 --0 --1]))
+    ::  an inverted range
+    (expect-fail |.((count:rr ~[--0 --1] [--1 1] [--0 1])))
+    (expect-success |.((count:rr ~[--0 --1] [--0 1] [--1 1])))
+    ::  a nonzero constant is squarefree and has no roots
+    %-  expect  !>((is-squarefree:rr ~[--5]))
+    (expect-success |.((bound:rr ~[--5])))
   ==
 --

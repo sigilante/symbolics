@@ -47,6 +47,7 @@ lib/racoon-fmt.hoon
 lib/racoon-rs.hoon
 lib/racoon-fp3.hoon
 lib/racoon-zfac.hoon
+lib/racoon-roots.hoon
 lib/racoon-vectors.hoon
 tests/lib/racoon.hoon
 gen/racoon-bench.hoon

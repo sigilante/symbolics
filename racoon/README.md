@@ -41,7 +41,7 @@ underdetermined, two-sided crash tables, and no `~|` anywhere.
 | Candidate | Note |
 |---|---|
 | ~~Integer factorization~~ | **Built**, as `/lib/racoon-zfac` — see below. It did not need `nz` reopened |
-| Real-root isolation, Sturm/Descartes | The *Real* in Real AlgebraiCs, which the library does not yet deliver. Builds on frozen `zx`/`qx` — `gcd`, `deriv`, and `res` are all in place. Listed as a candidate, not a design; it wants a spec section before code |
+| Real-root isolation, Sturm/Descartes | **Specified** (`raccoon-spec.md` §R) and **phase R0 built** — see below. R1 (exact rational roots) and R2 (isolation, refinement) remain |
 | van Hoeij recombination | Would attack the known cost cliff — Zassenhaus is exponential in the worst case, and `SD_4`+ is out of scope until this lands. Needs LLL, which both specs fence out, so it requires escalation first |
 | Sparse multivariate | The largest and least specified |
 
@@ -58,6 +58,7 @@ racoon/
     lib/racoon-rs.hoon        Reed-Solomon codec over F_p
     lib/racoon-fp3.hoon       extension fields F_p[x]/(m)
     lib/racoon-zfac.hoon      integer factorization and its consequences
+    lib/racoon-roots.hoon     real-root counting -- Milestone C phase R0
     gen/racoon-bench.hoon     benchmark generator
     gen/racoon-factor.hoon    factor a polynomial from the dojo
     gen/racoon-gcd.hoon       gcd of two polynomials from the dojo
@@ -185,6 +186,71 @@ factors multiply back, every listed factor is prime, the divisor count is
 `∏(m+1)`, every divisor divides, `order` divides `φ(n)` and no proper
 divisor of it works, and a primitive root really does generate every unit.
 
+## Real roots
+
+`/lib/racoon-roots` is Milestone C phase R0: an **exact count** of the
+distinct real roots of an integer polynomial in any rational range. The
+library is named for real algebraic numbers and, until this, produced
+none.
+
+```
+bound   zol -> frac              Cauchy bound; every root is inside (-B, B)
+deriv   zol -> zol               formal derivative
+sign-at [zol frac] -> ord        sign of p(x); %eq exactly at a root
+sturm   zol -> (list zol)        the Sturm chain of a squarefree p
+count   [zol frac frac] -> @ud   distinct real roots in (a, b]
+nroots  zol -> @ud               distinct real roots, all of R
+sqpart  zol -> zol               squarefree part, p / gcd(p, p')
+```
+
+Phases R1 (exact rational roots, via `divisors:zfac`) and R2 (isolation
+and refinement) are specified in §R and not yet built. Everything they add
+is bookkeeping on a count that is already right, which is why this layer
+is the one worth over-testing.
+
+**Every arm is `free`.** Counting roots has one right answer, so a jet may
+use Descartes with Taylor shifts, VCA, or anything else. Sturm is the
+reference because it is simpler and more obviously correct — this
+project's stated order of priorities.
+
+**Signs are the whole difficulty, and they are silent when wrong.** Racoon
+has no exact remainder over ℤ, only the pseudo-remainder `pdiv:zx`, whose
+identity is
+
+```
+lc(b)^e * a = q*b + r,     e = deg a - deg b + 1
+```
+
+so `r` is the true remainder scaled by `lc(b)^e` — and **that factor is
+negative when `lc(b) < 0` and `e` is odd**. A Sturm chain needs each term
+to be `-rem` up to a strictly *positive* factor, so the sign of `lc(b)^e`
+has to be undone rather than assumed away. Getting it wrong does not
+crash; it silently miscounts. Terms are then reduced to their primitive
+part, which is safe only because `pp:zx` carries its input's sign.
+
+**`sturm` and `count` require a squarefree input and assert it** — the
+chain's count is valid only there, and a silently wrong count is worse
+than a crash. `nroots` accepts any nonzero polynomial and takes the
+squarefree part itself, so a repeated factor is counted once.
+
+**No floating point, now or later.** Every endpoint is an exact `frac` and
+stays one; `refine` in phase R2 narrows on demand. Lagoon owns
+approximation.
+
+**Verification.** SymPy `Poly.count_roots` is the oracle — confirmed
+first, per §11.3, to count *distinct* roots: `(x-1)²(x+2)` gives 2, not 3.
+Range endpoints in the vectors are chosen off the root set, since SymPy's
+`count_roots` is inclusive on both ends while `count` here is half-open,
+and that difference would otherwise be silent. The adversarial corpus is
+different from Milestone A's: `SD_3` is in the factorization tests because
+Zassenhaus is exponential on it, and here because its eight real roots sit
+in a narrow band. Chebyshev polynomials have every root real in (−1, 1);
+cyclotomics have none.
+
+A test of mine caught exactly what this is for: a range of (−5, 7] excludes
+one root of `SD_3`, whose extreme roots are ±(√2+√3+√5) ≈ ±5.382. `count`
+reported 7 and was right; the test's assumption was wrong.
+
 ## Reference vectors
 
 `desk/lib/racoon-vectors.hoon` is generated and **never hand-edited**:
@@ -307,7 +373,7 @@ alone. Do not read a trend into two points.
 -test /=base=/tests/lib/racoon ~
 ```
 
-210 arms, all green. Three kinds:
+218 arms, all green. Three kinds:
 
 - **Behavioral** — known values and adversarial families. `is-prime` gets eight
   Carmichael numbers and five strong pseudoprimes rather than random odds,
