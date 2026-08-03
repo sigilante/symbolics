@@ -40,6 +40,7 @@ underdetermined, two-sided crash tables, and no `~|` anywhere.
 
 | Candidate | Note |
 |---|---|
+| ~~Integer factorization~~ | **Built**, as `/lib/racoon-zfac` — see below. It did not need `nz` reopened |
 | Real-root isolation, Sturm/Descartes | The *Real* in Real AlgebraiCs, which the library does not yet deliver. Builds on frozen `zx`/`qx` — `gcd`, `deriv`, and `res` are all in place. Listed as a candidate, not a design; it wants a spec section before code |
 | van Hoeij recombination | Would attack the known cost cliff — Zassenhaus is exponential in the worst case, and `SD_4`+ is out of scope until this lands. Needs LLL, which both specs fence out, so it requires escalation first |
 | Sparse multivariate | The largest and least specified |
@@ -56,6 +57,7 @@ racoon/
     lib/racoon-fmt.hoon       rendering and parsing
     lib/racoon-rs.hoon        Reed-Solomon codec over F_p
     lib/racoon-fp3.hoon       extension fields F_p[x]/(m)
+    lib/racoon-zfac.hoon      integer factorization and its consequences
     gen/racoon-bench.hoon     benchmark generator
     gen/racoon-factor.hoon    factor a polynomial from the dojo
     gen/racoon-gcd.hoon       gcd of two polynomials from the dojo
@@ -132,6 +134,56 @@ rule for parentheses.
 Building the library slogs `fund: in racoon, parent ... not found at 7`. This
 is expected: no jets exist until Milestone B, so the runtime has nothing to
 resolve the `%racoon` core's parent against.
+
+## Integer factorization
+
+`/lib/racoon-zfac` factors integers, which `nz` does not: that core is
+`gcd egcd isqrt is-prime crt ratrec` and nothing else. The gap blocked the
+multiplicative order of a unit, primitive roots, Euler's totient, and the
+divisor set — all downstream of a factorization and none expressible
+without one.
+
+```
+factor         @ud -> (list [p=@ud m=@ud])   primes ascending, canonical
+is-prime-power @ud -> ?
+radical        @ud -> @ud                    product of distinct primes
+totient        @ud -> @ud                    Euler's phi
+divisors       @ud -> (list @ud)             ascending
+order       [a n] -> @ud                     least e with a^e = 1 mod n
+primitive-root @ud -> (unit @ud)             least generator, or ~
+```
+
+**It is a consumer, and `nz` stayed frozen.** Adding a seventh arm would
+have moved the battery axes of the six that Milestone B jets resolve
+against, and nothing inside the frozen library calls this — so nothing
+needed it there. Same pattern as `racoon-rs` and `racoon-fp3`, and the same
+reasoning as Baloon's resolved question B2. Promote it into `nz` if a
+Milestone C escalation ever opens that core for a batch of changes; not for
+this alone.
+
+**Every arm is `free`.** A factorization into primes is unique, so the
+sorted output is canonical however it was found, and a jet may use Brent,
+ECM, or a sieve. Only the *search* is pinned, and only because Hoon has no
+randomness: Pollard's rho runs with `c = 1, 2, 3, …` in order, so an
+unlucky first attempt is reproducible rather than merely unlikely.
+
+**Termination is guaranteed, not probabilistic.** Rho can fail for any
+given `c`, so after 32 attempts the search falls back to trial division,
+which cannot fail on a composite. A caller waits longer; it never gets a
+wrong answer or a crash. Small primes are stripped by division below
+65,536 first, which is both faster at that size and what keeps rho's
+degenerate cases (4, 8, and the like) from ever reaching it.
+
+`factor(1)` is `~`, the empty product — the right answer, not an edge case.
+`factor(0)` **crashes**: every prime divides zero, so there is no
+factorization to return and no sentinel that would not be a lie. `order`
+asserts that its argument is a unit, since a non-unit has no order at all.
+
+Checked against SymPy's `factorint`, `totient`, `divisors`, `n_order`, and
+`primitive_root`, plus the identities a fixed table cannot catch: the
+factors multiply back, every listed factor is prime, the divisor count is
+`∏(m+1)`, every divisor divides, `order` divides `φ(n)` and no proper
+divisor of it works, and a primitive root really does generate every unit.
 
 ## Reference vectors
 
@@ -255,7 +307,7 @@ alone. Do not read a trend into two points.
 -test /=base=/tests/lib/racoon ~
 ```
 
-204 arms, all green. Three kinds:
+210 arms, all green. Three kinds:
 
 - **Behavioral** — known values and adversarial families. `is-prime` gets eight
   Carmichael numbers and five strong pseudoprimes rather than random odds,
