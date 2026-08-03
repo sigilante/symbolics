@@ -188,10 +188,20 @@ unchanged — still the shallowest node holding exactly one root.
 No arm signature changed and the products are the same shape; only the
 route to them, and the guarantee, differ.
 
-## R4 — is van Hoeij a hard dependency of phase A? (OPEN, non-blocking)
+## R4 — is van Hoeij a hard dependency of phase A? (ANSWERED in part)
 
-**Status:** open. Does **not** block phases A0–A1, and does not block A2
-at degrees 2 and 3. Blocks A2 at degree 4 and above.
+**Status:** the placement question is **resolved** — van Hoeij will live
+in a consumer importing both Racoon and Baloon. The LLL fence in §13 of
+both specs still needs lifting before code, and the cliff itself is
+unchanged: phases A0–A1 are unaffected, A2 is unaffected at degrees 2 and
+3, and A2 at degree 4 and above waits on this.
+
+**Resolved:** LLL does **not** go in Racoon. Racoon cannot import Baloon,
+so putting it there would mean duplicating integer matrices, `det`, and
+the Hermite form that Baloon Milestone C already provides. Instead van
+Hoeij lives in a consumer library importing both — the same shape every
+other capability here has taken. Racoon stays the lower layer and gains
+nothing it does not need.
 
 §A8 works it out: `deg(α·β) <= deg α · deg β`, so two degree-4 algebraic
 numbers give a resultant of degree 16, and extracting the minimal

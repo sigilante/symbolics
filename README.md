@@ -1,7 +1,7 @@
 #   Symbolic Libraries for Urbit
 
 **Status ~2026.8.2:  Racoon Milestone A and Baloon Milestones A and C are
-complete, and both interfaces are frozen.  336 tests green.  Jets are
+complete, and both interfaces are frozen.  345 tests green.  Jets are
 next.**
 
 ![An evocative scene of a mysterious futuristic castle in the style of Flash Gordon](./img/hero.jpeg)
@@ -21,7 +21,7 @@ one, and the two are siblings rather than layers.
 
 | | Milestone A | Milestone B | Milestone C | Tests |
 |---|---|---|---|---:|
-| **Racoon** | complete, frozen | deferred | in progress — see below | 230 |
+| **Racoon** | complete, frozen | deferred | in progress — see below | 239 |
 | **Baloon** | complete, frozen | deferred | complete | 106 |
 
 **Milestone A** is the Hoon library as authoritative specification, with
@@ -36,9 +36,9 @@ single existing battery axis, because the `+zm` and `+mm` sub-cores were
 declared empty from the outset for exactly that purpose.
 
 Racoon's Milestone C is under way rather than done: integer factorization
-is built, real-root isolation is specified (`raccoon-spec.md` §R) and
-complete, and van Hoeij recombination and sparse multivariate remain
-unspecified.
+is built, real-root isolation (§R) and algebraic number arithmetic (§A)
+are specified and complete, and van Hoeij recombination and sparse
+multivariate remain unspecified.
 
 ##  Libraries
 
@@ -80,6 +80,7 @@ racoon/
     lib/racoon-fp3.hoon         extension fields F_p[x]/(m)
     lib/racoon-zfac.hoon        integer factorization, totient, order
     lib/racoon-roots.hoon       exact real-root counting and isolation
+    lib/racoon-alg.hoon         real algebraic number arithmetic
     tests/lib/racoon.hoon       test suite
     gen/                        dojo generators: bench factor gcd rs fp3
   tools/genvec.py               SymPy vector generator
@@ -99,8 +100,8 @@ baloon/
   SPEC-QUESTIONS.md             escalation log
 ```
 
-The `*-fmt`, `racoon-rs`, `racoon-fp3`, `racoon-zfac`, and `racoon-roots`
-libraries are **consumers**: they
+The `*-fmt`, `racoon-rs`, `racoon-fp3`, `racoon-zfac`, `racoon-roots`, and
+`racoon-alg` libraries are **consumers**: they
 import the frozen library like any other caller and are not part of it.  That
 is the pattern for anything built on top — a frozen interface reopened for
 every good idea was never frozen.

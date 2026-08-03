@@ -59,6 +59,7 @@ racoon/
     lib/racoon-fp3.hoon       extension fields F_p[x]/(m)
     lib/racoon-zfac.hoon      integer factorization and its consequences
     lib/racoon-roots.hoon     real roots -- Milestone C, phase R complete
+    lib/racoon-alg.hoon       real algebraic number arithmetic -- phase A
     gen/racoon-bench.hoon     benchmark generator
     gen/racoon-factor.hoon    factor a polynomial from the dojo
     gen/racoon-gcd.hoon       gcd of two polynomials from the dojo
@@ -274,18 +275,10 @@ a node isolating an irrational root of the reduced polynomial can still
 contain a rational root that was removed from the polynomial but not from
 the number line. `SPEC-QUESTIONS.md` R3 records it.
 
-### What this does not do
+### Arithmetic on them lives next door
 
-**It isolates roots; it does not do arithmetic on them.** Adding or
-multiplying two real algebraic numbers means computing the minimal
-polynomial of the sum or product — resultant work — and then isolating
-the right root of *that*. Racoon has `res:zx`, so the machinery is
-present, but §R8 fences the capability out as separate work and none of
-it is built.
-
-Concretely: hand this library `x⁴ − 10x² + 1` and it will isolate all four
-roots exactly, one of which is √2 + √3. What it will not do is *derive*
-that polynomial from √2 and √3.
+`/lib/racoon-alg` — see below. Phase R deliberately stops at isolation;
+adding and multiplying roots is phase A.
 
 **Rational roots come back exact, and that is load-bearing.**
 `rational-roots` returns values, never intervals — which is precisely the
@@ -318,6 +311,73 @@ cyclotomics have none.
 A test of mine caught exactly what this is for: a range of (−5, 7] excludes
 one root of `SD_3`, whose extreme roots are ±(√2+√3+√5) ≈ ±5.382. `count`
 reported 7 and was right; the test's assumption was wrong.
+
+## Algebraic numbers
+
+`/lib/racoon-alg` is Milestone C phase A: **arithmetic on real algebraic
+numbers**. `√2 + √3` is a value here, not a polynomial someone had to
+know to write down.
+
+```
++of-q +to-q +make +deg +approx +cmp +sign +is-zero +is-rational
++neg +inv +add +sub +mul +div +pow +root
+```
+
+A number is `[minimal polynomial, canonical isolating interval]`. Both
+halves are unique, so the form is canonical — and that buys two things:
+
+- **Equality is structural.** `=(a b)` decides it. No refinement loop, no
+  tolerance, no separate `equals` arm.
+- **Every arm is `free`**, so a jet may use any algorithm at all.
+
+The price is that every operation reduces to the minimal polynomial,
+which means factoring. Paid deliberately: carrying whatever polynomial
+happens to vanish at α would make equality undecidable without a gcd per
+comparison, and make nothing canonical.
+
+```
+√2 · √3  →  x² − 6        degree 2, from a degree-4 resultant
+√2 + √3  →  x⁴ − 10x² + 1  which is SD_2
+1/√2     →  2x² − 1
+√2 · √2  →  2              exactly rational, not a degree-1 anum
+```
+
+**Bivariate resultants by evaluation–interpolation.** `res:zx` is
+univariate over ℤ, and `Res_y` of a polynomial in ℤ[x][y] cannot be
+formed with the frozen arms — Baloon's polynomial-entry determinants are
+unreachable, since Baloon depends on Racoon and not the reverse. But
+`Res_y` has degree at most `deg p · deg q` in x, and **every evaluation of
+it at an integer x is an ordinary univariate integer resultant**. So:
+evaluate at that many points plus one, and interpolate. Nothing new was
+needed in the frozen library.
+
+**Three traps, each silent when wrong**, and each pinned in §A3 before
+being coded:
+
+- Interval multiplication is the min and max of the **four corner
+  products**, not `[lo₁·lo₂, hi₁·hi₂]` — which fails for any interval
+  straddling zero.
+- `cmp` tests structural equality **first**. Without that the refinement
+  loop never terminates on equal inputs.
+- Degree-collapse cases must return exact **rationals**. `√2·√2` is 2,
+  not a degree-1 algebraic number in disguise.
+
+**The cost cliff is real and it is §9's.** `deg(α·β) ≤ deg α · deg β`, so
+two degree-4 numbers give a degree-16 resultant — and `SD_4` is degree 16,
+which §9 fences out pending van Hoeij. **The two limits are the same
+limit.** Degrees 2 and 3 are unaffected and cover every quadratic and
+cubic irrational, which is why this was built anyway; the factorization
+step is one call, so a better algorithm replaces it without restructuring
+anything. `SPEC-QUESTIONS.md` R4 records the decision that van Hoeij will
+live in a consumer importing both Racoon and Baloon, rather than
+duplicating Baloon's integer matrices inside Racoon.
+
+**Verification.** SymPy `minimal_polynomial` is the oracle — it *is* the
+canonical form §A2 pins. Confirmed before pinning, per §11.3, that
+`minimal_polynomial(√2·√3)` is `x² − 6`: **degree 2 where the resultant is
+degree 4**. A suite built only from degree-preserving cases would pass
+with the factor-and-select step deleted, so the collapsing cases carry
+the weight.
 
 ## Reference vectors
 
@@ -441,7 +501,7 @@ alone. Do not read a trend into two points.
 -test /=base=/tests/lib/racoon ~
 ```
 
-230 arms, all green. Three kinds:
+239 arms, all green. Three kinds:
 
 - **Behavioral** — known values and adversarial families. `is-prime` gets eight
   Carmichael numbers and five strong pseudoprimes rather than random odds,
