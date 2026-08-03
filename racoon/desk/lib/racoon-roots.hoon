@@ -2,10 +2,10 @@
 ::::  Real-root isolation over Z[x] -- SPEC Milestone C, phase R
 ::
 ::  Racoon is named for real algebraic numbers and did not produce any.
-::  This is phase R0: the correctness core, an EXACT count of the distinct
-::  real roots in any rational interval.  Everything phase R2 adds --
-::  isolation, refinement -- is bookkeeping on top of a count that is
-::  already right.
+::  Phases R0 and R1: an EXACT count of the distinct real roots in any
+::  rational interval, and the exact rational roots themselves.  Phase R2
+::  -- isolation and refinement of the irrational ones -- is bookkeeping
+::  on top of a count that is already right.
 ::
 ::  This is a CONSUMER of /lib/racoon, not part of it.  %zx and %qx froze
 ::  under R6 at Milestone A's P2 gate; nothing inside the frozen library
@@ -22,7 +22,7 @@
 ::  exact $frac and stays one.  Lagoon owns approximation.
 ::
 /-  *racoon
-/+  racoon
+/+  racoon, zf=racoon-zfac
 =/  qq  qq:racoon
 =/  zx  zx:racoon
 =/  qx  qx:racoon
@@ -200,6 +200,92 @@
   =/  d=zol  (deriv p)
   ?~  d  p
   (xdiv:zx p (gcd:zx p d))
+::    +lowz:  split off the factor x^k
+::
+::  [p=zol] -> [k=@ud q=zol] with p = x^k * q and q(0) != 0.  Little-endian
+::  storage makes this a walk from the front.
+::
+::  +rational-roots needs it for two separate reasons: the rational root
+::  theorem says nothing when a_0 = 0, since every integer divides zero,
+::  and +divisors:zf crashes there anyway.
+++  lowz
+  |=  p=zol
+  ^-  [k=@ud q=zol]
+  =/  cs=zol  p
+  =/  k=@ud   0
+  |-  ^-  [k=@ud q=zol]
+  ?~  cs  [k ~]
+  ?.  =(--0 i.cs)  [k cs]
+  $(cs t.cs, k +(k))
+::    +rational-roots:  every exactly-rational root, with multiplicity
+::
+::  [p=zol] -> (list [r=frac m=@ud]), ascending by +cmp:qq, each
+::  multiplicity at least 1.  Canonical: the root set is unique and the
+::  order is pinned, so the arm is `free` like the rest.
+::
+::  By the RATIONAL ROOT THEOREM: a root a/b in lowest terms has a | a_0
+::  and b | a_n, so the candidates are the divisors of the trailing and
+::  leading coefficients, both signs.  That is why /lib/racoon-zfac had to
+::  exist first -- the candidate set IS +divisors:zf, and there is no
+::  cheaper way to enumerate it.
+::
+::  Multiplicities come from dividing each root out over Q as many times
+::  as it goes, rather than from a separate squarefree decomposition.  A
+::  repeated candidate is therefore self-cancelling: the second sighting
+::  divides zero times and contributes nothing.
+::
+::  Crashes on the zero polynomial (SPEC R5).  A constant has no roots and
+::  produces ~ without crashing, as does a polynomial with only
+::  irrational ones.
+++  rational-roots
+  |=  p=zol
+  ^-  (list [r=frac m=@ud])
+  ?~  p  !!
+  =/  lz  (lowz p)
+  =/  q=zol   q.lz
+  =/  k=@ud   k.lz
+  ::  x^k contributes the root 0 with multiplicity k, and nothing else:
+  ::  no other linear factor divides x^k
+  =/  zed=(list [r=frac m=@ud])  ?:(=(0 k) ~ ~[[zero:qq k]])
+  ?~  q  zed
+  ?:  =(0 (deg:zx q))  zed
+  =/  a0=@ud  (abs:si i.q)
+  =/  an=@ud  (abs:si (lc:zx q))
+  =/  ds0=(list @ud)  (divisors:zf a0)
+  =/  dsn=(list @ud)  (divisors:zf an)
+  =/  cands=(list frac)
+    =/  as=(list @ud)  ds0
+    =|  acc=(list frac)
+    |-  ^-  (list frac)
+    ?~  as  acc
+    =/  inner=(list frac)
+      =/  bs=(list @ud)  dsn
+      =|  ac2=(list frac)
+      |-  ^-  (list frac)
+      ?~  bs  ac2
+      =/  up=frac  (new:qq (sun:si i.as) i.bs)
+      =/  dn=frac  (new:qq (dif:si --0 (sun:si i.as)) i.bs)
+      $(bs t.bs, ac2 [up dn ac2])
+    $(as t.as, acc (weld inner acc))
+  =/  res=(list [r=frac m=@ud])
+    =/  cs=(list frac)  cands
+    =/  cur=qol         (embed:qx q)
+    =|  acc=(list [r=frac m=@ud])
+    |-  ^-  (list [r=frac m=@ud])
+    ?~  cs  acc
+    =/  step
+      =/  c=qol  cur
+      =/  m=@ud  0
+      |-  ^-  [c=qol m=@ud]
+      ?~  c  [c m]
+      ?.  =(zero:qq (eval:qx c i.cs))  [c m]
+      =/  lin=qol  ~[(neg:qq i.cs) one:qq]
+      $(c q:(divmod:qx c lin), m +(m))
+    ?:  =(0 m.step)  $(cs t.cs)
+    $(cs t.cs, cur c.step, acc [[i.cs m.step] acc])
+  %+  sort  (weld zed res)
+  |=  [x=[r=frac m=@ud] y=[r=frac m=@ud]]
+  ?!(=(%gt (cmp:qq r.x r.y)))
 ::    +nroots:  the number of distinct real roots
 ::
 ::  [p=zol] -> @ud, over all of R.  Counted on (-B, B] with B the Cauchy

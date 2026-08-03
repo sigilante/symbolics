@@ -41,7 +41,7 @@ underdetermined, two-sided crash tables, and no `~|` anywhere.
 | Candidate | Note |
 |---|---|
 | ~~Integer factorization~~ | **Built**, as `/lib/racoon-zfac` — see below. It did not need `nz` reopened |
-| Real-root isolation, Sturm/Descartes | **Specified** (`raccoon-spec.md` §R) and **phase R0 built** — see below. R1 (exact rational roots) and R2 (isolation, refinement) remain |
+| Real-root isolation, Sturm/Descartes | **Specified** (`raccoon-spec.md` §R); **phases R0 and R1 built** — see below. R2 (canonical isolation, refinement) remains |
 | van Hoeij recombination | Would attack the known cost cliff — Zassenhaus is exponential in the worst case, and `SD_4`+ is out of scope until this lands. Needs LLL, which both specs fence out, so it requires escalation first |
 | Sparse multivariate | The largest and least specified |
 
@@ -58,7 +58,7 @@ racoon/
     lib/racoon-rs.hoon        Reed-Solomon codec over F_p
     lib/racoon-fp3.hoon       extension fields F_p[x]/(m)
     lib/racoon-zfac.hoon      integer factorization and its consequences
-    lib/racoon-roots.hoon     real-root counting -- Milestone C phase R0
+    lib/racoon-roots.hoon     real roots -- Milestone C phases R0, R1
     gen/racoon-bench.hoon     benchmark generator
     gen/racoon-factor.hoon    factor a polynomial from the dojo
     gen/racoon-gcd.hoon       gcd of two polynomials from the dojo
@@ -188,10 +188,10 @@ divisor of it works, and a primitive root really does generate every unit.
 
 ## Real roots
 
-`/lib/racoon-roots` is Milestone C phase R0: an **exact count** of the
-distinct real roots of an integer polynomial in any rational range. The
-library is named for real algebraic numbers and, until this, produced
-none.
+`/lib/racoon-roots` is Milestone C phases R0 and R1: an **exact count** of
+the distinct real roots of an integer polynomial in any rational range,
+and the **exact rational roots** themselves. The library is named for real
+algebraic numbers and, until this, produced none.
 
 ```
 bound   zol -> frac              Cauchy bound; every root is inside (-B, B)
@@ -201,12 +201,15 @@ sturm   zol -> (list zol)        the Sturm chain of a squarefree p
 count   [zol frac frac] -> @ud   distinct real roots in (a, b]
 nroots  zol -> @ud               distinct real roots, all of R
 sqpart  zol -> zol               squarefree part, p / gcd(p, p')
+lowz    zol -> [k=@ud q=zol]     split off the factor x^k
+
+rational-roots  zol -> (list [r=frac m=@ud])    exact, ascending
 ```
 
-Phases R1 (exact rational roots, via `divisors:zfac`) and R2 (isolation
-and refinement) are specified in §R and not yet built. Everything they add
-is bookkeeping on a count that is already right, which is why this layer
-is the one worth over-testing.
+Phase R2 — canonical isolation and refinement of the *irrational* roots —
+is specified in §R and not yet built. Everything it adds is bookkeeping on
+a count that is already right, which is why R0 is the layer worth
+over-testing.
 
 **Every arm is `free`.** Counting roots has one right answer, so a jet may
 use Descartes with Taylor shifts, VCA, or anything else. Sturm is the
@@ -237,7 +240,25 @@ squarefree part itself, so a repeated factor is counted once.
 stays one; `refine` in phase R2 narrows on demand. Lagoon owns
 approximation.
 
-**Verification.** SymPy `Poly.count_roots` is the oracle — confirmed
+**Rational roots come back exact, and that is load-bearing.**
+`rational-roots` returns values, never intervals — which is precisely the
+clause phase R2's canonical isolation depends on: dividing the rational
+roots out first removes the only way a root could land on a subdivision
+boundary. Candidates come from the rational root theorem, so the candidate
+set *is* `divisors:zfac` — which is why integer factorization had to be
+built first, and the two pieces compose rather than merely coexist.
+
+Two subtleties it handles rather than assumes. **`x^k` is split off
+first**: the rational root theorem says nothing when `a_0 = 0`, since every
+integer divides zero, and `divisors` crashes there anyway — so 0 is found
+structurally and never by the divisor search. And **multiplicities come
+from dividing each root out over ℚ** as many times as it goes, which makes
+a repeated candidate self-cancelling: the second sighting divides zero
+times and contributes nothing.
+
+**Verification.** SymPy `Poly.count_roots` is the oracle for counts, and
+`Poly.ground_roots` — which returns `{root: multiplicity}` over ℚ — for
+the rational roots — confirmed
 first, per §11.3, to count *distinct* roots: `(x-1)²(x+2)` gives 2, not 3.
 Range endpoints in the vectors are chosen off the root set, since SymPy's
 `count_roots` is inclusive on both ends while `count` here is half-open,
@@ -373,7 +394,7 @@ alone. Do not read a trend into two points.
 -test /=base=/tests/lib/racoon ~
 ```
 
-218 arms, all green. Three kinds:
+223 arms, all green. Three kinds:
 
 - **Behavioral** — known values and adversarial families. `is-prime` gets eight
   Carmichael numbers and five strong pseudoprimes rather than random odds,

@@ -3418,4 +3418,181 @@
     %-  expect  !>((is-squarefree:rr ~[--5]))
     (expect-success |.((bound:rr ~[--5])))
   ==
+::    +ascending-q:  is this list of rationals strictly increasing?
+++  ascending-q
+  |=  fs=(list frac)
+  ^-  ?
+  ?~  fs  %.y
+  =/  prev=frac         i.fs
+  =/  rest=(list frac)  t.fs
+  |-  ^-  ?
+  ?~  rest  %.y
+  ?.  =(%lt (cmp:qq prev i.rest))  %.n
+  $(rest t.rest, prev i.rest)
+::  Exact rational roots from SymPy's Poly.ground_roots, which
+::  returns {root: multiplicity} over Q.  Ascending by value here,
+::  which is the order SPEC R3 pins.
+++  r1vecs
+  ^-  (list [p=zol rs=(list [r=frac m=@ud])])
+  :~
+    [~[--0 --1] ~[[[--0 1] 1]]]
+    [~[-3 --2] ~[[[--3 2] 1]]]
+    [~[-1 --0 --1] ~[[[-1 1] 1] [[--1 1] 1]]]
+    [~[--1 --0 --1] ~]
+    [~[-2 --0 --1] ~]
+    [~[--0 -1 --0 --1] ~[[[-1 1] 1] [[--0 1] 1] [[--1 1] 1]]]
+    [~[-2 --0 --0 --1] ~]
+    [~[--2 -3 --0 --1] ~[[[-2 1] 1] [[--1 1] 2]]]
+    [~[-1 --3 -3 --1] ~[[[--1 1] 3]]]
+    [~[--0 --0 -3 --1] ~[[[--0 1] 2] [[--3 1] 1]]]
+    [~[--0 --0 --0 --4 --4 --1] ~[[[-2 1] 2] [[--0 1] 3]]]
+    [~[--1 -5 --6] ~[[[--1 3] 1] [[--1 2] 1]]]
+    [~[--1 -7 --12] ~[[[--1 4] 1] [[--1 3] 1]]]
+    [~[-1 --0 --4] ~[[[-1 2] 1] [[--1 2] 1]]]
+    [~[--1 -6 --9] ~[[[--1 3] 2]]]
+    [~[--60 -7 -31 --6] ~[[[-4 3] 1] [[--3 2] 1] [[--5 1] 1]]]
+    [~[--2 -2 -1 --1] ~[[[--1 1] 1]]]
+    [~[-2 -8 -7 --4 --4] ~[[[-1 2] 2]]]
+    [~[-1 --0 --0 --0 --1] ~[[[-1 1] 1] [[--1 1] 1]]]
+    [~[--1 --0 --0 --0 --1] ~]
+    :-  ~[--24 -50 --35 -10 --1]
+    ~[[[--1 1] 1] [[--2 1] 1] [[--3 1] 1] [[--4 1] 1]]
+    [~[--1 --0 -10 --0 --1] ~]
+    [~[--576 --0 -960 --0 --352 --0 -40 --0 --1] ~]
+    [~[--0 --5 --0 -20 --0 --16] ~[[[--0 1] 1]]]
+    [~[--1 --1 --1 --1 --1] ~]
+    [~[--1 --1 --1] ~]
+    [~[--5] ~]
+    [~[-3] ~]
+    [~[-14 --7] ~[[[--2 1] 1]]]
+    [~[--1 -3 --0 --0 --0 --1] ~]
+    [~[-1 --0 --100] ~[[[-1 10] 1] [[--1 10] 1]]]
+    [~[-1 --0 --0 --0 --0 --0 --1] ~[[[-1 1] 1] [[--1 1] 1]]]
+    [~[-3 --8 --57 --8 --60] ~[[[-3 10] 1] [[--1 6] 1]]]
+  ==
+::
+::  Phase R1: the exactly-rational roots.  These come back as EXACT
+::  values, never as intervals -- which is the clause phase R2's canonical
+::  isolation depends on, since dividing them out first removes the only
+::  way a root could land on a subdivision boundary.
+::
+::  The candidate set is the divisors of the trailing and leading
+::  coefficients, so this is where /lib/racoon-zfac earns its place: there
+::  is no cheaper way to enumerate them.
+::
+++  test-r1-vectors
+  =/  vs  r1vecs
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      %+  expect-eq
+        !>(`(list [r=frac m=@ud])`rs.i.vs)
+      !>((rational-roots:rr p.i.vs))
+  ==
+++  test-r1-properties
+  =/  vs  r1vecs
+  =|  out=tang
+  |-  ^-  tang
+  ?~  vs  out
+  =/  p=zol  p.i.vs
+  =/  rs     (rational-roots:rr p)
+  %=  $
+    vs  t.vs
+    out
+      %+  weld  out
+      %+  weld
+        ;:  weld
+          ::  ascending, strictly: a repeated candidate is folded into one
+          ::  entry by its multiplicity rather than listed twice
+          %-  expect  !>((ascending-q (turn rs |=([r=frac m=@ud] r))))
+          ::  every multiplicity is at least one -- a root that divides
+          ::  zero times is not reported at all
+          %-  expect
+          !>((levy (turn rs |=([r=frac m=@ud] m)) |=(m=@ud (gth m 0))))
+          ::  the multiplicities sum to at most the degree
+          %-  expect
+          !>  %+  lte
+                %+  roll  (turn rs |=([r=frac m=@ud] m))
+                |=([x=@ud acc=@ud] (add x acc))
+              (deg:zx p)
+          ::  a rational root is a real root, so there are never more of
+          ::  them than +nroots counts
+          %-  expect  !>((lte (lent rs) (nroots:rr p)))
+        ==
+      ::  and each one really is a root -- exactly, by +sign-at
+      =/  bs  rs
+      |-  ^-  tang
+      ?~  bs  ~
+      %+  weld
+        %+  expect-eq  !>(`ord`%eq)  !>((sign-at:rr p r.i.bs))
+      $(bs t.bs)
+  ==
+++  test-r1-splits
+  ::  when a polynomial splits completely over Q, every real root is
+  ::  rational and the two counts must agree exactly
+  =/  ps=(list zol)
+    :~  ~[-1 --0 --1]
+        ~[--2 -3 --0 --1]
+        ~[--24 -50 --35 -10 --1]
+        ~[--1 -5 --6]
+        ~[--0 -3 --1]
+        ~[--0 --0 --0 --1]
+    ==
+  =|  out=tang
+  |-  ^-  tang
+  ?~  ps  out
+  =/  p=zol  i.ps
+  %=  $
+    ps  t.ps
+    out
+      %+  weld  out
+      %+  expect-eq  !>((nroots:rr p))  !>((lent (rational-roots:rr p)))
+  ==
+++  test-r1-mixed
+  ;:  weld
+    ::  (x^2 - 2)(x - 1): three real roots, exactly one of them rational
+    %+  expect-eq
+      !>(`(list [r=frac m=@ud])`~[[[--1 1] 1]])
+    !>((rational-roots:rr ~[--2 -2 -1 --1]))
+    %+  expect-eq  !>(`@ud`3)  !>((nroots:rr ~[--2 -2 -1 --1]))
+    ::  a fractional root with multiplicity, alongside irrational ones:
+    ::  (x^2 - 2)(2x + 1)^2
+    %+  expect-eq
+      !>(`(list [r=frac m=@ud])`~[[[-1 2] 2]])
+    !>((rational-roots:rr ~[-2 -8 -7 --4 --4]))
+    ::  0 is found by the x^k split, not by the divisor search, since the
+    ::  rational root theorem is vacuous when a_0 = 0
+    %+  expect-eq
+      !>(`(list [r=frac m=@ud])`~[[[-2 1] 2] [[--0 1] 3]])
+    !>((rational-roots:rr ~[--0 --0 --0 --4 --4 --1]))
+    ::  a root outside the +-1 range of the constant term, which only the
+    ::  leading-coefficient divisors can reach: (6x - 1)(10x + 3)(x^2 + 1)
+    %+  expect-eq
+      !>(`(list [r=frac m=@ud])`~[[[-3 10] 1] [[--1 6] 1]])
+    !>((rational-roots:rr ~[-3 --8 --57 --8 --60]))
+  ==
+++  test-r1-crash
+  ;:  weld
+    ::  the zero polynomial, as everywhere else here
+    (expect-fail |.((rational-roots:rr ~)))
+    ::  a constant has no roots, and does not crash -- note this reaches
+    ::  neither +divisors nor the x^k split
+    %+  expect-eq  !>(`(list [r=frac m=@ud])`~)  !>((rational-roots:rr ~[--5]))
+    %+  expect-eq  !>(`(list [r=frac m=@ud])`~)  !>((rational-roots:rr ~[-3]))
+    (expect-success |.((rational-roots:rr ~[--5])))
+    ::  nor does a polynomial whose roots are all irrational
+    %+  expect-eq  !>(`(list [r=frac m=@ud])`~)
+    !>((rational-roots:rr ~[-2 --0 --1]))
+    ::  or complex
+    %+  expect-eq  !>(`(list [r=frac m=@ud])`~)
+    !>((rational-roots:rr ~[--1 --0 --1]))
+    ::  x^k alone: the only root is 0, found without any divisor search
+    %+  expect-eq
+      !>(`(list [r=frac m=@ud])`~[[[--0 1] 4]])
+    !>((rational-roots:rr ~[--0 --0 --0 --0 --1]))
+  ==
 --
