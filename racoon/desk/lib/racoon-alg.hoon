@@ -25,15 +25,30 @@
 ::  +approx produces a rational within 2^-k rather than a float.
 ::
 ::  COST: deg(a*b) <= deg a * deg b, so two degree-4 numbers give a
-::  degree-16 resultant, and SPEC §9 fences Swinnerton-Dyer SD_4 and
-::  beyond out of scope pending van Hoeij.  SD_4 is degree 16 -- the two
-::  limits are the same limit (SPEC A8).  Degrees 2 and 3 are unaffected
-::  and cover every quadratic and cubic irrational.  The factorization
-::  step is deliberately one call, so a better algorithm replaces it
-::  without restructuring anything here.
+::  degree-16 resultant, and the minimal polynomial is an irreducible
+::  factor of it.  SPEC A8 called that the wall, on the strength of §9's
+::  claim that SD_4 was out of scope; §V0 measured §9's claim and it was
+::  wrong, and the numbers below say A8's inherited it.  MEASURED with
+::  /gen/racoon-alg-bench, largest real root of each argument, timing
+::  the sum, before and after the swap described next:
+::
+::                                       degrees   factor:zx  van hoeij
+::    (sqrt2+sqrt3) + (sqrt5+sqrt7)       4 + 4      3.34 s     3.34 s
+::    (sqrt2+..+sqrt7) + sqrt11          16 + 2    281.9 s     90.4 s
+::
+::  The sums are SD_4 and SD_5.  At degree 16 the factorization is 0.3 s
+::  of the 3.34 s and the BIVARIATE RESULTANT is the cost -- 17
+::  univariate resultants and an interpolation, none of which van Hoeij
+::  touches.  At degree 32 it inverts: 202.5 s of the 281.9 s was
+::  Zassenhaus, and van Hoeij does that part in 9.4 s.
+::
+::  So the factorization goes through /lib/vanhoeij, which SPEC A8 asked
+::  for in advance -- "one call, so a better algorithm replaces it" --
+::  and +facz is that call.  The price is that this library, alone among
+::  Racoon's consumers, needs Baloon on the desk; see SPEC-QUESTIONS R4.
 ::
 /-  *racoon
-/+  racoon, rr=racoon-roots
+/+  racoon, rr=racoon-roots, vh=vanhoeij
 =/  qq  qq:racoon
 =/  zx  zx:racoon
 =/  qx  qx:racoon
@@ -161,6 +176,31 @@
 ++  zero  ^-(anum (of-q zero:qq))
 ::    +one:  the algebraic number 1
 ++  one   ^-(anum (of-q one:qq))
+::    +facz:  the irreducible factors of a nonzero polynomial over Z
+::
+::  [a=zol] -> (list zol).  THE ONE FACTORIZATION CALL (SPEC A8), and
+::  what it calls is van Hoeij rather than +factor:zx.
+::
+::  +factor:zx is Yun's squarefree decomposition followed by +firr:zx on
+::  each part; this is the same pipeline with +factor:vh in place of
+::  +firr:zx.  Below sixteen modular factors +factor:vh IS +firr:zx --
+::  it falls through the +lat-min gate to the identical enumeration --
+::  so this is never the slower choice and is 21x faster at r = 16.
+::
+::  Multiplicities and the content are dropped on purpose.  A minimal
+::  polynomial is one irreducible factor; how many times it divides the
+::  resultant, and what constant the resultant carried, say nothing
+::  about which root is the answer.
+::
+::  Crashes on ~, as +factor:zx does.  A degree-0 input yields ~, and
+::  +make crashes on that -- also as before.
+++  facz
+  |=  a=zol
+  ^-  (list zol)
+  ?~  a  !!
+  %-  zing
+  %+  turn  fs:(sqfree:zx a)
+  |=([p=zol m=@ud] (factor:vh p))
 ::    +make:  canonicalize a polynomial and an isolating interval
 ::
 ::  [m=zol iv=ivl] -> anum, where m need not be minimal but iv must
@@ -171,22 +211,22 @@
 ::  in that case; otherwise the minimal polynomial is the irreducible
 ::  factor having this root, found by asking which factor has a root in
 ::  the same place.  That step is where the cost lives (SPEC A8) and is
-::  deliberately one call.
+::  deliberately one call -- +facz.
 ++  make
   |=  [m=zol iv=ivl:rr]
   ^-  anum
   ?~  m  !!
   =/  hit  (rat-here m iv)
   ?^  hit  (of-q u.hit)
-  =/  fs  fs:(factor:zx m)
+  =/  fs=(list zol)  (facz m)
   |-  ^-  anum
   ?~  fs  !!
   ::  factors are primitive with lc > 0 already (SPEC S9), and a linear
   ::  factor would have been caught by the rational test above.  The
   ::  overlap of iv with itself is iv, so this asks: does this factor
   ::  have exactly one root where the number is?
-  ?:  ?&((gth (deg:zx p.i.fs) 1) (holds p.i.fs iv iv))
-    [p.i.fs (canon-iv p.i.fs iv)]
+  ?:  ?&((gth (deg:zx i.fs) 1) (holds i.fs iv iv))
+    [i.fs (canon-iv i.fs iv)]
   $(fs t.fs)
 ::    +to-q:  the rational value, when there is one
 ++  to-q

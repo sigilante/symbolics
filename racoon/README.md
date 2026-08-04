@@ -67,7 +67,7 @@ racoon/
     lib/racoon-fp3.hoon       extension fields F_p[x]/(m)
     lib/racoon-zfac.hoon      integer factorization and its consequences
     lib/racoon-roots.hoon     real roots -- Milestone C, phase R complete
-    lib/racoon-alg.hoon       real algebraic number arithmetic -- phase A
+    lib/racoon-alg.hoon       real algebraic numbers -- phase A; needs Baloon
     gen/racoon-bench.hoon     benchmark generator
     gen/racoon-factor.hoon    factor a polynomial from the dojo
     gen/racoon-gcd.hoon       gcd of two polynomials from the dojo
@@ -76,6 +76,7 @@ racoon/
     gen/racoon-zfac.hoon      factor an integer and its consequences
     gen/racoon-roots.hoon     isolate the real roots of a polynomial
     gen/racoon-alg.hoon       arithmetic on two algebraic numbers
+    gen/racoon-alg-bench.hoon what that arithmetic costs, by degree
   tools/genvec.py             SymPy vector generator
   tools/requirements.txt      pinned SymPy version
   scripts/sync.sh             copy desk/ into the pier
@@ -111,9 +112,14 @@ scripts/sync.sh                       # host
 -test /=base=/tests/lib/racoon ~      # dojo
 ```
 
-`sync.sh` copies only the five files this project owns; it never boots or
-commits, because conflating the copy with the commit makes a failed build hard
-to attribute. Override the pier with `RACOON_PIER=/path/to/zod`.
+`sync.sh` copies an explicit list of the files this project owns; it never
+boots or commits, because conflating the copy with the commit makes a failed
+build hard to attribute. Override the pier with `RACOON_PIER=/path/to/zod`.
+
+**One file needs Baloon on the desk: `/lib/racoon-alg`**, which reaches
+van Hoeij for its factorization step. Everything else here builds from
+Racoon's desk alone, `/lib/racoon` included. Run `baloon/scripts/sync.sh`
+too, or that one library fails to build and nothing else notices.
 
 For interactive work there is a human-readable surface — `/lib/racoon-fmt`
 renders and parses conventional notation, so nothing has to be read as a
@@ -372,14 +378,47 @@ being coded:
 - Degree-collapse cases must return exact **rationals**. `√2·√2` is 2,
   not a degree-1 algebraic number in disguise.
 
-**The cost cliff is real and it is §9's.** `deg(α·β) ≤ deg α · deg β`, so
-two degree-4 numbers give a degree-16 resultant — and `SD_4` is degree 16,
-which §9 fences out pending van Hoeij. **The two limits are the same
-limit.** Degrees 2 and 3 are unaffected and cover every quadratic and
-cubic irrational, which is why this was built anyway; the factorization
-step is one call, so a better algorithm replaces it without restructuring
-anything. `SPEC-QUESTIONS.md` R4 records the decision that van Hoeij will
-live in a consumer importing both Racoon and Baloon, rather than
+**The cost cliff was in the wrong place, and it was measured.** §A8
+argued that `deg(α·β) ≤ deg α · deg β` puts two degree-4 numbers on a
+degree-16 resultant, that `SD_4` is degree 16 and §9 fences it out, and
+so **the two limits are the same limit**. The placement was right; the
+attribution was not.
+
+```
++racoon-alg-bench 'x^4 - 10x^2 + 1' 'x^4 - 24x^2 + 4'
+```
+
+| the sum | degrees | with `factor:zx` | with van Hoeij |
+|---|---:|---:|---:|
+| `(√2+√3) + (√5+√7)` → `SD_4` | 4 + 4 | 3.34 s | 3.34 s |
+| `(√2+√3+√5+√7) + √11` → `SD_5` | 16 + 2 | 281.9 s | **90.4 s** |
+
+**At the rung §A8 was actually describing, factoring is not the cost.**
+Degree-4 plus degree-4 spends 0.3 s of its 3.34 s on the factorization
+and the rest on the bivariate resultant — 17 univariate resultants and an
+interpolation, none of which van Hoeij touches. It is the *next* rung
+that inverts: at degree 32, Zassenhaus was 202.5 s of the 281.9 s and van
+Hoeij does that part in 9.4 s, which leaves the resultant as ~90% of what
+remains.
+
+So degree 4 was never blocked, degree 32 no longer is, and the next
+thing worth optimizing here is the evaluation–interpolation resultant
+rather than the factorization.
+
+**The factorization is one call, and it now calls van Hoeij.** `+facz`
+is Yun's squarefree decomposition followed by `factor:vh` on each part —
+`factor:zx`'s pipeline with the recombination swapped. Below sixteen
+modular factors `factor:vh` *is* `firr:zx`, falling through the
+`lat-min` gate to the identical enumeration, so this is never the slower
+choice. §A8 asked for exactly this ("a single call that a better
+algorithm can replace") and that is the whole change.
+
+**The price is a dependency**, and it is the one thing here that is not
+free: `/lib/racoon-alg` imports `/lib/vanhoeij`, which imports Baloon, so
+this library alone among Racoon's consumers needs Baloon on the desk.
+`/lib/racoon` itself is untouched and still depends on nothing.
+`SPEC-QUESTIONS.md` R4 records both that decision and the one before it —
+that van Hoeij lives in a consumer importing both libraries, rather than
 duplicating Baloon's integer matrices inside Racoon.
 
 **Verification.** SymPy `minimal_polynomial` is the oracle — it *is* the
@@ -706,6 +745,7 @@ trying everything is a better test than sampling.
 | — | `factor:zx` monic-izes nothing; recombination multiplies by `lc` | Follows §9's pinned pipeline literally. The lifted factors are kept monic by dividing `f` through by its leading coefficient mod `p^k` — valid because `p ∤ lc(f)`, so `lc` is a unit at every power of `p`. |
 | — | Delegated private helpers in `zx` beyond §9's public list | `crt-lift`, `hstep`, `hlift`, `firr`; and `npow`, `mstrip`, `mderiv`, `mproot`, `remod` in `pv`. §14 delegates helper structure and naming. `xdiv`, now public, is worth noting: Z is not a field, so exact division goes through `pdiv` and then divides the quotient by `lc(b)^e` — and it returns a wrong answer rather than crashing on an inexact division, which is why its docstring points callers at `pdiv` when exactness is not already known. |
 | — | `%zx` unfrozen once for phase V1; six helpers promoted and two arms added | `+zmod` and `+hdata` added, and `xdiv`, `lift`, `combos`, `mprod` promoted out of the delegated set, because `/lib/vanhoeij` consumes all of them across a desk boundary and §14 lets delegated helpers change without escalation — a cross-desk consumer cannot rest on that. `+deriv` was promoted in the same batch, which is exactly the condition SPEC-QUESTIONS R1 named for revisiting it. The batch moves the battery axes of every arm after `+eval`, which is free only because Milestone B has not opened; any further insertion belongs in this window or not at all. |
+| — | `/lib/racoon-alg` imports `/lib/vanhoeij`, and so needs Baloon | The one factorization site, `+facz`, reaches van Hoeij instead of `firr:zx`. Measured: it does nothing at degree 16, where the bivariate resultant is the whole cost, and takes the degree-32 sum from 281.9 s to 90.4 s. `/lib/racoon` is untouched and still depends on nothing; this is a consumer importing a consumer, which is the shape R4 already chose. The alternative — promoting `+bires` and the selection loop, then duplicating `add`/`mul`/`div` next to `/lib/vanhoeij` — keeps Racoon's desk self-contained by duplicating the arithmetic, and was the worse trade. |
 | — | `res` oracle is the Sylvester determinant, not `sympy.resultant` | SymPy normalizes argument order by degree and so loses the sign when `deg a < deg b` and both degrees are odd; it disagreed with the definition on 19/300 sampled pairs. The determinant is definitional and self-consistent. The library correspondingly swaps to `deg a >= deg b` with the `(-1)^(mn)` sign, which the subresultant recurrence requires. |
 | — | `gcd:qx` clears denominators and delegates to `gcd:zx` | Running Euclid over `$frac` directly invites rational coefficient swell — the classic failure mode. Delegating inherits both `gcd:zx`'s modular algorithm and its trial-division certification. |
 | — | Private helpers live in `+pv`, outside the `%racoon` core | Helper churn cannot disturb the battery layout of a hinted core when the R6 freeze lands, and `=<` keeps them genuinely private. |

@@ -199,15 +199,17 @@ unchanged — still the shallowest node holding exactly one root.
 No arm signature changed and the products are the same shape; only the
 route to them, and the guarantee, differ.
 
-## R4 — is van Hoeij a hard dependency of phase A? (ANSWERED in part)
+## R4 — is van Hoeij a hard dependency of phase A? (RESOLVED)
 
-**Status:** the placement question is **resolved** — van Hoeij will live
-in a consumer importing both Racoon and Baloon. The LLL fence in §13 of
-both specs **has since been lifted** (`raccoon-spec.md` §V,
-`baloon-spec.md` §13) and phase V0 is built: `baloon/desk/lib/vanhoeij.hoon`
-provides `+lll`. Phase V1, recombination itself, is not built, so the cliff
-is unchanged: phases A0–A1 are unaffected, A2 is unaffected at degrees 2 and
-3, and A2 at degree 4 and above still waits on V1.
+**Status: resolved, and answered by measurement rather than by the
+argument below.** Both phases of §V are built, `/lib/racoon-alg` calls
+van Hoeij through `+facz`, and the answer to the title question turned
+out to be **no** — see the closing section. The original entry is kept
+because its *placement* conclusion was right and is what got built.
+
+The LLL fence in §13 of both specs **has since been lifted**
+(`raccoon-spec.md` §V, `baloon-spec.md` §13) and
+`baloon/desk/lib/vanhoeij.hoon` provides both `+lll` and `+factor`.
 
 **Resolved:** LLL does **not** go in Racoon. Racoon cannot import Baloon,
 so putting it there would mean duplicating integer matrices, `det`, and
@@ -242,3 +244,53 @@ Hermite and Smith normal forms, which is what LLL operates on. But
 either LLL lives in Racoon, duplicating matrix machinery, or van Hoeij
 lives in a consumer that imports both. **That choice should be made
 before any LLL code is written, not after.**
+
+### Closed by measurement
+
+**The title question's answer is no.** Van Hoeij is not a dependency of
+phase A at degree 4 — it is a dependency at degree 32, which is a
+different rung than §A8 identified, and A2 was never blocked at all.
+
+Measured with `/gen/racoon-alg-bench`, timing the sum of two algebraic
+numbers, before and after the swap:
+
+| the sum | degrees | `factor:zx` | van Hoeij |
+|---|---:|---:|---:|
+| `(√2+√3) + (√5+√7)` → `SD_4` | 4 + 4 | 3.34 s | 3.34 s |
+| `(√2+√3+√5+√7) + √11` → `SD_5` | 16 + 2 | 281.9 s | **90.4 s** |
+
+The first row is the case §A8 is about, and the factorization is 0.3 s of
+it. The rest is the **bivariate resultant** — `deg p · deg q + 1`
+univariate resultants and an interpolation over ℚ — which van Hoeij does
+not touch and which nothing in §V was ever going to help. The two limits
+were not the same limit; they only looked alike because both are indexed
+by degree 16.
+
+This is §V0's lesson landing a second time, and by the same mechanism: a
+cost was attributed from theory, the theory named the exponential step
+because that is the step theory notices, and the measurement found the
+cost somewhere else entirely. §11.3 says confirm a convention before
+pinning it; this says confirm a bottleneck before designing around it.
+
+**What changed in the code.** `/lib/racoon-alg` gained `+facz`, which is
+`factor:zx`'s pipeline — Yun's squarefree decomposition, then
+recombination per part — with `factor:vh` in place of `firr:zx`. `+make`
+calls it, and `+make` is the only factorization site in the library,
+which is what §A8 asked A2 to guarantee. Below `lat-min = 16` modular
+factors `factor:vh` degenerates to `firr:zx` exactly, so the swap cannot
+be the slower choice; the first row above is that degeneracy, measured.
+
+**The dependency, stated plainly.** `/lib/racoon-alg` now imports
+`/lib/vanhoeij`, which imports Baloon. So one file in `racoon/desk`
+requires Baloon on the desk to build. `/lib/racoon` is untouched and
+still depends on nothing, and no frozen core moved — this is a consumer
+importing a consumer, which is the shape R4 chose in the first place. The
+alternative considered was promoting `+bires` and the root-selection loop
+to racoon-alg's public API and building a second `add`/`mul`/`div` next
+to `/lib/vanhoeij`; it keeps Racoon's desk self-contained at the cost of
+duplicating the arithmetic, and was rejected as the worse trade.
+
+**Left open.** The bivariate resultant is now ~90% of the degree-32 sum
+and 100% of the degree-16 one. Evaluation–interpolation was chosen in §A3
+because it needs only frozen arms, not because it is fast, and it is
+where any further work on phase A belongs.

@@ -584,6 +584,35 @@ No `~|` anywhere (R3).
 
 ## A8. The cost cliff — read this before starting A2
 
+**Measured, and this section is wrong in the same way §9 was.** Phase A
+was built, phase V1 landed, and both rungs were then timed with
+`/gen/racoon-alg-bench`:
+
+| the sum | degrees | `factor:zx` | van Hoeij |
+|---|---:|---:|---:|
+| `(√2+√3) + (√5+√7)` → `SD_4` | 4 + 4 | 3.34 s | 3.34 s |
+| `(√2+√3+√5+√7) + √11` → `SD_5` | 16 + 2 | 281.9 s | 90.4 s |
+
+**Degree-4 arithmetic spends 0.3 s of its 3.34 s on the factorization.**
+The rest is the bivariate resultant — `deg p · deg q + 1` univariate
+resultants and an interpolation — which van Hoeij does not touch. The
+argument below correctly identifies degree 16 as where `SD_4` sits and
+incorrectly concludes that factoring is therefore what degree-4
+arithmetic costs. The cliff is one rung further out, at degree 32, where
+Zassenhaus was 202.5 s of the 281.9 s and van Hoeij does that part in
+9.4 s.
+
+Kept rather than patched, for the reason §V0 gives: this changes what a
+reader should conclude, and it is the same lesson twice — **a bottleneck
+named from theory is a claim, not a fact.** Theory names the exponential
+step because that is the step theory notices.
+
+The concluding paragraph held up: the factorization *was* built as a
+single call, and swapping it took one arm. `/lib/racoon-alg` now factors
+through `+facz`, which is van Hoeij. See `racoon/SPEC-QUESTIONS.md` R4.
+
+---
+
 `deg(α+β)` and `deg(α·β)` are at most `deg α · deg β`. Two degree-4
 numbers therefore give a resultant of **degree 16**, and extracting the
 minimal polynomial means factoring it over ℤ.
@@ -752,6 +781,12 @@ No `~|` anywhere.
   without van Hoeij existing.
 - **V1 — recombination.** Power sums, the lattice, extraction, trial
   division, and the Zassenhaus fallback.
+
+**Both are built.** `SD_5` factors in 9.42 s against Zassenhaus's
+202.5 s, which is the §V0 target beaten by 21.5×; the §V7.5 table is in
+`baloon/README.md` and `/gen/baloon-vh-bench` reproduces it. The first
+consumer is `/lib/racoon-alg`, whose one factorization call now goes
+through `+factor:vh` — see §A8, which the same measurement corrected.
 
 ## V7. Testing
 
