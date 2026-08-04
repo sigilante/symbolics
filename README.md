@@ -40,6 +40,15 @@ is built, real-root isolation (§R) and algebraic number arithmetic (§A)
 are specified and complete, van Hoeij is specified (§V) with its LLL
 phase built, and sparse multivariate remains unspecified.
 
+##  Cascabel
+
+`cascabel/` is an example application: a `/lib/shoe` agent that answers the
+`%eval-command` poke, so [caderno](https://github.com/sigilante/caderno) can
+drive it as a notebook kernel. It is stateless — every command is answered
+from its own text — and reaches both libraries through symlinks.
+
+- [`cascabel/README.md`](./cascabel/README.md)
+
 ##  Libraries
 
 ### Racoon (Real AlgebraiCs in hOON)
