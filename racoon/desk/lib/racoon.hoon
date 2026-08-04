@@ -422,8 +422,28 @@
   ::  FROZEN at the P3 gate (R6).  Arm set and order are fixed for Milestone
   ::  A; no reordering, renaming, or insertion without escalation.  The
   ::  public API is canon is-zero deg lc pcmp add sub neg mul shift scale
-  ::  eval pdiv content pp gcd res disc mig sqfree factor; the remaining
-  ::  arms are delegated private helpers (SPEC S14).
+  ::  eval pdiv content pp gcd xdiv lift zmod res disc mig sqfree combos
+  ::  mprod hdata factor; crt-lift, hstep, hlift, and firr remain delegated
+  ::  private helpers (SPEC S14).
+  ::
+  ::  +xdiv, +lift, +zmod, +combos, +mprod, and +hdata were PROMOTED out of
+  ::  the delegated set for SPEC V1.  /lib/vanhoeij lives on the Baloon side
+  ::  and consumes all six across a desk boundary -- the lift and its
+  ::  inverse, exact division to remove a confirmed factor, the modular
+  ::  product of a candidate subset, the subset enumeration the mandatory
+  ::  Zassenhaus fallback needs (SPEC V4), and the lifted data itself.  A
+  ::  cross-desk consumer resting on arms S14 allows to change without
+  ::  escalation is not resting on a contract, so these are now frozen with
+  ::  the rest.  +hstep and +hlift stay delegated: +hdata is the supported
+  ::  way to reach a lift, and neither has a caller outside this core.
+  ::
+  ::  UNFROZEN ONCE, deliberately, to add +zmod and +hdata and to split the
+  ::  lift out of +firr -- the substrate SPEC V1 needs.  This moves the
+  ::  battery axes of every arm after +lift, which is free only because
+  ::  Milestone B has not opened and no jet resolves against them yet.  It
+  ::  is the reason Milestone C runs before B.  Doing it after B would mean
+  ::  invalidating shipped jets, so any further insertion belongs in this
+  ::  same window or not at all.  See SPEC-QUESTIONS R4 and Q5.
   ++  zx
     ~/  %zx
     |%
@@ -716,6 +736,10 @@
     ::  whatever the truncating scalar division yields, which is why every
     ::  use below is a division the surrounding theory proves exact.
     ::
+    ::  PUBLIC, and this precondition is the reason to read before calling:
+    ::  an inexact division does not crash, it returns a wrong answer.  Use
+    ::  +pdiv and check r = ~ if you do not already know b divides a.
+    ::
     ::  Z is not a field, so this goes through +pdiv: that arm produces
     ::  lc(b)^e * a = q*b + r with e = deg a - deg b + 1, and when b divides
     ::  a we have r = ~ and q = lc(b)^e * (a/b), so dividing q by that same
@@ -742,6 +766,21 @@
       ^-  @s
       ?:  (gth (^mul 2 c) m)  (dif:si --0 (sun:si (^sub m c)))
       (sun:si c)
+    ::    +zmod:  reduce a polynomial over Z into (Z/m)[x]
+    ::
+    ::  [a=zol m=@ud] -> mol.  The inverse direction of +lift: every
+    ::  coefficient into [0, m), trailing zeros stripped.  Not injective,
+    ::  so +lift is a section of this and not a two-sided inverse.
+    ::
+    ::  PROMOTED from +zmod:pv.  Reducing into Z/m is the entry point to
+    ::  every modular algorithm here, and a consumer building one outside
+    ::  Racoon -- van Hoeij recombination in /lib/vanhoeij, SPEC V1 -- had
+    ::  no way to reach it that did not reach into the private core.  The
+    ::  body still lives in +pv; this is the public name for it.
+    ++  zmod
+      |=  [a=zol m=@ud]
+      ^-  mol
+      (zmod:pv a m)
     ::    +crt-lift:  merge a new image into the CRT accumulator
     ::
     ::  [acc=zol m=@ud gs=mol p=@ud] -> zol, the symmetric lift of the
@@ -988,6 +1027,64 @@
           cur  (^mul cur cur)
         ==
       (weld $(f g.res, gs as) $(f h.res, gs bs))
+    ::    +hdata:  the Hensel-lifted modular factors of f, and the modulus
+    ::
+    ::  [f=zol] -> (unit [gs=(list mol) md=@ud]).  On success gs are the
+    ::  monic factors modulo md of the monic image of f, (lent gs) >= 2,
+    ::  and md = p^(2^k) is the least such power exceeding
+    ::  2 * mig(f) * |lc(f)| -- large enough that a true factor's
+    ::  coefficients are determined by their residues.  p is the smallest
+    ::  odd prime dividing neither lc(f) nor the discriminant, found by
+    ::  search.
+    ::
+    ::  Produces ~ exactly when the modular data already proves f
+    ::  irreducible over Z: deg f = 1, or a single factor modulo p.  A
+    ::  caller that gets ~ is done and must not recombine.
+    ::
+    ::  The caller guarantees f primitive, squarefree, deg >= 1, lc > 0.
+    ::
+    ::  SPLIT OUT OF +firr (SPEC-QUESTIONS R4).  Everything up to the lift
+    ::  is common to every recombination strategy; only the recombination
+    ::  itself differs.  +firr keeps Zassenhaus; van Hoeij (SPEC V1, in
+    ::  /lib/vanhoeij on the Baloon side, which cannot be imported from
+    ::  here) consumes this same product and supplies a lattice instead.
+    ::  Without the split it would have to duplicate the prime search, the
+    ::  bound, and the lift.
+    ++  hdata
+      |=  f=zol
+      ^-  (unit [gs=(list mol) md=@ud])
+      ?:  =(1 (deg f))  ~
+      =/  lf=@s   (lc f)
+      ::  smallest odd prime keeping the degree and squarefreeness
+      =/  p=@ud
+        =/  q=@ud  3
+        |-  ^-  @ud
+        ?.  (is-prime:nz q)  $(q (^add q 2))
+        ?:  =(0 (mod (abs:si lf) q))  $(q (^add q 2))
+        =/  fq=mol  (zmod:pv f q)
+        ?.  =((lent fq) (lent f))  $(q (^add q 2))
+        =/  dq  ~(. mx q)
+        ?.  =(~[1] (gcd:dq fq (mderiv:pv fq q)))  $(q (^add q 2))
+        q
+      =/  fp=mol  (zmod:pv f p)
+      =/  gs=(list mol)  (turn fs:(factor:~(. mx p) fp) |=([q=mol m=@ud] q))
+      ::  a single modular factor means f is already irreducible over Z
+      ?:  (lth (lent gs) 2)  ~
+      ::  lift target: the least p^(2^k) exceeding 2 * mig(f) * |lc(f)|
+      =/  bd=@ud  (^mul (^mul 2 (mig f)) (abs:si lf))
+      =/  md=@ud
+        =/  x=@ud  p
+        |-  ^-  @ud
+        ?:  (gth x bd)  x
+        $(x (^mul x x))
+      =/  dm  ~(. mx md)
+      ::  the monic image of f modulo md; lc(f) is a unit since p does not
+      ::  divide it, hence neither does any power of p
+      =/  fm=mol  (scale:dm (zmod:pv f md) (cinv:dm (mod (abs:si lf) md)))
+      =/  fmm=mol
+        ?:  (syn:si lf)  fm
+        (scale:dm fm (cneg:dm 1))
+      `[(hlift fmm gs p md) md]
     ::    +factor:  factorization into irreducibles over Z
     ::
     ::  [a=zol] -> zfac.  |c| is the content of a and sign(c) the sign of
@@ -1035,39 +1132,12 @@
     ++  firr
       |=  f=zol
       ^-  (list zol)
-      ?:  =(1 (deg f))  ~[f]
-      =/  lf=@s   (lc f)
-      =/  n=@ud   (deg f)
-      ::  smallest odd prime keeping the degree and squarefreeness
-      =/  p=@ud
-        =/  q=@ud  3
-        |-  ^-  @ud
-        ?.  (is-prime:nz q)  $(q (^add q 2))
-        ?:  =(0 (mod (abs:si lf) q))  $(q (^add q 2))
-        =/  fq=mol  (zmod:pv f q)
-        ?.  =((lent fq) (lent f))  $(q (^add q 2))
-        =/  dq  ~(. mx q)
-        ?.  =(~[1] (gcd:dq fq (mderiv:pv fq q)))  $(q (^add q 2))
-        q
-      =/  fp=mol  (zmod:pv f p)
-      =/  gs=(list mol)  (turn fs:(factor:~(. mx p) fp) |=([q=mol m=@ud] q))
-      ::  a single modular factor means f is already irreducible over Z
-      ?:  (lth (lent gs) 2)  ~[f]
-      ::  lift target: the least p^(2^k) exceeding 2 * mig(f) * |lc(f)|
-      =/  bd=@ud  (^mul (^mul 2 (mig f)) (abs:si lf))
-      =/  md=@ud
-        =/  x=@ud  p
-        |-  ^-  @ud
-        ?:  (gth x bd)  x
-        $(x (^mul x x))
+      =/  hd  (hdata f)
+      ::  no usable lift means f is irreducible over Z already
+      ?~  hd  ~[f]
+      =/  lifted=(list mol)  gs.u.hd
+      =/  md=@ud             md.u.hd
       =/  dm  ~(. mx md)
-      ::  the monic image of f modulo md; lc(f) is a unit since p does not
-      ::  divide it, hence neither does any power of p
-      =/  fm=mol  (scale:dm (zmod:pv f md) (cinv:dm (mod (abs:si lf) md)))
-      =/  fmm=mol
-        ?:  (syn:si lf)  fm
-        (scale:dm fm (cneg:dm 1))
-      =/  lifted=(list mol)  (hlift fmm gs p md)
       ::  Zassenhaus recombination
       =/  idx=(list @ud)  (gulf 0 (dec (lent lifted)))
       =/  rem=zol   f

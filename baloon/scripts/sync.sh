@@ -53,6 +53,7 @@ tests/lib/vanhoeij.hoon
 gen/baloon-bench.hoon
 gen/baloon-det.hoon
 gen/baloon-lll.hoon
+gen/baloon-lll-bench.hoon
 "
 
 copied=0
