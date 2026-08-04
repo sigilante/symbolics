@@ -63,8 +63,10 @@
 ::
 +$  mrref  [m=mmat piv=(list @ud)]
 ::
-::  RESERVED, deliberately not declared: the Hermite and Smith normal form
-::  products for +zm.  Whether they carry their unimodular transform
-::  ([h=zmat u=zmat] against a bare h) depends on design work not yet done,
-::  and guessing would pin a convention SPEC S14 would rather see raised.
+::  Still no NAMED product type for the Hermite and Smith normal forms,
+::  but the convention this comment once reserved has been settled: both
+::  arms carry their unimodular transform, +hnf:zm returning
+::  [h=zmat u=zmat] and +snf:zm returning [d=zmat u=zmat v=zmat], declared
+::  inline at the arm rather than here.  Lifting them into $zhnf and $zsnf
+::  is a naming question, not an open design one.
 --

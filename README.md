@@ -90,8 +90,11 @@ racoon/
     lib/racoon-zfac.hoon        integer factorization, totient, order
     lib/racoon-roots.hoon       exact real-root counting and isolation
     lib/racoon-alg.hoon         real algebraic number arithmetic
-    tests/lib/racoon.hoon       test suite
+    tests/lib/                  test suites, one per library:
+                                racoon racoon-fmt racoon-rs racoon-fp3
+                                racoon-zfac racoon-roots racoon-alg
     gen/                        dojo generators: bench factor gcd rs fp3
+                                zfac roots alg
   tools/genvec.py               SymPy vector generator
   scripts/sync.sh               copy desk/ into the pier
   SPEC-QUESTIONS.md             escalation log
@@ -103,8 +106,8 @@ baloon/
     lib/baloon-vectors.hoon     generated vectors -- never hand-edited
     lib/baloon-fmt.hoon         rendering and parsing, all three rings
     lib/vanhoeij.hoon           LLL lattice reduction -- imports both
-    tests/lib/baloon.hoon       test suite
-    gen/                        dojo generators: bench det
+    tests/lib/                  test suites: baloon vanhoeij
+    gen/                        dojo generators: bench det lll
   tools/genvec.py               SymPy vector generator
   scripts/sync.sh               copy desk/ into the pier
   SPEC-QUESTIONS.md             escalation log
@@ -129,6 +132,10 @@ racoon/scripts/sync.sh && baloon/scripts/sync.sh
 |commit %base                          # dojo
 scripts/test.sh                        # pass / FAIL, exit 0 / 1
 ```
+
+`cascabel/` has no test suite and is not run by `scripts/test.sh` or by CI.
+It is an example application, and the libraries it calls are covered by their
+own suites.
 
 It drives a **running** fake ship through [`click`][click], which sends a
 `%fyrd` card to `conn.c` — urbit/urbit's own CI mechanism, from

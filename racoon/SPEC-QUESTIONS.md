@@ -86,8 +86,10 @@ normal by the reviewer ~2026.8.1; do not chase it.
 
 ## Q5 — R6's freeze is not achievable for `%racoon` one phase at a time
 
-**Status:** open. **Blocks:** nothing immediately; matters at the B boundary.
-**Implemented pending review.**
+**Status:** resolved — the proposed resolution below was adopted. All five
+sub-core arms are declared in §6's order and the `%racoon` battery is fixed
+for the milestone; Baloon applied the same pattern up front for `+zm` and
+`+mm`. **Blocks:** nothing.
 
 R6 freezes a hinted core's arm set and order once its phase gate closes. That
 works for `%nz` and `%qq`, which are complete. It cannot work for `%racoon`
@@ -192,9 +194,11 @@ route to them, and the guarantee, differ.
 
 **Status:** the placement question is **resolved** — van Hoeij will live
 in a consumer importing both Racoon and Baloon. The LLL fence in §13 of
-both specs still needs lifting before code, and the cliff itself is
-unchanged: phases A0–A1 are unaffected, A2 is unaffected at degrees 2 and
-3, and A2 at degree 4 and above waits on this.
+both specs **has since been lifted** (`raccoon-spec.md` §V,
+`baloon-spec.md` §13) and phase V0 is built: `baloon/desk/lib/vanhoeij.hoon`
+provides `+lll`. Phase V1, recombination itself, is not built, so the cliff
+is unchanged: phases A0–A1 are unaffected, A2 is unaffected at degrees 2 and
+3, and A2 at degree 4 and above still waits on V1.
 
 **Resolved:** LLL does **not** go in Racoon. Racoon cannot import Baloon,
 so putting it there would mean duplicating integer matrices, `det`, and
@@ -221,8 +225,8 @@ be a single call, so that van Hoeij drops in without restructuring A2.
 use van Hoeij or anything else, so the interface is right; this is about
 keeping the *consumer* equally replaceable.
 
-**The escalation, when it comes**, is §13's LLL fence, which both this
-spec and `baloon-spec.md` state. Note the substrate now partly exists:
+**The escalation, since made and accepted**, was §13's LLL fence, which both
+this spec and `baloon-spec.md` stated. Note the substrate now partly exists:
 Baloon Milestone C provides integer matrices with `det`, `mul`, and
 Hermite and Smith normal forms, which is what LLL operates on. But
 `/lib/baloon` depends on `/lib/racoon`, so Racoon cannot import it —

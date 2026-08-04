@@ -1009,14 +1009,17 @@
       |=  [x=[val=frac mult=@ud] y=[val=frac mult=@ud]]
       ?!(=(%gt (cmp:qq val.x val.y)))
     --
-  +|  %reserved
+  +|  %matrices
   ::    +zm:  matrices over Z.  Milestone C.
   ::
-  ::  Declared empty deliberately.  Adding an arm to a Hoon core moves the
-  ::  battery axes of the arms already in it, so introducing a sub-core
-  ::  when its milestone arrives would shift the %baloon battery -- and
-  ::  that is the parent axis every sub-core jet resolves against.  This is
-  ::  Racoon's Q5, applied up front rather than retrofitted.
+  ::  This chapter and its two arms were DECLARED EMPTY up front, before
+  ::  Milestone C had any content, and both are now built.  The reason for
+  ::  declaring early stands and is why they must not be reordered: adding
+  ::  an arm to a Hoon core moves the battery axes of the arms already in
+  ::  it, so introducing a sub-core at its milestone would have shifted the
+  ::  %baloon battery -- the parent axis every sub-core jet resolves
+  ::  against.  This is Racoon's Q5, applied up front rather than
+  ::  retrofitted.
   ++  zm
     ~/  %zm
     |%
