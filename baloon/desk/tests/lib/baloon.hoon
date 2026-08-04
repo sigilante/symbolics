@@ -22,11 +22,9 @@
 =/  zm  zm:baloon
 =/  mm  mm:baloon
 |%
-+|  %seeds
 ::    +seed-qm:  pinned PRNG seed for the +qm property tests
 ++  seed-qm  0xba10.0f00.1234.5678
 ::
-+|  %helpers
 ::    +rng:  a bounded stream of naturals from a pinned seed
 ++  rng
   |=  [seed=@ n=@ud hi=@ud]
@@ -97,7 +95,6 @@
   ?~  t.t.a  ~
   [[i.a i.t.a i.t.t.a] $(a t.a)]
 ::
-+|  %p0-shape
 ++  test-p0-dims
   =/  m2=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
   =/  wide=qmat  ~[~[[--1 1] [--2 1] [--3 1]]]
@@ -189,7 +186,6 @@
     !>((canon:qm ~[~[[--1 2] [-3 4]]]))
   ==
 ::
-+|  %p0-properties
 ::  Property: dimensions agree with the structure, and every row has the
 ::  column count -- the rectangularity the canonical form asserts.
 ++  test-p0-prop-dims
@@ -316,7 +312,6 @@
       =((dims:qm m) (dims:qm (canon:qm m)))
   ==
 ::
-+|  %p0-crashes
 ::  S8: index out of range crashes, in both directions, for every accessor.
 ++  test-p0-crash-get-oob
   =/  m2=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
@@ -364,7 +359,6 @@
     (expect-success |.((transpose:qm ~[~[[--1 1]]])))
   ==
 ::
-+|  %p0-vectors
 ::  Oracle is sympy.Matrix; see tools/genvec.py, whose +selfcheck asserts
 ::  every convention relied on against its definition on every generation.
 ::
@@ -392,7 +386,6 @@
       |=  [r=@ud c=@ud m=qmat]
       =(m (zeros:qm r c))
 ::
-+|  %p1-arithmetic
 ++  test-p1-add-sub
   =/  ma=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
   =/  mb=qmat  ~[~[[--5 1] [--6 1]] ~[[--7 1] [--8 1]]]
@@ -452,7 +445,6 @@
     !>((pow:qm ~[~[[--0 1] [--1 1]] ~[[--0 1] [--0 1]]] 2))
   ==
 ::
-+|  %p1-properties
 ::  Property: the ring axioms of square matrices under + and *, sampled.
 ::  Addition commutes; multiplication does NOT, and is not asserted to.
 ++  test-p1-prop-axioms
@@ -547,7 +539,6 @@
       =((scale:qm a [--2 3]) (canon:qm (scale:qm a [--2 3])))
   ==
 ::
-+|  %p1-crashes
 ::  S8: +add and +sub crash on a dimension mismatch.
 ++  test-p1-crash-add-mismatch
   =/  m2=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
@@ -591,7 +582,6 @@
     (expect-success |.((add:qm w w)))
   ==
 ::
-+|  %p1-vectors
 ++  test-p1-vec-add
   %+  expect-eq  !>(~)
   !>  %+  skip  add-vectors:vec
@@ -628,7 +618,6 @@
       |=  [a=qmat e=@ud c=qmat]
       =(c (pow:qm a e))
 ::
-+|  %p2-elimination
 ++  test-p2-det
   =/  ma=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
   =/  ms=qmat  ~[~[[--1 1] [--2 1]] ~[[--2 1] [--4 1]]]
@@ -714,7 +703,6 @@
     %+  expect-eq  !>(`(list qvec)`~)  !>((nullspace:qm (idn:qm 3)))
   ==
 ::
-+|  %p2-properties
 ::  Property: inv(m) * m and m * inv(m) are both exactly the identity.
 ++  test-p2-prop-inv
   %+  expect-eq  !>(~)
@@ -797,7 +785,6 @@
       =((mul:qm m u.x) b)
   ==
 ::
-+|  %p2-crashes
 ::  S8: +det, +inv, and +charpoly require square input.
 ++  test-p2-crash-nonsquare
   =/  w=qmat  ~[~[[--1 1] [--2 1] [--3 1]]]
@@ -838,7 +825,6 @@
     (expect-success |.((rref:qm (zeros:qm 2 3))))
   ==
 ::
-+|  %p2-vectors
 ++  test-p2-vec-det
   %+  expect-eq  !>(~)
   !>  %+  skip  det-vectors:vec
@@ -875,7 +861,6 @@
       |=  [a=qmat ns=(list qvec)]
       =(ns (nullspace:qm a))
 ::
-+|  %p3-spectral
 ++  test-p3-charpoly
   =/  ma=qmat  ~[~[[--1 1] [--2 1]] ~[[--3 1] [--4 1]]]
   =/  md=qmat  ~[~[[--2 1] [--0 1]] ~[[--0 1] [--3 1]]]
@@ -941,7 +926,6 @@
     !>((eigen:qm ~[~[[--1 2] [--0 1]] ~[[--0 1] [-1 3]]]))
   ==
 ::
-+|  %p3-properties
 ::  Property: the characteristic polynomial is monic of degree n.
 ++  test-p3-prop-charpoly-monic
   %+  expect-eq  !>(~)
@@ -1027,7 +1011,6 @@
   ?~  t.es  %.y
   ?&(=(%lt (cmp:qq val.i.es val.i.t.es)) $(es t.es))
 ::
-+|  %p3-crashes
 ::  S8: +charpoly requires square input.
 ++  test-p3-crash-charpoly-nonsquare
   =/  w=qmat  ~[~[[--1 1] [--2 1] [--3 1]]]
@@ -1045,7 +1028,6 @@
     (expect-success |.((charpoly:qm ~[~[[--7 1]]])))
   ==
 ::
-+|  %p3-vectors
 ++  test-p3-vec-charpoly
   %+  expect-eq  !>(~)
   !>  %+  skip  charpoly-vectors:vec
@@ -1058,7 +1040,6 @@
       |=  [a=qmat evs=(list [val=frac mult=@ud])]
       =(evs (eigen:qm a))
 ::
-+|  %fmt
 ::  Rendering and parsing (/lib/baloon-fmt).  A consumer of the library, as
 ::  racoon-fmt is to Racoon.  The parser buys a free property test: print
 ::  then parse must be the identity over the whole generated corpus.
@@ -2075,130 +2056,4 @@
 ::  Integer lattice bases for the LLL tests.  Full row rank, which
 ::  +lll asserts; the shapes are mixed square and rectangular since
 ::  a lattice need not fill its ambient space.
-++  lllvecs
-  ^-  (list zmat)
-  :~
-    ~[~[--1 --0 --0 -20] ~[--0 --1 --0 -2] ~[--0 --0 --1 -36]]
-    ~[~[--1 --1 --1] ~[-1 --0 --2] ~[--3 --5 --6]]
-    ~[~[--15 --23 --11] ~[--46 --15 --3] ~[--32 --1 --1]]
-    ~[~[--201 --37] ~[--1.648 --297]]
-    ~[~[--1 --0] ~[--0 --1]]
-    ~[~[--1 --0 --0] ~[--0 --1 --0] ~[--0 --0 --1]]
-    ~[~[--2 --0] ~[--0 --3]]
-    :~  ~[--105 --821 --4.551 --42.104]
-        ~[--0 --1 --0 --0]
-        ~[--0 --0 --1 --0]
-        ~[--0 --0 --0 --1]
-    ==
-    ~[~[--8 -3] ~[--6 -1]]
-    ~[~[-9 -6] ~[--4 -8]]
-    ~[~[--9 -6 -3] ~[-2 -8 -2] ~[--1 --7 -2]]
-    ~[~[-9 --1] ~[-4 --3]]
-    ~[~[-9 -6 -3] ~[--2 --1 -5] ~[-4 --9 -3]]
-    ~[~[-9 --2] ~[-7 --8]]
-  ==
-::
-::  Lattice reduction (/lib/vanhoeij), SPEC Milestone C phase V0.
-::
-::  A CONSUMER OF BOTH LIBRARIES -- it uses Racoon's rationals for the
-::  Gram-Schmidt and Baloon's integer matrices for the lattice, which is
-::  why it sits here rather than in Racoon (escalation R4).
-::
-::  VERIFIED STRUCTURALLY, NOT AGAINST ANOTHER PROGRAM.  SymPy has
-::  DomainMatrix.lll, but an LLL-reduced basis is NOT unique -- two
-::  correct implementations at the same delta can return different bases
-::  -- so matching its output is neither necessary nor sufficient.  §11.3
-::  says confirm a convention before pinning it against a tool; here the
-::  conclusion is that the tool is the wrong oracle.  The definition is
-::  checked instead, and it is complete: size-reduced, Lovasz, and the
-::  same lattice.  Any basis satisfying all three IS an LLL-reduced basis
-::  of that lattice.
-::
-++  test-v0-lll-values
-  ::  annotated: an un-typed ~[...] infers as a fixed tuple, which the
-  ::  wet +snag below cannot nest
-  =/  b=zmat  ~[~[--1 --0 --0 -20] ~[--0 --1 --0 -2] ~[--0 --0 --1 -36]]
-  ;:  weld
-    ::  the classic worked example.  SymPy's DomainMatrix.lll happens to
-    ::  agree here, which is a coincidence worth noting and not a
-    ::  guarantee -- see the chapter header
-    %+  expect-eq
-      !>(`zmat`~[~[--0 --1 --0 -2] ~[-2 --2 --1 --0] ~[-3 -5 --2 -2]])
-    !>((lll:vh b))
-    ::  the input was not reduced; the output is
-    %-  expect  !>(!(reduced:vh b))
-    %-  expect  !>((reduced:vh (lll:vh b)))
-    ::  an identity basis is already reduced, so nothing moves
-    %+  expect-eq  !>((idn:zm 3))  !>((lll:vh (idn:zm 3)))
-    %-  expect  !>((reduced:vh (idn:zm 3)))
-    ::  a single row is reduced vacuously
-    %+  expect-eq  !>(`zmat`~[~[--3 --4]])  !>((lll:vh ~[~[--3 --4]]))
-    %-  expect  !>((reduced:vh ~[~[--3 --4]]))
-  ==
-++  test-v0-lll-properties
-  =/  vs  lllvecs
-  =|  out=tang
-  |-  ^-  tang
-  ?~  vs  out
-  =/  b=zmat  i.vs
-  =/  r=zmat  (lll:vh b)
-  %=  $
-    vs  t.vs
-    out
-      %+  weld  out
-      ;:  weld
-        ::  the whole specification of +lll, in three checks
-        %-  expect  !>((reduced:vh r))
-        ::  SAME LATTICE, which needs no oracle at all: two bases generate
-        ::  the same lattice exactly when their Hermite forms agree.  This
-        ::  is the check Baloon's Milestone C made possible.
-        %+  expect-eq  !>(h:(hnf:zm b))  !>(h:(hnf:zm r))
-        ::  and the shape is unchanged
-        %+  expect-eq  !>((dims:zm b))  !>((dims:zm r))
-      ==
-  ==
-++  test-v0-lll-unimodular
-  ::  for a square basis the transform is unimodular, so |det| survives
-  =/  vs=(list zmat)  (skim lllvecs |=(b=zmat =(r:(dims:zm b) c:(dims:zm b))))
-  =|  out=tang
-  |-  ^-  tang
-  ?~  vs  out
-  =/  b=zmat  i.vs
-  =/  r=zmat  (lll:vh b)
-  %=  $
-    vs  t.vs
-    out
-      %+  weld  out
-      %+  expect-eq
-        !>((abs:si (det:zm b)))
-      !>((abs:si (det:zm r)))
-  ==
-++  test-v0-lll-shortens
-  ::  reduction does what it is for: the first basis vector comes out no
-  ::  longer than it went in, and usually much shorter
-  ::  annotated: an un-typed ~[...] infers as a fixed tuple, which the
-  ::  wet +snag below cannot nest
-  =/  b=zmat  ~[~[--1 --0 --0 -20] ~[--0 --1 --0 -2] ~[--0 --0 --1 -36]]
-  =/  r=zmat  (lll:vh b)
-  ;:  weld
-    ::  ||b_0||^2 was 401; the reduced leader is 5
-    %+  expect-eq  !>(`@ud`401)  !>((nsq (snag 0 b)))
-    %+  expect-eq  !>(`@ud`5)    !>((nsq (snag 0 r)))
-    %-  expect  !>((lte (nsq (snag 0 r)) (nsq (snag 0 b))))
-  ==
-++  test-v0-lll-crash
-  ;:  weld
-    ::  the empty basis has no lattice
-    (expect-fail |.((lll:vh ~)))
-    ::  linearly dependent rows: the Gram-Schmidt would divide by zero, so
-    ::  +lll asserts full rank first and says which precondition failed
-    (expect-fail |.((lll:vh ~[~[--1 --2] ~[--2 --4]])))
-    (expect-fail |.((lll:vh ~[~[--1 --2 --3] ~[--2 --4 --6]])))
-    ::  three rows in a plane
-    (expect-fail |.((lll:vh ~[~[--1 --0] ~[--0 --1] ~[--1 --1]])))
-    (expect-success |.((lll:vh ~[~[--1 --2] ~[--3 --4]])))
-    ::  +reduced is total: it answers for any basis, reduced or not
-    (expect-success |.((reduced:vh ~[~[--1 --2] ~[--2 --4]])))
-    %-  expect  !>((reduced:vh ~))
-  ==
 --

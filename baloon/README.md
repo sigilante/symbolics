@@ -38,7 +38,8 @@ baloon/
     lib/baloon-vectors.hoon   generated vectors -- never hand-edited
     lib/baloon-fmt.hoon       rendering and parsing, all three rings
     lib/vanhoeij.hoon         lattice reduction -- imports BOTH libraries
-    tests/lib/baloon.hoon     test suite
+    tests/lib/baloon.hoon     test suite -- Q, Z, and Z/n
+    tests/lib/vanhoeij.hoon   lattice reduction
     gen/baloon-bench.hoon     benchmark generator
     gen/baloon-det.hoon       parse, print, and analyze a matrix
     gen/baloon-lll.hoon       reduce an integer lattice basis

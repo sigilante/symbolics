@@ -54,7 +54,13 @@ racoon/
     sur/racoon.hoon           shared types
     lib/racoon.hoon           the library
     lib/racoon-vectors.hoon   generated vectors -- never hand-edited
-    tests/lib/racoon.hoon     test suite
+    tests/lib/racoon.hoon     test suite -- core, P0 through P3
+    tests/lib/racoon-fmt.hoon     rendering and parsing
+    tests/lib/racoon-rs.hoon      Reed-Solomon
+    tests/lib/racoon-fp3.hoon     extension fields
+    tests/lib/racoon-zfac.hoon    integer factorization
+    tests/lib/racoon-roots.hoon   real roots
+    tests/lib/racoon-alg.hoon     algebraic numbers
     lib/racoon-fmt.hoon       rendering and parsing
     lib/racoon-rs.hoon        Reed-Solomon codec over F_p
     lib/racoon-fp3.hoon       extension fields F_p[x]/(m)

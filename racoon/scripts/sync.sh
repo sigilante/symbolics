@@ -51,6 +51,12 @@ lib/racoon-roots.hoon
 lib/racoon-alg.hoon
 lib/racoon-vectors.hoon
 tests/lib/racoon.hoon
+tests/lib/racoon-fmt.hoon
+tests/lib/racoon-rs.hoon
+tests/lib/racoon-fp3.hoon
+tests/lib/racoon-zfac.hoon
+tests/lib/racoon-roots.hoon
+tests/lib/racoon-alg.hoon
 gen/racoon-bench.hoon
 gen/racoon-factor.hoon
 gen/racoon-gcd.hoon
