@@ -23,6 +23,6 @@
   (take-poke-ack /poke)
 --
 =/  m  (strand ,vase)
-;<  =bowl:strand  bind:m  get-bowl:strandio
-;<  ok=?  bind:m  (poke [our.bowl %hood] %kiln-commit !>([%base %.n]))
+;<  [=ship =desk =case]  bind:m  get-beak
+;<  ok=?  bind:m  (poke [ship %hood] %kiln-commit !>([%base %.n]))
 (pure:m !>(ok))

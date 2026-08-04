@@ -23,7 +23,7 @@
   (take-poke-ack /poke)
 --
 =/  m  (strand ,vase)
-;<  =bowl:strand  bind:m  get-bowl:strandio
-=/  pax=path  /(scot %p our.bowl)/base/(scot %da now.bowl)
-;<  ok=?  bind:m  (poke [our.bowl %hood] %kiln-mount !>([pax %base]))
+;<  [=ship =desk =case]  bind:m  get-beak
+=/  bem=beam  [[ship %base case] /]
+;<  ok=?  bind:m  (poke [ship %hood] %kiln-mount !>([(en-beam bem) %base]))
 (pure:m !>(ok))
