@@ -219,6 +219,50 @@
       ==
     ~
   `cd
+::    +psums:  the first m power sums of a monic polynomial's roots
+::
+::  [g=mol m=@ud md=@ud] -> (list @ud), [s_1 ... s_m], each in [0, md).
+::  .g must be MONIC.  Nothing here checks that; the identities are simply
+::  false without it.
+::
+::  Newton's identities.  For g = x^d + c_(d-1) x^(d-1) + ... + c_0,
+::
+::      s_k = -( k*c_(d-k) + sum_(i=1..k-1) c_(d-i) * s_(k-i) )    k <= d
+::      s_k = -(             sum_(i=1..d)   c_(d-i) * s_(k-i) )    k >  d
+::
+::  NO DIVISION ANYWHERE, and that is the point.  The textbook form solves
+::  for s_k by dividing by k, which is exactly wrong over Z/p^a: it is not
+::  a field, and k is a non-unit whenever p divides k -- so the textbook
+::  form fails for precisely the k that matter most.  The monic form never
+::  divides.
+::
+::  ADDITIVE OVER PRODUCTS, since the roots of g*h are the roots of g
+::  together with the roots of h.  That additivity is the whole reason the
+::  recombination condition is LINEAR in the subset indicator, and hence
+::  why a lattice can find it at all (SPEC V3).
+++  psums
+  |=  [g=mol m=@ud md=@ud]
+  ^-  (list @ud)
+  =/  dm  ~(. mx md)
+  =/  d=@ud  (deg:dm g)
+  =/  k=@ud  1
+  =|  ps=(list @ud)
+  |-  ^-  (list @ud)
+  ?:  (gth k m)  (flop ps)
+  ::  s_(k-i) sits at index i-1 of .ps, which carries s_(k-1) at its head
+  =/  lim=@ud  (min (dec k) d)
+  =/  sum=@ud
+    =/  i=@ud  1
+    =/  s=@ud  0
+    |-  ^-  @ud
+    ?:  (gth i lim)  s
+    =/  ci=@ud  (snag (sub d i) `(list @ud)`g)
+    =/  sk=@ud  (snag (dec i) `(list @ud)`ps)
+    $(i +(i), s (cadd:dm s (cmul:dm ci sk)))
+  =/  lin=@ud
+    ?:  (gth k d)  0
+    (cmul:dm (mod k md) (snag (sub d k) `(list @ud)`g))
+  $(k +(k), ps [(cneg:dm (cadd:dm sum lin)) ps])
 ::    +drop:  remove a subset's indices from the remaining index set
 ++  drop
   |=  [idx=(list @ud) s=(list @ud)]

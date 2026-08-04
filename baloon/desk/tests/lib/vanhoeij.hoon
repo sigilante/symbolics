@@ -293,6 +293,56 @@
     ?~  fs  ~[--1]
     (mul:zx i.fs $(fs t.fs))
   =(f pr)
+::    +psum-add:  elementwise sum of two power-sum vectors modulo md
+++  psum-add
+  |=  [a=(list @ud) b=(list @ud) md=@ud]
+  ^-  (list @ud)
+  ?~  a  ~
+  ?~  b  ~
+  [(cadd:~(. mx md) i.a i.b) $(a t.a, b t.b)]
+::  +psums:vh is a private helper, reached here deliberately: these two
+::  arms pin the identities it exists for, and a lattice built on a wrong
+::  trace would still factor correctly (SPEC V4) and so would never be
+::  caught by +test-v1-factor-agrees.
+++  test-v1-psums-values
+  ;:  weld
+    ::  power sums of the roots, computed outside from the roots
+    ::  themselves: (x-1)(x-2) has 1+2, 1+4, 1+8, 1+16, 1+32
+    %+  expect-eq  !>(`(list @ud)`~[3 5 9 17 33])
+    !>((psums:vh `mol`~[2 98 1] 5 101))
+    ::  (x-1)(x-2)(x-3), reduced modulo 101 at the fifth
+    %+  expect-eq  !>(`(list @ud)`~[6 14 36 98 74])
+    !>((psums:vh `mol`~[95 11 95 1] 5 101))
+    ::  x^2+1: roots +-i, so odd power sums vanish and even ones alternate
+    %+  expect-eq  !>(`(list @ud)`~[0 99 0 2 0])
+    !>((psums:vh `mol`~[1 0 1] 5 101))
+    ::  x^4+1: the first nonzero power sum is the fourth
+    %+  expect-eq  !>(`(list @ud)`~[0 0 0 97 0])
+    !>((psums:vh `mol`~[1 0 0 0 1] 5 101))
+  ==
+::  ADDITIVITY, the property the whole recombination rests on: the roots
+::  of a product are the roots of its factors, so power sums add over
+::  products.  That is what makes the subset condition LINEAR in the
+::  indicator vector, and hence findable by a lattice at all (SPEC V3).
+::  Checked against no oracle -- summing over the modular factors must
+::  equal taking power sums of their product.
+++  test-v1-psums-additive
+  %+  expect-eq  !>(~)
+  !>  ^-  (list zol)
+  %+  skip  vh-corpus
+  |=  f=zol
+  ^-  ?
+  =/  hd  (hdata:zx f)
+  ?~  hd  %.y
+  =/  md=@ud         md.u.hd
+  =/  gs=(list mol)  gs.u.hd
+  =/  m=@ud  4
+  =/  lhs=(list @ud)
+    =/  acc=(list @ud)  (reap m 0)
+    |-  ^-  (list @ud)
+    ?~  gs  acc
+    $(gs t.gs, acc (psum-add acc (psums:vh i.gs m md) md))
+  =(lhs (psums:vh (mprod:zx gs.u.hd md) m md))
 ++  test-v1-factor-crash
   ;:  weld
     ::  SPEC V5: the zero polynomial has no factorization
