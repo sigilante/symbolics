@@ -343,6 +343,50 @@
     ?~  gs  acc
     $(gs t.gs, acc (psum-add acc (psums:vh i.gs m md) md))
   =(lhs (psums:vh (mprod:zx gs.u.hd md) m md))
+::  THE LATTICE PASS, forced on.  +factor gates it at +lat-min, far above
+::  anything here, so without (fact f 0) none of these inputs would touch
+::  it at all -- and SPEC V4 means a lattice that proposes nothing still
+::  factors correctly, so that gap would be invisible.
+++  test-v1-lattice-agrees
+  %+  expect-eq  !>(~)
+  !>  ^-  (list zol)
+  %+  skip  vh-corpus
+  |=(f=zol ^-(? =((psort (firr:zx f)) (psort (fact:vh f 0)))))
+::  and the lattice must not change the answer either way round: gated
+::  off and forced on have to agree with each other, not merely each with
+::  the oracle
+++  test-v1-lattice-agnostic
+  %+  expect-eq  !>(~)
+  !>  ^-  (list zol)
+  %+  skip  vh-corpus
+  |=(f=zol ^-(? =((psort (fact:vh f 0)) (psort (fact:vh f 999)))))
+::  +extract must reject a row unless BOTH halves are right: the subset
+::  shape in the first r coordinates AND small traces after them.  These
+::  are the reducible cases, where the true subsets are known, so the
+::  proposals can be checked directly rather than through the answer.
+++  test-v1-lattice-proposes
+  ;:  weld
+    ::  (x^2-2)(x^2-3): each modular factor is already a true factor
+    (expect-lat ~[--6 --0 -5 --0 --1] ~[~[0] ~[1]])
+    ::  (x^2+1)(x^2+2)
+    (expect-lat ~[--2 --0 --3 --0 --1] ~[~[2] ~[0 1]])
+    ::  (x-1)(x-2)(x-3)
+    (expect-lat ~[-6 --11 -6 --1] ~[~[0] ~[1] ~[2]])
+    ::  SD_2 * (x^2-5)
+    (expect-lat ~[-5 --0 --51 --0 -15 --0 --1] ~[~[0] ~[1 2]])
+    ::  SD_2 is IRREDUCIBLE: the only true subset is the whole set, and
+    ::  the pass has to say so rather than propose junk singletons.  It
+    ::  did propose junk until +extract began checking the traces.
+    (expect-lat ~[--1 --0 -10 --0 --1] ~[~[0 1]])
+  ==
+::    +expect-lat:  the lattice's proposals for f, as a set
+++  expect-lat
+  |=  [f=zol want=(list (list @ud))]
+  ^-  tang
+  =/  hd  (hdata:zx f)
+  ?~  hd  (expect-eq !>(want) !>(*(list (list @ud))))
+  =/  got  (propose:vh f gs.u.hd md.u.hd)
+  (expect-eq !>((sort want aor)) !>((sort got aor)))
 ++  test-v1-factor-crash
   ;:  weld
     ::  SPEC V5: the zero polynomial has no factorization

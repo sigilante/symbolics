@@ -346,6 +346,217 @@
     ?:  (gth k d)  0
     (cmul:dm (mod k md) (snag (sub d k) `(list @ud)`g))
   $(k +(k), ps [(cneg:dm (cadd:dm sum lin)) ps])
+::    +kroot:  the least b with b^k * d >= v
+::
+::  Doubling to bracket, then bisection.  Integer throughout; used only
+::  by +rbound, where an over-estimate is safe and an under-estimate is
+::  not, so this rounds up.
+++  kroot
+  |=  [v=@ud d=@ud k=@ud]
+  ^-  @ud
+  ?:  =(0 v)  0
+  =/  top=@ud
+    =/  hi=@ud  1
+    |-  ^-  @ud
+    ?:  (gte (mul (pow hi k) d) v)  hi
+    $(hi (mul 2 hi))
+  ?:  =(1 top)  1
+  =/  lo=@ud  (div top 2)
+  =/  hi=@ud  top
+  |-  ^-  @ud
+  ?:  =(+(lo) hi)  hi
+  =/  mid=@ud  (div (add lo hi) 2)
+  ?:  (gte (mul (pow mid k) d) v)  $(hi mid)
+  $(lo mid)
+::    +rbound:  a bound on the modulus of every complex root of f
+::
+::  [f=zol] -> @ud.  Fujiwara's bound,
+::
+::      |z| <= 2 * max_k ( |a_(n-k)| / |a_n| )^(1/k)
+::
+::  NOT the Cauchy bound 1 + max|a_i|/|a_n| that +bound:racoon-roots
+::  uses.  Cauchy is useless here: SD_5 has eighteen-digit coefficients
+::  and leading coefficient 1, so it returns ~1e18 where the true bound
+::  is about 11.  The trace bound is n*B^m, so an exponentially loose B
+::  makes the lattice unusable rather than merely slow.
+++  rbound
+  |=  f=zol
+  ^-  @ud
+  =/  n=@ud  (deg:zx f)
+  ?:  =(0 n)  1
+  =/  an=@ud    (abs:si (lc:zx f))
+  =/  k=@ud     1
+  =/  best=@ud  0
+  |-  ^-  @ud
+  ?:  (gth k n)  (max 1 (mul 2 best))
+  =/  ak=@ud  (abs:si (snag (sub n k) `(list @s)`f))
+  $(k +(k), best (max best (kroot ak an k)))
+::    +spike:  a length-n integer vector holding v at index i, else 0
+++  spike
+  |=  [i=@ud n=@ud v=@s]
+  ^-  zvec
+  =/  k=@ud  0
+  =|  out=zvec
+  |-  ^-  zvec
+  ?:  =(k n)  (flop out)
+  $(k +(k), out [?:(=(k i) v --0) out])
+::    +lat:  the van Hoeij knapsack lattice (SPEC V3)
+::
+::  [gs md cc m] -> zmat of dimension r+m,
+::
+::      [ cc*I_r       T     ]        T_ij = s_j(g_i)
+::      [   0      p^a * I_m ]
+::
+::  A lattice vector is [cc*v | u] with u_j = sum_i v_i s_j(g_i) mod p^a.
+::  For a TRUE subset the power sums add to those of a genuine integer
+::  factor, so u is small; for any other v it is a residue modulo p^a and
+::  so is enormous.  That gap is what LLL finds.
+::
+::  Square and block triangular with nonzero diagonal, hence full rank,
+::  so +lll's rank assertion cannot fire.
+++  lat
+  |=  [gs=(list mol) md=@ud cc=@ud m=@ud]
+  ^-  zmat
+  =/  r=@ud  (lent gs)
+  =/  top=zmat
+    =/  i=@ud  0
+    =|  out=zmat
+    |-  ^-  zmat
+    ?:  =(i r)  (flop out)
+    =/  ps=(list @ud)  (psums (snag i `(list mol)`gs) m md)
+    =/  row=zvec
+      %+  weld  (spike i r (sun:si cc))
+      `zvec`(turn ps |=(x=@ud ^-(@s (sun:si x))))
+    $(i +(i), out [row out])
+  =/  bot=zmat
+    =/  j=@ud  0
+    =|  out=zmat
+    |-  ^-  zmat
+    ?:  =(j m)  (flop out)
+    =/  row=zvec  (weld `zvec`(reap r --0) (spike j m (sun:si md)))
+    $(j +(j), out [row out])
+  (weld top bot)
+::    +extract:  the 0-1 subsets a reduced basis proposes
+::
+::  A row whose first r coordinates are all 0 or all +-cc, with a single
+::  sign, is a subset indicator scaled by cc -- possibly negated, since a
+::  basis is only defined up to sign.
+::
+::  BOTH HALVES MUST BE CHECKED.  The trailing trace coordinates have to
+::  be small as well, because that is the actual condition: v names a
+::  true factor when its power sums add up to a genuine integer trace
+::  rather than to a residue modulo p^a.  Testing only the indicator
+::  shape admits the untouched basis rows themselves -- [cc*e_i | s_j],
+::  which look exactly like singletons and mean nothing.  That is not a
+::  harmless surplus: on an IRREDUCIBLE f the only true subset is the
+::  whole set, and those fake singletons crowded it out entirely, so
+::  SD_5's enumeration was not avoided at all.
+++  extract
+  |=  [b=zmat r=@ud cc=@ud n=@ud rb=@ud]
+  ^-  (list (list @ud))
+  =/  cs=@s  (sun:si cc)
+  =/  nc=@s  (dif:si --0 cs)
+  %-  zing
+  %+  turn  b
+  |=  v=zvec
+  ^-  (list (list @ud))
+  ::  column j carries s_j, bounded by n * B^j -- PER COLUMN, since one
+  ::  bound for all of them would be n*B^m and so nearly vacuous at j=1
+  ?.  =/  ts=(list @s)  (slag r `(list @s)`v)
+      =/  j=@ud  1
+      |-  ^-  ?
+      ?~  ts  %.y
+      ?.  (lte (abs:si i.ts) (mul n (pow rb j)))  %.n
+      $(ts t.ts, j +(j))
+    ~
+  =/  i=@ud  0
+  =|  pos=(list @ud)
+  =|  neg=(list @ud)
+  |-  ^-  (list (list @ud))
+  ?:  =(i r)
+    =/  hp=?  ?!(=(~ pos))
+    =/  hn=?  ?!(=(~ neg))
+    ?:  ?&(hp ?!(hn))  ~[(flop pos)]
+    ?:  ?&(hn ?!(hp))  ~[(flop neg)]
+    ~
+  =/  x=@s  (snag i `(list @s)`v)
+  ?:  =(--0 x)  $(i +(i))
+  ?:  =(cs x)   $(i +(i), pos [i pos])
+  ?:  =(nc x)   $(i +(i), neg [i neg])
+  ::  a coordinate that is neither 0 nor +-cc: not an indicator
+  ~
+::    +propose:  candidate subsets from the lattice (SPEC V3)
+::
+::  [f gs md] -> (list (list @ud)).  A HEURISTIC and nothing more.  Every
+::  subset it returns is confirmed by trial division in +cand before it
+::  becomes a factor, and anything it misses is found by +zass.  SPEC V4
+::  is explicit that the lattice is an accelerator and never an oracle,
+::  and that is exactly what lets this arm be wrong without +factor being
+::  wrong -- a bad bound, a bad scaling, or a bad column choice costs
+::  time, not correctness.
+::
+::  TWO trace columns, and the second is not optional.  A Swinnerton-Dyer
+::  polynomial is EVEN: its roots come in +- pairs, so every modular
+::  factor's roots sum to zero and s_1 vanishes identically on every
+::  subset.  A lattice built on s_1 alone cannot separate a true subset
+::  from any other one.  That is measured, not feared -- at m=1 the pass
+::  returned junk singletons on SD_2 and SD_3 and avoided none of the
+::  enumeration, which is the entire point on SD_5.  s_2 separates them.
+::  Columns are expensive (LLL's cost tracks big-entry columns, not
+::  dimension: r=16 m=4 cost 221.7 s against r=32 m=1 at 49.1 s), so two
+::  is a budget rather than a floor to grow from.
+::
+::  cc scales the identity block to the trace bound so that the two
+::  halves of a vector weigh comparably.  Without it the first r
+::  coordinates are 0/1 against residues of size p^a and contribute
+::  nothing to the norm, so LLL would happily return short vectors whose
+::  v is not an indicator at all.
+++  propose
+  |=  [f=zol gs=(list mol) md=@ud]
+  ^-  (list (list @ud))
+  =/  r=@ud  (lent gs)
+  =/  n=@ud  (deg:zx f)
+  =/  m=@ud  2
+  =/  b=@ud  (rbound f)
+  ::  |s_j(F)| <= deg(F) * B^j <= n * B^m for any true factor F
+  =/  tb=@ud  (mul n (pow b m))
+  ::  if the true trace does not fit inside the modulus it cannot be told
+  ::  from a residue, and every row is noise
+  ?:  (gte (mul 2 tb) md)  ~
+  =/  cc=@ud  (max 1 tb)
+  (extract (lll (lat gs md cc m)) r cc n b)
+::    +harvest:  confirm proposed subsets, peeling factors off as they hold
+++  harvest
+  |=  $:  rem=zol
+          idx=(list @ud)
+          gs=(list mol)
+          md=@ud
+          ps=(list (list @ud))
+          acc=(list zol)
+      ==
+  ^-  [rem=zol idx=(list @ud) acc=(list zol)]
+  |-  ^-  [rem=zol idx=(list @ud) acc=(list zol)]
+  ?~  ps  [rem idx acc]
+  ::  usable only while every index it names is still unclaimed
+  ?.  (levy i.ps |=(j=@ud (lien idx |=(k=@ud =(k j)))))
+    $(ps t.ps)
+  =/  sel=(list mol)  (turn i.ps |=(j=@ud (snag j `(list mol)`gs)))
+  =/  cd  (cand sel rem md)
+  ?~  cd  $(ps t.ps)
+  %=  $
+    ps   t.ps
+    rem  (xdiv:zx rem u.cd)
+    idx  (drop idx i.ps)
+    acc  [u.cd acc]
+  ==
+::    +lat-min:  the smallest r at which the lattice is worth building
+::
+::  Measured, not guessed.  At r = 8 (SD_4) the lattice costs 1.16 s
+::  against a whole Zassenhaus factorization at 0.302 s; at r = 16 (SD_5)
+::  it costs 12 s against 204 s.  The crossover lies between, and this
+::  sits at the measured win rather than an interpolated guess, so
+::  engaging the lattice is never the slower choice.
+++  lat-min  ^-(@ud 16)
 ::    +drop:  remove a subset's indices from the remaining index set
 ++  drop
   |=  [idx=(list @ud) s=(list @ud)]
@@ -517,6 +728,21 @@
 ++  factor
   |=  f=zol
   ^-  (list zol)
+  (fact f lat-min)
+::    +fact:  +factor with the lattice gate exposed
+::
+::  [f=zol lo=@ud] -> (list zol).  .lo is the smallest number of modular
+::  factors at which the lattice pass runs; +factor supplies +lat-min.
+::
+::  EXPOSED FOR TESTING, and it has to be.  SPEC V4 means a broken
+::  lattice still factors correctly -- +cand rejects its bad proposals
+::  and +zass finds whatever it missed -- so a lattice that proposes
+::  nothing at all is invisible to any test that only checks the answer.
+::  Passing 0 forces the pass on every input, which is the only way to
+::  see that it proposes the RIGHT subsets rather than none.
+++  fact
+  |=  [f=zol lo=@ud]
+  ^-  (list zol)
   ?~  f  !!
   =/  sq=zfac  (sqfree:zx f)
   ?~  fs.sq  !!
@@ -526,5 +752,10 @@
   ?~  hd  ~[f]
   =/  gs=(list mol)  gs.u.hd
   =/  md=@ud         md.u.hd
-  (zass f (gulf 0 (dec (lent gs))) gs md ~)
+  =/  r=@ud          (lent gs)
+  =/  ps=(list (list @ud))
+    ?:  (lth r lo)  ~
+    (propose f gs md)
+  =/  hv  (harvest f (gulf 0 (dec r)) gs md ps ~)
+  (zass rem.hv idx.hv gs md acc.hv)
 --
