@@ -87,6 +87,12 @@ Measured both ways, same inputs, same machine:
 
 `raccoon-spec.md` §V0 named `SD_5`'s 204 s as the number to beat.
 
+That table is the before-and-after of the `+lll` rewrite and is left as
+measured. The **current** figures are the §V7.5 table in
+`baloon/README.md`, taken afterwards with `/gen/baloon-vh-bench`; they
+differ from the "after" column by a few percent, run to run, and the
+conclusion does not move.
+
 **The algorithm never changed. The arithmetic under it did.** The earlier
 entry concluded that the lattice could not separate the Swinnerton–Dyer
 family because separation needs many trace columns and columns cost more

@@ -54,6 +54,7 @@ gen/baloon-bench.hoon
 gen/baloon-det.hoon
 gen/baloon-lll.hoon
 gen/baloon-lll-bench.hoon
+gen/baloon-vh-bench.hoon
 "
 
 copied=0

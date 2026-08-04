@@ -693,12 +693,12 @@
   ==
 ::    +lat-min:  the smallest r at which the lattice pass runs
 ::
-::  MEASURED, both ways, same inputs, same machine:
+::  MEASURED, both ways, same inputs, same machine, by /gen/baloon-vh-bench:
 ::
 ::                  zassenhaus     van hoeij
-::      SD_3           21.3 ms       43.2 ms
-::      SD_4          282.3 ms      463.2 ms
-::      SD_5          197.9 s         9.6 s     <- 20.7x
+::      SD_3           22.4 ms       42.5 ms
+::      SD_4          298.7 ms      459.7 ms
+::      SD_5          202.5 s         9.42 s    <- 21.5x
 ::
 ::  The crossover is between r = 8 and r = 16, and this sits at the
 ::  measured win rather than an interpolated guess, so engaging the

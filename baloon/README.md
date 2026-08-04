@@ -37,12 +37,14 @@ baloon/
     lib/baloon.hoon           the library -- qm zm mm
     lib/baloon-vectors.hoon   generated vectors -- never hand-edited
     lib/baloon-fmt.hoon       rendering and parsing, all three rings
-    lib/vanhoeij.hoon         lattice reduction -- imports BOTH libraries
+    lib/vanhoeij.hoon         LLL and van Hoeij -- imports BOTH libraries
     tests/lib/baloon.hoon     test suite -- Q, Z, and Z/n
-    tests/lib/vanhoeij.hoon   lattice reduction
+    tests/lib/vanhoeij.hoon   LLL and van Hoeij
     gen/baloon-bench.hoon     benchmark generator
     gen/baloon-det.hoon       parse, print, and analyze a matrix
     gen/baloon-lll.hoon       reduce an integer lattice basis
+    gen/baloon-lll-bench.hoon time +lll on a van Hoeij-shaped lattice
+    gen/baloon-vh-bench.hoon  van Hoeij against Zassenhaus, same input
   tools/genvec.py             SymPy vector generator
   tools/requirements.txt      pinned SymPy version
   scripts/sync.sh             copy desk/ into the pier
@@ -58,10 +60,11 @@ than into `+qm`, which is the substance of resolved question B2.
 Baloon's desk files sit alongside Racoon's in the same `%base`, so sync
 Racoon first if the pier is fresh.
 
-## Lattice reduction
+## Lattice reduction and van Hoeij recombination
 
-`/lib/vanhoeij` is Milestone C phase V0 — LLL over ℤ, the prerequisite for
-van Hoeij recombination (`raccoon-spec.md` §V).
+`/lib/vanhoeij` is Milestone C phase V, and **both phases are built**: V0
+is LLL over ℤ, V1 is van Hoeij recombination on top of it
+(`raccoon-spec.md` §V).
 
 **It lives here because it is a consumer of *both* libraries.** LLL
 operates on integer lattice bases — that is exactly `$zmat` — and
@@ -80,7 +83,7 @@ the Gram–Schmidt data is computed, since exact rational GSO and an
 incrementally updated one are mathematically equal and yield the same
 output.
 
-Pinning stops there: van Hoeij's `factor` will stay `free`, because every
+Pinning stops there: van Hoeij's `factor` is `free`, because every
 candidate is verified by trial division regardless of which reduced basis
 LLL returned.
 
@@ -106,6 +109,80 @@ Any basis satisfying all three *is* an LLL-reduced basis of that lattice.
 `+reduced` is exposed so callers can assert it too. On the worked example
 the output happens to agree with SymPy's, which is worth noting and is not
 a guarantee.
+
+### Recombination
+
+`+factor` is the phase V1 arm: `zol -> (list zol)`, the irreducible
+factors over ℤ of a squarefree primitive polynomial. The chain is
+Hensel-lifted modular factors from `hdata:zx`, power sums by Newton's
+identities, the knapsack lattice, `+lll`, 0-1 patterns read off the short
+vectors, trial division into `f`, and Zassenhaus over whatever is left.
+
+**The lattice is an accelerator, never an oracle.** Every candidate
+subset — however it was proposed — is confirmed by dividing into `f`, and
+anything the lattice misses falls through to the same enumeration
+`+firr:zx` uses. A bug in the bound, the scaling, the choice of power
+sums, or `+lll` itself can make this slower; it cannot make it wrong.
+That is what lets a heuristic-shaped algorithm be `free`, and it is why
+`+factor` and `+firr:zx` agree on every input by construction rather than
+by luck.
+
+**`+fact` exposes the gate, and it has to.** Since a lattice that
+proposes nothing at all is invisible to a test that only checks the
+answer, `+fact f 0` forces the pass at every `r`; `+factor` supplies
+`+lat-min`. The suite uses the forced form to check that the lattice
+proposes the *right* subsets rather than none.
+
+**`+lat-min` is 16, and it is measured, not chosen.** Below sixteen
+modular factors the subset enumeration is cheaper than reducing the
+lattice, so `+factor` runs plain Zassenhaus there — which is the shape of
+the table below. `r = 12` is untested; lowering the gate to reach it
+should be measured rather than assumed.
+
+**Power sums are computed in monic form and never divide.** Newton's
+identities carry a division by `k`, and over ℤ/p^a a `k` divisible by `p`
+is not a unit. The recurrence is arranged so the division never happens.
+
+### Benchmarks — where the speed difference is the deliverable
+
+```
++baloon-vh-bench 5 0    Zassenhaus on SD_5
++baloon-vh-bench 5 1    van Hoeij on SD_5
+```
+
+This is the one place in the project where a speed difference is the
+product rather than a footnote (§V7.5). Same machine, same inputs, both
+answers correct and identical. The van Hoeij column forces the lattice
+with `+fact f 0`, because at `r = 4` and `r = 8` the gate would otherwise
+hand the work to Zassenhaus and the table would be comparing it with
+itself. Vere 4.6, `%zuse` 409, fake `~zod`, `--loom 33`, Darwin arm64,
+best of two.
+
+| | modular factors `r` | Zassenhaus | van Hoeij |
+|---|---:|---:|---:|
+| `SD_3` | 4 | 22.4 ms | 42.5 ms |
+| `SD_4` | 8 | 298.7 ms | 459.7 ms |
+| `SD_5` | 16 | 202.5 s | **9.42 s** — 21.5× |
+
+**`SD_5` is the number that mattered.** `raccoon-spec.md` §V0 measured
+Zassenhaus there at 204 s and named it the benchmark phase V1 has to
+beat; the cost is exponential in `r`, not in the degree, so `SD_4`'s 39
+subsets become `SD_5`'s 39,202. Van Hoeij replaces that enumeration with
+one lattice reduction and comes back in under ten seconds.
+
+**Below the crossover it loses, and the table says so.** Building the
+lattice costs more than trying ten subsets, so at `SD_3` and `SD_4` van
+Hoeij is roughly 1.5× slower. That is what `+lat-min` is for: engaging
+the lattice is never the slower choice at the default entry point.
+
+**What made it work was not the algorithm.** An earlier `+lll` on
+rational Gram–Schmidt made four trace columns at `r = 16` cost 221.7 s,
+against an enumeration of 197.9 s — so the column budget was two, and two
+columns cannot separate this family. Rewriting `+lll` onto integer Gram
+determinants brought the same reduction to 2.3 s, the budget became
+eight, and eight separates. `baloon/SPEC-QUESTIONS.md` V1 records the
+whole line, including the two dead ends, which are still true in
+isolation.
 
 ## Every arm in `+qm`, `+zm`, and `+mm` is `free`
 

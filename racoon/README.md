@@ -36,13 +36,14 @@ depends on Racoon and nothing else. Everything in Milestone A was written to
 be jettable: canonical outputs, five pinned algorithms where the output was
 underdetermined, two-sided crash tables, and no `~|` anywhere.
 
-**Milestone C has not started.** The candidates, in §13 of the spec:
+**Milestone C is well under way.** The candidates, in §13 of the spec:
 
 | Candidate | Note |
 |---|---|
 | ~~Integer factorization~~ | **Built**, as `/lib/racoon-zfac` — see below. It did not need `nz` reopened |
-| Real-root isolation, Sturm/Descartes | **Complete** — specified in `raccoon-spec.md` §R, all three phases built. See below |
-| ~~van Hoeij recombination~~ | **Specified** (§V), LLL built (`baloon/desk/lib/vanhoeij.hoon`). **The benchmark was wrong and was measured**: `factor:zx` does `SD_4` in 302 ms, not "out of scope". The cliff is `SD_5` at 204 s and `SD_6` beyond reach — see §V0 |
+| ~~Real-root isolation, Sturm/Descartes~~ | **Complete** — specified in `raccoon-spec.md` §R, all three phases built. See below |
+| ~~Algebraic number arithmetic~~ | **Complete**, as `/lib/racoon-alg` — §A, all four phases. Not on §13's original list; it is what real-root isolation was for |
+| ~~van Hoeij recombination~~ | **Complete** (§V), in `baloon/desk/lib/vanhoeij.hoon`, since it consumes both libraries. **The benchmark was wrong and was measured**: `factor:zx` does `SD_4` in 302 ms, not "out of scope". The cliff was `SD_5` at 204 s — now 9.4 s. See §V0 and Baloon's README |
 | van Hoeij recombination, original entry | Would attack the known cost cliff — Zassenhaus is exponential in the worst case, and `SD_4`+ is out of scope until this lands. Needs LLL, which both specs fence out, so it requires escalation first |
 | Sparse multivariate | The largest and least specified |
 
