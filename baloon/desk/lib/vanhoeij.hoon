@@ -400,6 +400,14 @@
   |-  ^-  zvec
   ?:  =(k n)  (flop out)
   $(k +(k), out [?:(=(k i) v --0) out])
+::    +jmax:  the largest index in a list of power-sum indices
+++  jmax
+  |=  js=(list @ud)
+  ^-  @ud
+  =/  m=@ud  0
+  |-  ^-  @ud
+  ?~  js  m
+  $(js t.js, m (max m i.js))
 ::    +lat:  the van Hoeij knapsack lattice (SPEC V3)
 ::
 ::  [gs md cc m] -> zmat of dimension r+m,
@@ -415,18 +423,22 @@
 ::  Square and block triangular with nonzero diagonal, hence full rank,
 ::  so +lll's rank assertion cannot fire.
 ++  lat
-  |=  [gs=(list mol) md=@ud cc=@ud m=@ud]
+  |=  [gs=(list mol) md=@ud cc=@ud js=(list @ud)]
   ^-  zmat
   =/  r=@ud  (lent gs)
+  =/  m=@ud  (lent js)
+  =/  hi=@ud  (jmax js)
   =/  top=zmat
     =/  i=@ud  0
     =|  out=zmat
     |-  ^-  zmat
     ?:  =(i r)  (flop out)
-    =/  ps=(list @ud)  (psums (snag i `(list mol)`gs) m md)
+    =/  ps=(list @ud)  (psums (snag i `(list mol)`gs) hi md)
+    =/  sel=(list @ud)
+      (turn js |=(j=@ud ^-(@ud (snag (dec j) `(list @ud)`ps))))
     =/  row=zvec
       %+  weld  (spike i r (sun:si cc))
-      `zvec`(turn ps |=(x=@ud ^-(@s (sun:si x))))
+      `zvec`(turn sel |=(x=@ud ^-(@s (sun:si x))))
     $(i +(i), out [row out])
   =/  bot=zmat
     =/  j=@ud  0
@@ -452,7 +464,7 @@
 ::  whole set, and those fake singletons crowded it out entirely, so
 ::  SD_5's enumeration was not avoided at all.
 ++  extract
-  |=  [b=zmat r=@ud cc=@ud n=@ud rb=@ud]
+  |=  [b=zmat r=@ud cc=@ud n=@ud rb=@ud js=(list @ud)]
   ^-  (list (list @ud))
   =/  cs=@s  (sun:si cc)
   =/  nc=@s  (dif:si --0 cs)
@@ -460,14 +472,16 @@
   %+  turn  b
   |=  v=zvec
   ^-  (list (list @ud))
-  ::  column j carries s_j, bounded by n * B^j -- PER COLUMN, since one
-  ::  bound for all of them would be n*B^m and so nearly vacuous at j=1
-  ?.  =/  ts=(list @s)  (slag r `(list @s)`v)
-      =/  j=@ud  1
+  ::  column k carries s_(js_k), bounded by n * B^(js_k) -- PER COLUMN,
+  ::  since one bound for all of them would be the largest and so nearly
+  ::  vacuous at the smallest index
+  ?.  =/  ts=(list @s)   (slag r `(list @s)`v)
+      =/  ks=(list @ud)  js
       |-  ^-  ?
       ?~  ts  %.y
-      ?.  (lte (abs:si i.ts) (mul n (pow rb j)))  %.n
-      $(ts t.ts, j +(j))
+      ?~  ks  %.y
+      ?.  (lte (abs:si i.ts) (mul n (pow rb i.ks)))  %.n
+      $(ts t.ts, ks t.ks)
     ~
   =/  i=@ud  0
   =|  pos=(list @ud)
@@ -485,6 +499,40 @@
   ?:  =(nc x)   $(i +(i), neg [i neg])
   ::  a coordinate that is neither 0 nor +-cc: not an indicator
   ~
+::    +pcols:  which power sums to build columns from
+::
+::  [gs md want cap] -> (list @ud), up to .want indices from 1..cap,
+::  skipping any j whose column is identically zero across every modular
+::  factor.
+::
+::  A ZERO COLUMN CARRIES NO INFORMATION: it imposes the same condition
+::  on every subset, so it cannot separate one from another, and it costs
+::  a full big-entry column of LLL time to say nothing.  This is not a
+::  corner case, it is the benchmark family -- a Swinnerton-Dyer
+::  polynomial is even, its roots come in +- pairs, so every modular
+::  factor's roots sum to zero and EVERY ODD power sum vanishes
+::  identically.  Taking j = 1..m blindly spends half the budget on dead
+::  columns and, at m=2, left SD_3 and SD_5 with one live column between
+::  them -- not enough to separate, so both fell back to the full
+::  enumeration having paid for the lattice first.
+++  pcols
+  |=  [gs=(list mol) md=@ud n=@ud rb=@ud want=@ud cap=@ud]
+  ^-  (list @ud)
+  =/  j=@ud  1
+  =|  out=(list @ud)
+  |-  ^-  (list @ud)
+  ?:  ?|(=((lent out) want) (gth j cap))  (flop out)
+  ::  stop before the bound outgrows the modulus.  n*B^j climbs fast, and
+  ::  a column whose true trace cannot be told from a residue is worse
+  ::  than no column: it rejects everything.  Taking FEWER live columns
+  ::  than asked is correct -- one live column already separates when r
+  ::  is small, and insisting on two here cost a small modulus every
+  ::  proposal it had been making.
+  ?:  (gte (mul 2 (mul n (pow rb j))) md)  (flop out)
+  =/  col=(list @ud)
+    (turn gs |=(g=mol ^-(@ud (snag (dec j) `(list @ud)`(psums g j md)))))
+  ?:  (levy col |=(x=@ud =(0 x)))  $(j +(j))
+  $(j +(j), out [j out])
 ::    +propose:  candidate subsets from the lattice (SPEC V3)
 ::
 ::  [f gs md] -> (list (list @ud)).  A HEURISTIC and nothing more.  Every
@@ -495,16 +543,18 @@
 ::  wrong -- a bad bound, a bad scaling, or a bad column choice costs
 ::  time, not correctness.
 ::
-::  TWO trace columns, and the second is not optional.  A Swinnerton-Dyer
-::  polynomial is EVEN: its roots come in +- pairs, so every modular
-::  factor's roots sum to zero and s_1 vanishes identically on every
-::  subset.  A lattice built on s_1 alone cannot separate a true subset
-::  from any other one.  That is measured, not feared -- at m=1 the pass
-::  returned junk singletons on SD_2 and SD_3 and avoided none of the
-::  enumeration, which is the entire point on SD_5.  s_2 separates them.
-::  Columns are expensive (LLL's cost tracks big-entry columns, not
-::  dimension: r=16 m=4 cost 221.7 s against r=32 m=1 at 49.1 s), so two
-::  is a budget rather than a floor to grow from.
+::  COLUMNS ARE CHOSEN, not assumed -- see +pcols.  Taking j = 1..m
+::  blindly is wrong on the benchmark family: a Swinnerton-Dyer
+::  polynomial is even, so every modular factor's roots sum to zero and
+::  every ODD power sum vanishes identically.  At j = 1,2 that left one
+::  live column, and SD_2 and SD_3 both got junk proposals.  +pcols skips
+::  dead columns and stops before the bound outgrows the modulus, so it
+::  may return one column, or none.
+::
+::  Two live columns is the budget, not a floor.  LLL's cost tracks
+::  big-entry columns rather than dimension -- r=16 m=4 cost 221.7 s
+::  against r=32 m=1 at 49.1 s -- so a third would have to earn its
+::  place against the enumeration it is replacing.
 ::
 ::  cc scales the identity block to the trace bound so that the two
 ::  halves of a vector weigh comparably.  Without it the first r
@@ -516,15 +566,18 @@
   ^-  (list (list @ud))
   =/  r=@ud  (lent gs)
   =/  n=@ud  (deg:zx f)
-  =/  m=@ud  2
   =/  b=@ud  (rbound f)
-  ::  |s_j(F)| <= deg(F) * B^j <= n * B^m for any true factor F
-  =/  tb=@ud  (mul n (pow b m))
+  ::  two LIVE columns, chosen rather than assumed
+  =/  js=(list @ud)  (pcols gs md n b 2 8)
+  ?~  js  ~
+  =/  hi=@ud  (jmax js)
+  ::  |s_j(F)| <= deg(F) * B^j <= n * B^hi for any true factor F
+  =/  tb=@ud  (mul n (pow b hi))
   ::  if the true trace does not fit inside the modulus it cannot be told
   ::  from a residue, and every row is noise
   ?:  (gte (mul 2 tb) md)  ~
   =/  cc=@ud  (max 1 tb)
-  (extract (lll (lat gs md cc m)) r cc n b)
+  (extract (lll (lat gs md cc js)) r cc n b js)
 ::    +harvest:  confirm proposed subsets, peeling factors off as they hold
 ++  harvest
   |=  $:  rem=zol
@@ -549,14 +602,33 @@
     idx  (drop idx i.ps)
     acc  [u.cd acc]
   ==
-::    +lat-min:  the smallest r at which the lattice is worth building
+::    +lat-min:  the smallest r at which the lattice pass runs
 ::
-::  Measured, not guessed.  At r = 8 (SD_4) the lattice costs 1.16 s
-::  against a whole Zassenhaus factorization at 0.302 s; at r = 16 (SD_5)
-::  it costs 12 s against 204 s.  The crossover lies between, and this
-::  sits at the measured win rather than an interpolated guess, so
-::  engaging the lattice is never the slower choice.
-++  lat-min  ^-(@ud 16)
+::  MEASURED, and the measurement is not the happy one.  Both ways, same
+::  inputs, same machine:
+::
+::                  zassenhaus     van hoeij
+::      SD_3           21.3 ms       99.4 ms
+::      SD_4          282.3 ms     2161.3 ms
+::      SD_5          197.9 s       239.2 s
+::
+::  The lattice loses everywhere it can be compared, SD_5 included -- and
+::  SD_5 is the case SPEC V0 named as the one to beat.  It is not that
+::  the pass is broken: on every REDUCIBLE input tested it proposes
+::  exactly the true factor indicators, immediately.  It is that
+::  Zassenhaus is only slow on the irreducible-but-totally-split family,
+::  and that is precisely where two trace columns cannot isolate the
+::  all-ones vector -- the offending subsets satisfy the trace conditions
+::  honestly, being factorizations over a subfield, and only trial
+::  division rejects them.  More columns would separate; columns cost
+::  more than the enumeration they would save.  See SPEC-QUESTIONS V1.
+::
+::  So the gate sits at 32, not at any measured win, because there is no
+::  measured win.  At r = 32 Zassenhaus enumerates ~2.1e9 subsets and
+::  does not finish, so ~50 s of lattice cannot make things worse and on
+::  a reducible input makes them possible.  Below that, the enumeration
+::  is both fast and certain.
+++  lat-min  ^-(@ud 32)
 ::    +drop:  remove a subset's indices from the remaining index set
 ++  drop
   |=  [idx=(list @ud) s=(list @ud)]

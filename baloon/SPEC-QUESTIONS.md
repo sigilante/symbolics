@@ -67,3 +67,64 @@ are computable from `qm`'s public arms alone, so they go in
 `/lib/baloon-spectral` as a consumer — the pattern `/lib/racoon-rs` and
 `/lib/racoon-fp3` established. No escalation required, and the freeze
 holds.
+
+---
+
+## V1 — the lattice pass does not beat Zassenhaus (OPEN, not blocking)
+
+**Status:** open, and recorded rather than worked around. Phase V1 is
+built and correct; it is not yet faster. **Blocks:** nothing — `+factor:vh`
+agrees with `+firr:zx` on every input, so this is a performance question
+only.
+
+Measured both ways, same inputs, same machine:
+
+| | Zassenhaus | van Hoeij |
+|---|---:|---:|
+| `SD_3` | 21.3 ms | 99.4 ms |
+| `SD_4` | 282.3 ms | 2161.3 ms |
+| `SD_5` | 197.9 s | 239.2 s |
+
+`raccoon-spec.md` §V0 named `SD_5` as the number to beat. It is not beaten.
+
+**The pass is not broken.** On every reducible input tested it proposes
+exactly the true factor indicators, immediately and with no enumeration —
+`(x−1)(x−2)(x−3)` gives `{0},{1},{2}`, `x^6−1` gives all four singletons,
+and irreducible `SD_2` correctly gives only `{0,1}`. Those are pinned in
+`++test-v1-lattice-proposes`.
+
+**The problem is which inputs are slow.** Zassenhaus is fast on reducible
+polynomials — it finds each factor at low cardinality. It is slow only on
+the irreducible-but-totally-split family, where every proper subset must
+be rejected. That is exactly where the lattice fails: on `SD_3` the
+subsets `{1,2}` and `{0,3}` satisfy the trace conditions *honestly*, being
+factorizations over a subfield rather than over ℚ, and no number of
+correct trace conditions of the kind used here excludes them — only trial
+division does. So the lattice proposes, `+cand` rejects, and `+zass` runs
+the full enumeration anyway, having charged for the reduction first.
+
+Two things were tried and are recorded so they are not retried blindly:
+
+- **`s_1` alone is useless on this family.** A Swinnerton–Dyer polynomial
+  is even, so every modular factor's roots sum to zero and every odd power
+  sum vanishes identically. `+pcols` now skips dead columns.
+- **More columns cost more than they save.** LLL's cost tracks big-entry
+  columns rather than dimension: `r=16, m=4` costs 221.7 s against
+  `r=32, m=1` at 49.1 s. Going from two live columns to four would exceed
+  the enumeration being replaced.
+
+**What would actually resolve it**, in rough order of expected value:
+
+1. **A cheaper LLL.** The three `+gso` removals bought 91× at dimension 9;
+   an integer-preserving reduction (de Weger / Kannan–Bachem) removes the
+   `$frac` gcd traffic structurally rather than merely reducing it. If
+   columns were cheap enough, four or six of them would separate.
+2. **Milestone B jets on `%qq`.** The inner loop is bigint rational
+   arithmetic, which is what jets accelerate.
+3. **The real van Hoeij column strategy** — iterating, adding columns only
+   when the previous round failed to separate, rather than fixing the count
+   up front.
+
+Until one of those lands, `+lat-min` is 32: at `r = 32` Zassenhaus
+enumerates ~2.1e9 subsets and does not finish, so the lattice cannot make
+things worse and on a reducible input makes them possible.
