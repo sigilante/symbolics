@@ -2,15 +2,21 @@
 #
 # nc-unix -- stand-in for `nc -U -W 1 <socket>`, which click needs
 #
-# macOS netcat has -U but not -W, and there is no netcat-openbsd, socat, or
-# ncat here.  This does the one thing click uses netcat for: send stdin to a
-# unix socket and read the reply.
+# click's README asks for netcat-openbsd; macOS ships a BSD netcat WITHOUT
+# -W, and Homebrew's `netcat` formula is GNU 0.7.1, which that README
+# explicitly rules out.  So this does the one thing click uses netcat for:
+# send stdin to a unix socket and read one reply.
 #
-# A 2-second gap after the first byte is treated as end-of-message, which is
-# what -W 1 approximates.  Before the first byte the wait is unbounded --
-# conn.c holds the connection for the whole thread, and a test run is minutes.
+# It reads the NEWT FRAME EXACTLY rather than guessing when the reply has
+# ended: conn.c speaks newt, which is one version byte, a four-byte
+# little-endian length, then that many bytes.  An earlier version of this
+# script stopped after a two-second idle instead, which silently truncated
+# longer replies and surfaced as `%newt-decode` from `urbit eval --cue`.
 #
-import socket, sys, select
+# There is no read timeout by design.  conn.c holds the connection for the
+# whole request, and a full test run is minutes.
+#
+import socket, sys
 
 args, path, i = sys.argv[1:], None, 0
 while i < len(args):
@@ -20,20 +26,26 @@ while i < len(args):
     path = a; i += 1
 
 if path is None:
-    sys.exit("nc-unix: no socket path")
+    sys.exit("nc-unix: no socket path given")
+
+
+def readn(sock, n):
+    buf = b''
+    while len(buf) < n:
+        chunk = sock.recv(n - len(buf))
+        if not chunk:
+            break
+        buf += chunk
+    return buf
+
 
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 s.connect(path)
 s.sendall(sys.stdin.buffer.read())
 
-out, got = sys.stdout.buffer, False
-while True:
-    ready, _, _ = select.select([s], [], [], 2.0 if got else 3600)
-    if not ready:
-        break
-    chunk = s.recv(1 << 16)
-    if not chunk:
-        break
-    got = True
-    out.write(chunk)
+out = sys.stdout.buffer
+head = readn(s, 5)
+if len(head) == 5:
+    out.write(head)
+    out.write(readn(s, int.from_bytes(head[1:5], 'little')))
 out.flush()

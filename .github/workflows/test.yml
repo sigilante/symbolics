@@ -1,0 +1,46 @@
+name: tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # click shells out to netcat and needs the OpenBSD one specifically,
+      # which its README says in as many words.  Ubuntu packages it, so CI
+      # uses the real thing; scripts/nc-unix exists only because macOS ships
+      # a BSD netcat without -W and Homebrew's `netcat` is the GNU one.
+      - name: install netcat-openbsd
+        run: sudo apt-get update -qq && sudo apt-get install -y netcat-openbsd
+
+      - name: fetch click
+        run: git clone --depth 1 https://github.com/urbit/tools.git tools
+
+      - name: install vere
+        run: |
+          curl -L https://urbit.org/install/linux-x86_64/latest \
+            | tar xzk --transform='s/.*/urbit/g'
+          chmod +x ./urbit
+          ./urbit -R
+
+      - name: boot, install the desks, and run every suite
+        run: ./scripts/ci/run.sh
+
+      - name: ship log
+        if: always()
+        run: tail -200 ci-pier.log || true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ci-pier-log
+          path: ci-pier.log
+          retention-days: 7

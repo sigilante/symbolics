@@ -22,7 +22,7 @@ set -eu
 
 here=$(cd "$(dirname "$0")/.." && pwd)
 desk="$here/desk"
-pier="${RACOON_PIER:-$HOME/urbit/ships/emissary-dev/zod}"
+pier="${SYMBOLICS_PIER:-${RACOON_PIER:-$HOME/urbit/ships/emissary-dev/zod}}"
 base="$pier/base"
 
 if [ ! -d "$desk" ]; then
