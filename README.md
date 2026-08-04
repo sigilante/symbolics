@@ -110,6 +110,37 @@ every good idea was never frozen.
 There are no `vere/` directories yet.  The C jets are Milestone B, and will
 land there when that milestone opens.
 
+##  Testing
+
+`scripts/test.sh` runs every suite headlessly and exits nonzero on failure,
+which is what makes it usable from a hook or a CI job:
+
+```
+racoon/scripts/sync.sh && baloon/scripts/sync.sh
+|commit %base                          # dojo
+scripts/test.sh                        # pass / FAIL, exit 0 / 1
+```
+
+It drives a **running** fake ship through [`click`][click], which sends a
+`%fyrd` card to `conn.c` — urbit/urbit's own CI mechanism, from
+`nix/test-fake-ship.nix`. The `%test` thread returns a loobean, so the exit
+code is exact rather than inferred; per-arm lines are `%slog` and appear in
+the ship's output.
+
+[click]: https://github.com/urbit/tools/tree/master/pkg/click
+
+This replaced scraping the tmux pane, which was a real source of error and
+not merely inconvenience: timing skew between a commit and the command
+after it, and `OK` lines swallowed by terminal redraws — which undercounted
+this project's test totals for several commits before it was noticed.
+
+`scripts/nc-unix` is a stand-in for `nc -U -W 1`. click shells out to
+netcat, and macOS ships a BSD netcat with `-U` but no `-W`.
+
+Both directions are verified: a deliberately failing arm was added, the
+runner reported `FAIL` and exit 1, and reverting restored `pass` and exit
+0. An untested failure path in a test gate is worse than no gate.
+
 ##  Building
 
 Each project syncs into a fake `~zod` and is tested in the dojo.  See either

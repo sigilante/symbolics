@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+#
+# nc-unix -- stand-in for `nc -U -W 1 <socket>`, which click needs
+#
+# macOS netcat has -U but not -W, and there is no netcat-openbsd, socat, or
+# ncat here.  This does the one thing click uses netcat for: send stdin to a
+# unix socket and read the reply.
+#
+# A 2-second gap after the first byte is treated as end-of-message, which is
+# what -W 1 approximates.  Before the first byte the wait is unbounded --
+# conn.c holds the connection for the whole thread, and a test run is minutes.
+#
+import socket, sys, select
+
+args, path, i = sys.argv[1:], None, 0
+while i < len(args):
+    a = args[i]
+    if a == '-U':  i += 1; continue
+    if a == '-W':  i += 2; continue
+    path = a; i += 1
+
+if path is None:
+    sys.exit("nc-unix: no socket path")
+
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.connect(path)
+s.sendall(sys.stdin.buffer.read())
+
+out, got = sys.stdout.buffer, False
+while True:
+    ready, _, _ = select.select([s], [], [], 2.0 if got else 3600)
+    if not ready:
+        break
+    chunk = s.recv(1 << 16)
+    if not chunk:
+        break
+    got = True
+    out.write(chunk)
+out.flush()
