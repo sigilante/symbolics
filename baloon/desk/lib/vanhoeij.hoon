@@ -119,11 +119,15 @@
 ::  .mu is lower triangular with a 1 on the diagonal and zeros above, so
 ::  every row has full length and indexing needs no special cases.
 ::
-::  Recomputed from scratch wherever it is needed rather than updated in
-::  place.  That is O(n) slower and very much easier to be sure of, and
-::  it changes NOTHING about the output: exact rational GSO and an
-::  incrementally updated one are mathematically equal, which is why SPEC
-::  V2 pins the reduction sequence but not this computation.
+::  Computed from scratch, and +lll calls it ONCE per outer iteration
+::  rather than once per size-reduction step, updating mu row k in place
+::  across the inner loop.  That is where the cost is: the from-scratch
+::  version inside the loop made +lll ~n times slower, which at the
+::  dimensions SPEC V1 needs is the difference between minutes and hours
+::  (see /gen/baloon-lll-bench).  It changes NOTHING about the output:
+::  exact rational GSO and an incrementally updated one are mathematically
+::  equal, which is why SPEC V2 pins the reduction sequence but not this
+::  computation.
 ::
 ::  Crashes on a rank-deficient basis, through a zero <b*_j, b*_j>; +lll
 ::  asserts full rank first so callers see the assertion instead.
@@ -156,16 +160,21 @@
     %+  weld  row.step
     [one:qq (reap (sub n +(i)) zero:qq)]
   $(i +(i), bs [v.step bs], ms [full ms])
-::    +mu-at:  the Gram-Schmidt coefficient mu_ij
-++  mu-at
-  |=  [mu=(list qvec) i=@ud j=@ud]
+::    +qat:  the j-th element of a rational vector
+++  qat
+  |=  [v=qvec j=@ud]
   ^-  frac
-  =/  r=qvec  (nth mu i)
+  =/  r=qvec  v
   =/  k=@ud   j
   |-  ^-  frac
   ?~  r  !!
   ?:  =(0 k)  i.r
   $(r t.r, k (dec k))
+::    +mu-at:  the Gram-Schmidt coefficient mu_ij
+++  mu-at
+  |=  [mu=(list qvec) i=@ud j=@ud]
+  ^-  frac
+  (qat (nth mu i) j)
 ::    +nrm2:  the squared norm of the i-th Gram-Schmidt vector
 ++  nrm2
   |=  [bs=(list qvec) i=@ud]
@@ -232,24 +241,43 @@
   =/  k=@ud     1
   |-  ^-  zmat
   ?:  =(k n)  cur
+  ::  ONE Gram-Schmidt per outer iteration, not one per size-reduction
+  ::  step.  Everything the rest of this iteration reads survives the
+  ::  reductions below unchanged:
+  ::
+  ::    b*_0 .. b*_k   b_k -= q*b_j with j < k subtracts a vector lying
+  ::                   in span(b_0 .. b_k-1), which is precisely what the
+  ::                   projection already removes, so the orthogonal part
+  ::                   is untouched -- and b_0 .. b_k-1 never move at all
+  ::    mu_i for i < k does not depend on row k
+  ::
+  ::  Only mu row k moves, and it is threaded through the loop instead.
+  ::  Rows above k do change, and are not read before the next +gso.
+  =/  g  (gso cur)
   ::  size-reduce row k against k-1 .. 0, descending
-  =/  red=zmat
+  =/  rk
     =/  j=@ud     (dec k)
     =/  acc=zmat  cur
-    |-  ^-  zmat
-    =/  g       (gso acc)
-    =/  q=@s    (zround (mu-at mu.g k j))
+    =/  mk=qvec   (nth mu.g k)
+    |-  ^-  [acc=zmat mk=qvec]
+    =/  q=@s    (zround (qat mk j))
     =/  nx=zmat
       ?:  =(--0 q)  acc
       (zput acc k (zaxpy (znth acc k) (znth acc j) q))
-    ?:  =(0 j)  nx
-    $(j (dec j), acc nx)
-  ::  Lovasz, on the reduced basis
-  =/  g2  (gso red)
-  =/  m=frac  (mu-at mu.g2 k (dec k))
+    ::  b_k -= q*b_j sends mu_ki to mu_ki - q*mu_ji for every i.  mu_ji
+    ::  is 0 above the diagonal and 1 on it, so the plain vector update
+    ::  is exact at i=j and a no-op for i>j -- in particular mu_kk stays
+    ::  1, as the padding in +gso requires.
+    =/  nm=qvec
+      ?:  =(--0 q)  mk
+      (qsub mk (qscale (nth mu.g j) [q 1]))
+    ?:  =(0 j)  [nx nm]
+    $(j (dec j), acc nx, mk nm)
+  ::  Lovasz, on the size-reduced basis
+  =/  m=frac  (qat mk.rk (dec k))
   =/  rhs=frac
-    (mul:qq (sub:qq del (mul:qq m m)) (nrm2 bs.g2 (dec k)))
-  ?:  ?!(=(%lt (cmp:qq (nrm2 bs.g2 k) rhs)))
-    $(cur red, k +(k))
-  $(cur (zswap red k (dec k)), k ?:((gth k 1) (dec k) 1))
+    (mul:qq (sub:qq del (mul:qq m m)) (nrm2 bs.g (dec k)))
+  ?:  ?!(=(%lt (cmp:qq (nrm2 bs.g k) rhs)))
+    $(cur acc.rk, k +(k))
+  $(cur (zswap acc.rk k (dec k)), k ?:((gth k 1) (dec k) 1))
 --
