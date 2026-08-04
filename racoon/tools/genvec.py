@@ -84,9 +84,72 @@ def mol(c):
     return "~[%s]" % " ".join(ud(v) for v in c)
 
 
+# --------------------------------------------------------------------------
+# formatting
+# --------------------------------------------------------------------------
+
+
+def _split_top(s):
+    """Split the inside of a bracketed Hoon literal at its top-level spaces."""
+    parts, depth, cur = [], 0, []
+    for ch in s:
+        if ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+        if ch == " " and depth == 0:
+            if cur:
+                parts.append("".join(cur))
+                cur = []
+            continue
+        cur.append(ch)
+    if cur:
+        parts.append("".join(cur))
+    return parts
+
+
+def wrap(s, indent, width=80):
+    """Render a Hoon literal, breaking to tall form when it will not fit.
+
+    SPEC S15 asks for 80 columns.  A vector row is often far wider than that
+    in wide form, so break it: ~[a b c] becomes a :~ block and [a b c] a :*
+    block, recursively, until each line fits.  An atom that is itself too
+    long cannot be broken and is emitted as-is.
+    """
+    pad = " " * indent
+    if indent + len(s) <= width:
+        return [pad + s]
+    if s.startswith("~[") and s.endswith("]"):
+        rune, inner = ":~", s[2:-1]
+    elif s.startswith("[") and s.endswith("]"):
+        rune, inner = ":*", s[1:-1]
+    else:
+        return [pad + s]
+    parts = _split_top(inner)
+    if not parts:
+        return [pad + s]
+    out = [pad + rune]
+    for p in parts:
+        out.extend(wrap(p, indent + 4, width))
+    out.append(pad + "==")
+    return out
+
+
 def emit(name, hoon_type, rows, doc):
     """Emit one vector arm."""
-    print("::    +%s:  %s" % (name, doc))
+    head = "::    +%s:  " % name
+    if len(head) + len(doc) <= 80:
+        print(head + doc)
+    else:
+        # wrap the doc onto continuation lines rather than guessing at
+        # shorter wording every time one of these grows
+        line, words = head, doc.split()
+        while words:
+            if line.rstrip() != head.rstrip() and len(line) + len(words[0]) > 79:
+                print(line.rstrip())
+                line = "::      "
+            line += words.pop(0) + " "
+        print(line.rstrip())
     print("::")
     print("::  %d cases." % len(rows))
     print("++  %s" % name)
@@ -95,9 +158,10 @@ def emit(name, hoon_type, rows, doc):
         print("  ~")
         print("::")
         return
-    print("  :~  %s" % rows[0])
-    for r in rows[1:]:
-        print("      %s" % r)
+    print("  :~")
+    for r in rows:
+        for line in wrap(r, 6):
+            print(line)
     print("  ==")
     print("::")
 
@@ -1236,7 +1300,7 @@ def main():
     emit("ratrec-vectors",
          "(list [u=@ud m=@ud nb=@ud db=@ud out=(unit frac)])",
          ratrec_rows(rng),
-         "+ratrec:nz, pinned Wang EEA, checked against the congruence")
+         "+ratrec:nz, Wang EEA, against the congruence")
 
     ft = "(list [a=frac b=frac c=frac])"
     emit("qq-add-vectors", ft,
@@ -1330,13 +1394,13 @@ def main():
     # Phase 2
     emit("zx-pdiv-vectors", "(list [a=zol b=zol q=zol r=zol])",
          zx_pdiv_rows(rng),
-         "+pdiv:zx, checked against the pinned pseudo-division identity")
+         "+pdiv:zx, against the pseudo-division identity")
     emit("zx-content-vectors", "(list [a=zol c=@ud])", zx_content_rows(rng),
          "+content:zx, oracle math.gcd over |coefficients|")
     emit("zx-pp-vectors", "(list [a=zol c=zol])", zx_pp_rows(rng),
          "+pp:zx, checked against content * pp = input")
     emit("zx-gcd-vectors", "(list [a=zol b=zol g=zol])", zx_gcd_rows(rng),
-         "+gcd:zx, oracle sympy gcd over ZZ, normalized to positive lc")
+         "+gcd:zx, sympy gcd over ZZ, positive lc")
     emit("zx-res-vectors", "(list [a=zol b=zol r=@s])", zx_res_rows(rng),
          "+res:zx, oracle sympy.resultant")
     emit("zx-disc-vectors", "(list [a=zol d=@s])", zx_disc_rows(rng),

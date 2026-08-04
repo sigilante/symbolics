@@ -3637,7 +3637,7 @@
       [~[--16] ~[--1]]
   ==
 ::
-::    +zx-gcd-vectors:  +gcd:zx, sympy gcd over ZZ, positive lc
+::    +zx-gcd-vectors:  +gcd:zx, oracle sympy gcd over ZZ, normalized to positive lc
 ::
 ::  48 cases.
 ++  zx-gcd-vectors
@@ -3793,8 +3793,7 @@
       [~[--9] ~[-2 -44 --38 --24 --3] --6.561]
   ==
 ::
-::    +zx-disc-vectors:  +disc:zx, oracle sympy.discriminant; deg >= 1, lower
-::      crashes
+::    +zx-disc-vectors:  +disc:zx, oracle sympy.discriminant; deg >= 1, lower crashes
 ::
 ::  48 cases.
 ++  zx-disc-vectors
@@ -5582,8 +5581,7 @@
       [~[--4 -7 -20 -17 --9] --1 ~[[~[--4 -7 -20 -17 --9] 1]]]
   ==
 ::
-::    +zx-factor-vectors:  +factor:zx, oracle sympy.factor_list; includes SD_2
-::      and SD_3
+::    +zx-factor-vectors:  +factor:zx, oracle sympy.factor_list; includes SD_2 and SD_3
 ::
 ::  44 cases.
 ++  zx-factor-vectors

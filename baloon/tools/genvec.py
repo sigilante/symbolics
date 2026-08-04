@@ -73,9 +73,72 @@ def of_matrix(M):
     return [[Rational(M[i, j]) for j in range(M.cols)] for i in range(M.rows)]
 
 
+# --------------------------------------------------------------------------
+# formatting
+# --------------------------------------------------------------------------
+
+
+def _split_top(s):
+    """Split the inside of a bracketed Hoon literal at its top-level spaces."""
+    parts, depth, cur = [], 0, []
+    for ch in s:
+        if ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+        if ch == " " and depth == 0:
+            if cur:
+                parts.append("".join(cur))
+                cur = []
+            continue
+        cur.append(ch)
+    if cur:
+        parts.append("".join(cur))
+    return parts
+
+
+def wrap(s, indent, width=80):
+    """Render a Hoon literal, breaking to tall form when it will not fit.
+
+    SPEC S15 asks for 80 columns.  A vector row is often far wider than that
+    in wide form, so break it: ~[a b c] becomes a :~ block and [a b c] a :*
+    block, recursively, until each line fits.  An atom that is itself too
+    long cannot be broken and is emitted as-is.
+    """
+    pad = " " * indent
+    if indent + len(s) <= width:
+        return [pad + s]
+    if s.startswith("~[") and s.endswith("]"):
+        rune, inner = ":~", s[2:-1]
+    elif s.startswith("[") and s.endswith("]"):
+        rune, inner = ":*", s[1:-1]
+    else:
+        return [pad + s]
+    parts = _split_top(inner)
+    if not parts:
+        return [pad + s]
+    out = [pad + rune]
+    for p in parts:
+        out.extend(wrap(p, indent + 4, width))
+    out.append(pad + "==")
+    return out
+
+
 def emit(name, hoon_type, rows, doc):
     """Emit one vector arm."""
-    print("::    +%s:  %s" % (name, doc))
+    head = "::    +%s:  " % name
+    if len(head) + len(doc) <= 80:
+        print(head + doc)
+    else:
+        # wrap the doc onto continuation lines rather than guessing at
+        # shorter wording every time one of these grows
+        line, words = head, doc.split()
+        while words:
+            if line.rstrip() != head.rstrip() and len(line) + len(words[0]) > 79:
+                print(line.rstrip())
+                line = "::      "
+            line += words.pop(0) + " "
+        print(line.rstrip())
     print("::")
     print("::  %d cases." % len(rows))
     print("++  %s" % name)
@@ -84,9 +147,10 @@ def emit(name, hoon_type, rows, doc):
         print("  ~")
         print("::")
         return
-    print("  :~  %s" % rows[0])
-    for r in rows[1:]:
-        print("      %s" % r)
+    print("  :~")
+    for r in rows:
+        for line in wrap(r, 6):
+            print(line)
     print("  ==")
     print("::")
 
