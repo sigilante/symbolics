@@ -1,12 +1,15 @@
   ::  /lib/vanhoeij
-::::  Lattice reduction, toward van Hoeij recombination -- SPEC §V
+::::  Lattice reduction and van Hoeij recombination -- SPEC §V
 ::
 ::  SPEC §9 records the cost cliff: +factor:zx recombines Hensel-lifted
 ::  modular factors by ZASSENHAUS, enumerating subsets, which is
-::  exponential in their number.  SD_4 and beyond are out of scope
-::  because of it, and §A8 showed the same wall stops algebraic
-::  arithmetic at degree 4.  Van Hoeij replaces that step with a lattice
-::  problem; this is phase V0, the lattice reduction it needs.
+::  exponential in their number.  Van Hoeij replaces that step with a
+::  lattice problem.  BOTH PHASES ARE HERE: V0 is +lll, V1 is +factor.
+::
+::  SD_5 was the target -- 202.5 s of Zassenhaus (SPEC V0) -- and it
+::  factors here in 9.42 s.  /gen/baloon-vh-bench reproduces the table.
+::  The other fence §A8 drew, algebraic arithmetic stopping at degree 4,
+::  turned out not to be this wall at all; see that section.
 ::
 ::  A CONSUMER OF BOTH LIBRARIES, which is why it lives on the Baloon
 ::  side (escalation R4).  LLL operates on integer lattice bases -- that

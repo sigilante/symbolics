@@ -132,7 +132,8 @@
     ~[~[-9 --2] ~[-7 --8]]
   ==
 ::
-::  Lattice reduction (/lib/vanhoeij), SPEC Milestone C phase V0.
+::  Lattice reduction and recombination (/lib/vanhoeij), SPEC Milestone C
+::  phase V -- V0 below, V1 further down.
 ::
 ::  A CONSUMER OF BOTH LIBRARIES -- it uses Racoon's rationals for the
 ::  Gram-Schmidt and Baloon's integer matrices for the lattice, which is

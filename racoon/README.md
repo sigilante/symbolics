@@ -607,8 +607,11 @@ reassembled product must equal the input noun-for-noun, over both ℤ and 𝔽p.
 Irreducibility of individual factors is certified by the SymPy vectors, not
 in-ship. The Swinnerton–Dyer polynomials are the adversarial case — irreducible
 over ℤ yet split mod *every* prime, so recombination must reject every proper
-subset before concluding. §13 requires SD_3; it passes, and SD_4 and beyond are
-out of scope until a van Hoeij milestone.
+subset before concluding. §13 requires SD_3; it passes. `SD_4` and `SD_5` were
+declared out of scope and then measured — 302 ms and 204 s through `firr:zx`,
+not out of scope at all (§V0) — and `SD_5` now factors in 9.42 s through
+`/lib/vanhoeij`. Neither is in the suite, because a 9-second arm is not worth
+paying for on every run; `/gen/baloon-vh-bench` is where they live.
 
 Property tests use `++og` from seeds pinned in the `%seeds` section of the test
 file.

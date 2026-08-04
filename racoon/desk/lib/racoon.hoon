@@ -1122,8 +1122,11 @@
     ::
     ::  Recombination is exponential in the number of modular factors in the
     ::  worst case -- the Swinnerton-Dyer polynomials are the standard
-    ::  witnesses.  SD_3 is in the test suite; SD_4 and beyond are out of
-    ::  scope until a van Hoeij milestone (SPEC S13).
+    ::  witnesses.  SD_3 is in the test suite.  SD_4 and beyond were called
+    ::  out of scope pending van Hoeij (SPEC S13); measured, this arm does
+    ::  SD_4 in 302 ms and SD_5 in 204 s (SPEC V0), and +factor:vh in
+    ::  /lib/vanhoeij does SD_5 in 9.42 s.  This arm keeps Zassenhaus:
+    ::  §9's pipeline is pinned, and the faster one is a consumer.
     ::
     ::  Crashes on ~ (factorization of zero is undefined).  A degree-0 input
     ::  factors as [c ~], with no crash (SPEC S8).
