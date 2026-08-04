@@ -328,10 +328,12 @@ This is now the fourth application of that rule — `/lib/racoon-fmt`,
 resolved question B2. A frozen interface reopened for every good idea was
 never frozen.
 
-**Consequence, recorded rather than worked around:** the formal derivative
-is `+zderiv` in `+pv`, private, so this library recomputes it in four
-lines. That is a real duplication and the right trade against unfreezing
-`%zx` for one arm. See `SPEC-QUESTIONS.md` R1.
+**Consequence, since resolved:** the formal derivative was `+zderiv` in
+`+pv`, private, so this library recomputed it in four lines — the right
+trade against unfreezing `%zx` for one arm alone. `SPEC-QUESTIONS.md` R1
+recorded it with a revisit condition, and phase V1 met that condition by
+opening `%zx` for a batch. `+deriv` is now public on `%zx` and this
+library calls it; the arm is gone from §R4 below.
 
 **It consumes `/lib/racoon-zfac`.** Exact rational roots come from the
 rational root theorem, whose candidate set is the divisors of the trailing
@@ -380,7 +382,6 @@ so the output is made canonical instead and every arm below is `free`.
 | Arm | Signature | Notes |
 |---|---|---|
 | `bound` | `zol -> frac` | Cauchy bound; every root lies in `(−B, B)` |
-| `deriv` | `zol -> zol` | Formal derivative. Duplicates private `+zderiv:pv`; see R1 |
 | `sturm` | `zol -> (list zol)` | The Sturm chain of a squarefree `p` |
 | `sign-at` | `[zol frac] -> ord` | |
 | `count` | `[zol frac frac] -> @ud` | Distinct real roots in `(a, b]` |
@@ -397,7 +398,7 @@ that is what §R3 buys.
 
 | Arm | Condition | Behavior |
 |---|---|---|
-| any arm | `p = ~`, the zero polynomial | crash. Every real is a root; there is no list to return and no sentinel that would not be a lie — the same reasoning as `+factor:zfac` on 0 |
+| any arm of this library | `p = ~`, the zero polynomial | crash. Every real is a root; there is no list to return and no sentinel that would not be a lie — the same reasoning as `+factor:zfac` on 0 |
 | `sturm` | `p` not squarefree | crash. The chain's root count is only valid there, and returning a silently wrong count is worse |
 | `count` `refine` | `a > b`, or `lo > hi` | crash |
 | `count` | no roots in the range | **no crash**: product is `0` |
@@ -409,8 +410,8 @@ No `~|` anywhere (R3).
 
 ## R6. Phases
 
-- **R0 — foundations.** `bound`, `deriv`, `sign-at`, `sturm`, `count`,
-  `nroots`. This is the whole correctness core; everything after is
+- **R0 — foundations.** `bound`, `sign-at`, `sturm`, `count`, `nroots`
+  (and `deriv`, until R1 promoted it to `%zx`). This is the whole correctness core; everything after is
   bookkeeping on top of an exact root count.
 - **R1 — exactness.** `rational-roots`. Depends on `/lib/racoon-zfac`.
 - **R2 — isolation.** `isolate`, `roots`, `refine`.

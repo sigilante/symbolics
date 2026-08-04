@@ -422,9 +422,9 @@
   ::  FROZEN at the P3 gate (R6).  Arm set and order are fixed for Milestone
   ::  A; no reordering, renaming, or insertion without escalation.  The
   ::  public API is canon is-zero deg lc pcmp add sub neg mul shift scale
-  ::  eval pdiv content pp gcd xdiv lift zmod res disc mig sqfree combos
-  ::  mprod hdata factor; crt-lift, hstep, hlift, and firr remain delegated
-  ::  private helpers (SPEC S14).
+  ::  eval deriv pdiv content pp gcd xdiv lift zmod res disc mig sqfree
+  ::  combos mprod hdata factor; crt-lift, hstep, hlift, and firr remain
+  ::  delegated private helpers (SPEC S14).
   ::
   ::  +xdiv, +lift, +zmod, +combos, +mprod, and +hdata were PROMOTED out of
   ::  the delegated set for SPEC V1.  /lib/vanhoeij lives on the Baloon side
@@ -591,6 +591,28 @@
       |-  ^-  @s
       ?~  r  acc
       $(r t.r, acc (sum:si (pro:si acc x) i.r))
+    ::    +deriv:  the formal derivative in Z[x]
+    ::
+    ::  [a=zol] -> zol.  TOTAL: the derivative of ~ is ~ and the derivative
+    ::  of a constant is ~, both of which are the right answer rather than
+    ::  edge cases.  No canonicalization is needed for a nonconstant a --
+    ::  the leading term is n * a_n with both factors nonzero.
+    ::
+    ::  PROMOTED from +zderiv:pv, per SPEC-QUESTIONS R1.  R1 recommended
+    ::  leaving it private and duplicating UNLESS a Milestone C escalation
+    ::  opened %zx for a batch of changes anyway -- and its own condition
+    ::  was that it should go in then, the arm being genuinely
+    ::  public-shaped: total, canonical, an ordinary operation on zol.
+    ::  That escalation is the one that added +zmod and +hdata for SPEC V1.
+    ::
+    ::  /lib/racoon-roots carried the only consumer-side copy and now calls
+    ::  this instead.  The +tderiv copies in the test suites STAY: a
+    ::  squarefreeness check that borrowed the library's own derivative
+    ::  would be checking less than it appears to.
+    ++  deriv
+      |=  a=zol
+      ^-  zol
+      (zderiv:pv a)
     ::    +pdiv:  pseudo-division in Z[x]
     ::
     ::  [a=zol b=zol] -> [q=zol r=zol] satisfying the pseudo-division

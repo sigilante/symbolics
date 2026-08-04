@@ -111,25 +111,6 @@
   ::  1 + hi/an = (hi + an)/an, formed in one step so +new never sees a
   ::  non-canonical pair
   (new:qq (sun:si (add hi an)) an)
-::    +deriv:  the formal derivative in Z[x]
-::
-::  [p=zol] -> zol.  The derivative of a constant is ~, the zero
-::  polynomial, which is the right answer and not an edge case.
-::
-::  DUPLICATES +zderiv:pv, which is private to the frozen library and so
-::  unreachable from a consumer.  Four lines against unfreezing %zx for
-::  one arm; see SPEC-QUESTIONS R1.  No canonicalization is needed for a
-::  nonconstant p: the leading term is n * a_n with both factors nonzero.
-++  deriv
-  |=  p=zol
-  ^-  zol
-  ?~  p  !!
-  =/  ts=zol  t.p
-  =/  k=@s    --1
-  =|  out=zol
-  |-  ^-  zol
-  ?~  ts  (flop out)
-  $(ts t.ts, k (sum:si k --1), out [(pro:si k i.ts) out])
 ::    +sign-at:  the sign of p(x) at a rational point
 ::
 ::  [p=zol x=frac] -> ord.  %eq exactly when x is a root, which is an
@@ -151,7 +132,7 @@
   |=  p=zol
   ^-  ?
   ?~  p  !!
-  =/  d=zol  (deriv p)
+  =/  d=zol  (deriv:zx p)
   ?~  d  %.y
   =(0 (deg:zx (gcd:zx p d)))
 ::    +sturm:  the Sturm chain of a squarefree polynomial
@@ -180,7 +161,7 @@
   ^-  (list zol)
   ?~  p  !!
   ?>  (is-squarefree p)
-  =/  d=zol  (deriv p)
+  =/  d=zol  (deriv:zx p)
   ?~  d  ~[p]
   =/  a=zol  p
   =/  b=zol  d
@@ -219,7 +200,7 @@
   |=  p=zol
   ^-  zol
   ?~  p  !!
-  =/  d=zol  (deriv p)
+  =/  d=zol  (deriv:zx p)
   ?~  d  p
   (xdiv:zx p (gcd:zx p d))
 ::    +lowz:  split off the factor x^k

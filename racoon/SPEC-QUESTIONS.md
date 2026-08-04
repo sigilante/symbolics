@@ -133,10 +133,19 @@ Say so and I will revert the reservation.
 
 ---
 
-## R1 — should `+deriv` be public on `%zx`? (OPEN, non-blocking)
+## R1 — should `+deriv` be public on `%zx`? (RESOLVED — promoted)
 
-**Status:** open. Does **not** block Milestone C phase R; recorded so the
-duplication is a decision rather than an accident.
+**Status:** resolved. `+deriv` is public on `%zx`, delegating to
+`+zderiv:pv`, and `/lib/racoon-roots` calls it instead of carrying its own.
+The revisit condition below fired exactly as written: phase V1 opened `%zx`
+for a batch — `+zmod` and `+hdata`, plus six promotions out of the
+delegated set — so the battery axes moved regardless, and Milestone B has
+still not opened, which is the only window in which that is free.
+
+The `+tderiv` copies in `tests/lib/racoon-rs` and `tests/lib/racoon-zfac`
+were deliberately **not** removed. A squarefreeness check that borrowed the
+library's own derivative would be checking less than it appears to; those
+duplicates are test independence, not accident.
 
 The formal derivative is `+zderiv` in `+pv`, private. `/lib/racoon-roots`
 needs it for the Sturm chain and, being a consumer, cannot reach it — so it

@@ -492,7 +492,7 @@
     out
       %+  weld  out
       ;:  weld
-        %+  expect-eq  !>(`zol`dv.i.vs)  !>((deriv:rr p.i.vs))
+        %+  expect-eq  !>(`zol`dv.i.vs)  !>((deriv:zx p.i.vs))
         ::  the derivative drops the degree by exactly one, or vanishes
         %-  expect
         !>  ?:  =(~ dv.i.vs)  =(0 (deg:zx p.i.vs))
@@ -573,7 +573,7 @@
   ;:  weld
     ::  the chain opens with p and p'
     %+  expect-eq  !>(`zol`p)             !>((snag 0 ch))
-    %+  expect-eq  !>((deriv:rr p))       !>((snag 1 ch))
+    %+  expect-eq  !>((deriv:zx p))       !>((snag 1 ch))
     ::  x^3 - x: chain is p, 3x^2-1, then a positive multiple of 2x/3,
     ::  reduced to its primitive part, then a nonzero constant
     %+  expect-eq  !>(`@ud`4)             !>((lent ch))
@@ -610,7 +610,11 @@
     ::  the zero polynomial: every real is a root, so there is no answer
     ::  to give and no sentinel that would not be a lie
     (expect-fail |.((bound:rr ~)))
-    (expect-fail |.((deriv:rr ~)))
+    ::  +deriv MOVED to %zx (SPEC-QUESTIONS R1) and is TOTAL there:
+    ::  the derivative of the zero polynomial is the zero polynomial.
+    ::  R5's "any arm crashes on ~" covers the arms of THIS library,
+    ::  and +deriv is no longer one of them.
+    %+  expect-eq  !>(`zol`~)  !>((deriv:zx ~))
     (expect-fail |.((sign-at:rr ~ [--0 1])))
     (expect-fail |.((sturm:rr ~)))
     (expect-fail |.((nroots:rr ~)))
