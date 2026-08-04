@@ -19,6 +19,7 @@
 =/  qm  qm:baloon
 =/  nz  nz:racoon
 =/  mx  mx:racoon
+=/  zx  zx:racoon
 =/  zm  zm:baloon
 =/  mm  mm:baloon
 |%
@@ -233,5 +234,79 @@
     ::  +reduced is total: it answers for any basis, reduced or not
     (expect-success |.((reduced:vh ~[~[--1 --2] ~[--2 --4]])))
     %-  expect  !>((reduced:vh ~))
+  ==
+::  Phase V1: recombination.
+::
+::  SPEC V7.3 names the oracle: van Hoeij and Zassenhaus must agree on
+::  every input, and +factor:zx is already verified against SymPy over the
+::  Milestone A corpus.  +firr:zx is the recombination inside it, and is
+::  what +factor:vh replaces, so it is what these compare against.
+::
+::  Every input below is primitive, squarefree, deg >= 1, lc > 0 -- the
+::  precondition both arms carry.  The literals were generated and checked
+::  with SymPy rather than written by hand.
+++  vh-corpus
+  ^-  (list zol)
+  :~  ::  irreducible with a single modular factor: +hdata returns ~
+      ~[-2 --0 --1]                                   ::  x^2 - 2
+      ~[-1 -1 --0 --1]                                ::  x^3 - x - 1
+      ~[--1 --1 --1 --1 --1]                          ::  cyclotomic 5
+      ~[--1 --0 --0 --0 --1]                          ::  cyclotomic 8
+      ::  irreducible but splitting modulo every prime: every proper
+      ::  subset has to be rejected before concluding
+      ~[--1 --0 -10 --0 --1]                          ::  SD_2
+      ~[--576 --0 -960 --0 --352 --0 -40 --0 --1]     ::  SD_3
+      ::  reducible, distinct irreducible factors
+      ~[--6 --0 -5 --0 --1]                           ::  (x^2-2)(x^2-3)
+      ~[--2 --0 --3 --0 --1]                          ::  (x^2+1)(x^2+2)
+      ~[-6 --11 -6 --1]                               ::  (x-1)(x-2)(x-3)
+      ~[-1 --0 --0 --0 --0 --0 --1]                   ::  x^6 - 1
+      ~[--2 -1 --2 --0 --0 --1]                       ::  (x^2+1)(x^3-x+2)
+      ~[--24 --50 --35 --10 --1]                      ::  (x+1)(x+2)(x+3)(x+4)
+      ~[-5 --0 --51 --0 -15 --0 --1]                  ::  SD_2 * (x^2-5)
+      ::  linear, and reducible into linears
+      ~[--1 --1]                                      ::  x + 1
+      ~[--0 --1]                                      ::  x
+      ~[-1 --0 --1]                                   ::  x^2 - 1
+      ~[--0 -1 --0 --1]                               ::  x^3 - x
+  ==
+::    +psort:  canonical order, so a permutation is not a disagreement
+++  psort
+  |=  fs=(list zol)
+  ^-  (list zol)
+  (sort fs |=([a=zol b=zol] ?!(=(%gt (pcmp:zx a b)))))
+++  test-v1-factor-agrees
+  %+  expect-eq  !>(~)
+  !>  ^-  (list zol)
+  %+  skip  vh-corpus
+  |=(f=zol ^-(? =((psort (firr:zx f)) (psort (factor:vh f)))))
+::  the factors really do multiply back to f, independent of the oracle
+++  test-v1-factor-reconstructs
+  %+  expect-eq  !>(~)
+  !>  ^-  (list zol)
+  %+  skip  vh-corpus
+  |=  f=zol
+  ^-  ?
+  =/  fs=(list zol)  (factor:vh f)
+  =/  pr=zol
+    |-  ^-  zol
+    ?~  fs  ~[--1]
+    (mul:zx i.fs $(fs t.fs))
+  =(f pr)
+++  test-v1-factor-crash
+  ;:  weld
+    ::  SPEC V5: the zero polynomial has no factorization
+    (expect-fail |.((factor:vh ~)))
+    ::  SPEC V5: recombination is defined on DISTINCT modular factors, so
+    ::  a repeated factor makes the subset correspondence non-injective
+    (expect-fail |.((factor:vh ~[--1 --2 --1])))          ::  (x+1)^2
+    (expect-fail |.((factor:vh ~[--0 --0 --1])))          ::  x^2
+    (expect-fail |.((factor:vh ~[--4 --0 -4 --0 --1])))   ::  (x^2-2)^2
+    (expect-fail |.((factor:vh ~[--2 --0 --5 --0 --4 --0 --1])))
+    ::  the precondition +sqfree:zx answers alongside: not primitive
+    (expect-fail |.((factor:vh ~[--2 --4])))              ::  2(x+2)
+    ::  and negative leading coefficient
+    (expect-fail |.((factor:vh ~[--2 -1])))               ::  -(x-2)
+    (expect-success |.((factor:vh ~[-2 --0 --1])))
   ==
 --

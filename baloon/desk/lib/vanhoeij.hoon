@@ -29,6 +29,8 @@
 /-  *baloon, *racoon
 /+  baloon, racoon
 =/  qq  qq:racoon
+=/  zx  zx:racoon
+=/  mx  mx:racoon
 =/  zm  zm:baloon
 |%
 +|  %private
@@ -182,6 +184,83 @@
   =/  v=qvec  (nth bs i)
   (qdot v v)
 ::
++|  %recombination
+::    +cand:  the candidate factor a subset of modular factors proposes
+::
+::  [sel=(list mol) rem=zol md=@ud] -> (unit zol).  Forms the product of
+::  .sel modulo .md, scales it so the lift carries lc(rem), symmetric-lifts
+::  into Z, takes the primitive part, normalizes the sign, and returns it
+::  ONLY if it actually divides .rem.
+::
+::  THIS IS THE CONFIRMATION SPEC V4 RESTS ON.  Whatever proposed the
+::  subset -- a lattice vector or brute enumeration -- it is a factor only
+::  if the division is exact.  Nothing downstream trusts the proposer,
+::  which is what lets the lattice be a heuristic and +factor still be
+::  canonical.  Lifted verbatim out of +firr:zx so both callers confirm
+::  identically.
+++  cand
+  |=  [sel=(list mol) rem=zol md=@ud]
+  ^-  (unit zol)
+  =/  dm  ~(. mx md)
+  =/  pr=mol  (mprod:zx sel md)
+  =/  lr=@ud  (mod (abs:si (lc:zx rem)) md)
+  =/  sc=mol
+    ?:  (syn:si (lc:zx rem))  (scale:dm pr lr)
+    (scale:dm pr (cneg:dm lr))
+  =/  c0=zol  (lift:zx sc md)
+  ?~  c0  ~
+  =/  c1=zol  (pp:zx c0)
+  =/  cd=zol
+    ?:  (syn:si (lc:zx c1))  c1
+    (neg:zx c1)
+  ?.  ?&  (gth (deg:zx cd) 0)
+          (lte (deg:zx cd) (deg:zx rem))
+          =(~ r:(pdiv:zx rem cd))
+      ==
+    ~
+  `cd
+::    +drop:  remove a subset's indices from the remaining index set
+++  drop
+  |=  [idx=(list @ud) s=(list @ud)]
+  ^-  (list @ud)
+  (skip idx |=(j=@ud (lien s |=(k=@ud =(k j)))))
+::    +zass:  Zassenhaus recombination over a remaining index set
+::
+::  [rem=zol idx=(list @ud) gs=(list mol) md=@ud acc=(list zol)] ->
+::  (list zol).  Subsets by ascending cardinality, stopping once
+::  2*card > |idx| because the complement of every larger subset has
+::  already been tried.  The enumeration order is +combos:zx, pinned by
+::  SPEC S9.
+::
+::  Ported from +firr:zx unchanged.  SPEC V4 makes this the MANDATORY
+::  fallback: the lattice pass may leave anything behind, up to and
+::  including everything, and this still has to finish the job.  When the
+::  lattice proposes nothing, +factor degenerates to exactly +firr:zx --
+::  which is what makes SPEC V7.3's "the two must agree" hold by
+::  construction rather than by luck.
+++  zass
+  |=  [rem=zol idx=(list @ud) gs=(list mol) md=@ud acc=(list zol)]
+  ^-  (list zol)
+  =/  card=@ud  1
+  |-  ^-  (list zol)
+  ?:  (gth (mul 2 card) (lent idx))
+    ?:  (gth (deg:zx rem) 0)  (flop [rem acc])
+    (flop acc)
+  =/  hit
+    =/  cs=(list (list @ud))  (combos:zx card idx)
+    |-  ^-  (unit [s=(list @ud) f=zol])
+    ?~  cs  ~
+    =/  sel=(list mol)  (turn i.cs |=(j=@ud (snag j gs)))
+    =/  cd  (cand sel rem md)
+    ?~  cd  $(cs t.cs)
+    `[i.cs u.cd]
+  ?~  hit  $(card +(card))
+  %=  $
+    idx  (drop idx s.u.hit)
+    rem  (xdiv:zx rem f.u.hit)
+    acc  [f.u.hit acc]
+  ==
+::
 +|  %public
 ::    +reduced:  is this basis LLL-reduced at delta = 3/4?
 ::
@@ -280,4 +359,36 @@
   ?:  ?!(=(%lt (cmp:qq (nrm2 bs.g k) rhs)))
     $(cur acc.rk, k +(k))
   $(cur (zswap acc.rk k (dec k)), k ?:((gth k 1) (dec k) 1))
+::    +factor:  the irreducible factors over Z of a squarefree f
+::
+::  [f=zol] -> (list zol), each primitive irreducible with positive lc.
+::  The same product +firr:zx returns, and SPEC V7.3 requires the two to
+::  agree on every input -- +factor:zx is the oracle here, being already
+::  verified against SymPy over the Milestone A corpus.
+::
+::  Crashes on ~ and on non-squarefree .f (SPEC V5).  Recombination is
+::  defined on DISTINCT modular factors, so a repeated factor is not
+::  merely unsupported here, it is meaningless: the subset-to-factor
+::  correspondence the whole method rests on stops being injective.
+::
+::  The caller guarantees .f primitive with positive lc; that is asserted
+::  too, since +sqfree:zx has to run for the squarefree check anyway and
+::  its decomposition answers both questions at once.
+::
+::  FREE, not pinned, even though it calls the pinned +lll.  Every factor
+::  is confirmed by trial division in +cand, so which reduced basis the
+::  lattice produced cannot reach the answer -- see SPEC V2's last line.
+++  factor
+  |=  f=zol
+  ^-  (list zol)
+  ?~  f  !!
+  =/  sq=zfac  (sqfree:zx f)
+  ?~  fs.sq  !!
+  ?>  ?&(=(~ t.fs.sq) =(1 m.i.fs.sq) =(f p.i.fs.sq))
+  =/  hd  (hdata:zx f)
+  ::  ~ means the modular data already proved f irreducible
+  ?~  hd  ~[f]
+  =/  gs=(list mol)  gs.u.hd
+  =/  md=@ud         md.u.hd
+  (zass f (gulf 0 (dec (lent gs))) gs md ~)
 --
