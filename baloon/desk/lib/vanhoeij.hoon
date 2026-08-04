@@ -110,6 +110,27 @@
   ^-  zmat
   ?:  =(i j)  m
   (zput (zput m i (znth m j)) j (znth m i))
+::    +qadd:  elementwise sum of two rational vectors
+++  qadd
+  |=  [a=qvec b=qvec]
+  ^-  qvec
+  ?~  a  ~
+  ?~  b  ~
+  [(add:qq i.a i.b) $(a t.a, b t.b)]
+::    +eput:  replace the i-th element of a rational vector
+++  eput
+  |=  [v=qvec i=@ud x=frac]
+  ^-  qvec
+  ?~  v  !!
+  ?:  =(0 i)  [x t.v]
+  [i.v $(v t.v, i (dec i))]
+::    +vput:  replace the i-th vector in a list of them
+++  vput
+  |=  [vs=(list qvec) i=@ud v=qvec]
+  ^-  (list qvec)
+  ?~  vs  !!
+  ?:  =(0 i)  [v t.vs]
+  [i.vs $(vs t.vs, i (dec i))]
 ::
 +|  %gso
 ::    +gso:  exact rational Gram-Schmidt
@@ -121,15 +142,16 @@
 ::  .mu is lower triangular with a 1 on the diagonal and zeros above, so
 ::  every row has full length and indexing needs no special cases.
 ::
-::  Computed from scratch, and +lll calls it ONCE per outer iteration
-::  rather than once per size-reduction step, updating mu row k in place
-::  across the inner loop.  That is where the cost is: the from-scratch
-::  version inside the loop made +lll ~n times slower, which at the
-::  dimensions SPEC V1 needs is the difference between minutes and hours
-::  (see /gen/baloon-lll-bench).  It changes NOTHING about the output:
-::  exact rational GSO and an incrementally updated one are mathematically
-::  equal, which is why SPEC V2 pins the reduction sequence but not this
-::  computation.
+::  Computed from scratch, and +lll calls it EXACTLY ONCE, at the start.
+::  From then on the data is maintained -- untouched by size-reduction
+::  except for mu row k, and updated by +gswap on a swap.  This arm was
+::  once called inside the size-reduction loop, then once per outer
+::  iteration, and each step of that removal was worth roughly a factor
+::  of n: 315 s to 52 s to 3.4 s at dimension 9, and it is what makes the
+::  dimensions SPEC V1 needs reachable at all (see /gen/baloon-lll-bench).
+::  It changes NOTHING about the output: exact rational GSO and an
+::  incrementally updated one are mathematically equal, which is why SPEC
+::  V2 pins the reduction sequence but not this computation.
 ::
 ::  Crashes on a rank-deficient basis, through a zero <b*_j, b*_j>; +lll
 ::  asserts full rank first so callers see the assertion instead.
@@ -183,6 +205,67 @@
   ^-  frac
   =/  v=qvec  (nth bs i)
   (qdot v v)
+::    +gswap:  the Gram-Schmidt data after exchanging rows k and k-1
+::
+::  [bs mu k n] -> [bs mu].  Only rows k-1 and k of the orthogonal basis
+::  move, plus three groups of mu entries; everything else is untouched,
+::  because b*_i for i < k-1 depends only on rows that did not move.
+::
+::  Writing j = k-1, m = mu_kj, and B_i = ||b*_i||^2:
+::
+::      c_j  = b*_k + m b*_j                     the new b*_j
+::      B'_j = B_k + m^2 B_j
+::      nu   = m B_j / B'_j                      the new mu_kj
+::      c_k  = b*_j - nu c_j                     the new b*_k
+::      B'_k = B_j B_k / B'_j
+::
+::  and for every i below k, with t the old mu_ik,
+::
+::      mu'_ik = mu_ij - m t
+::      mu'_ij = t + nu mu'_ik                   note: the NEW mu_ik
+::
+::  Rows j and k exchange their entries in columns below j.  Since the
+::  swap is always of ADJACENT rows there is no column strictly between
+::  them to worry about, and both diagonals stay 1.
+::
+::  Derived twice, once directly from the projections and once by
+::  eliminating B_j and B_k, because a sign or an index wrong here would
+::  not crash -- it would quietly return a different reduced basis, and
+::  +lll is PINNED (SPEC V2).  The fingerprint check is what actually
+::  confirms it.
+++  gswap
+  |=  [bs=(list qvec) mu=(list qvec) k=@ud n=@ud]
+  ^-  [bs=(list qvec) mu=(list qvec)]
+  =/  j=@ud     (dec k)
+  =/  m=frac    (mu-at mu k j)
+  =/  bj=frac   (nrm2 bs j)
+  =/  bk=frac   (nrm2 bs k)
+  =/  nbj=frac  (add:qq bk (mul:qq (mul:qq m m) bj))
+  =/  nu=frac   (div:qq (mul:qq m bj) nbj)
+  =/  cj=qvec   (qadd (nth bs k) (qscale (nth bs j) m))
+  =/  ck=qvec   (qsub (nth bs j) (qscale cj nu))
+  =/  nbs=(list qvec)  (vput (vput bs j cj) k ck)
+  ::  rows j and k trade their entries in the columns below j
+  =/  tr
+    =/  c=@ud   0
+    =/  a=qvec  (nth mu j)
+    =/  b=qvec  (nth mu k)
+    |-  ^-  [a=qvec b=qvec]
+    ?:  =(c j)  [a b]
+    =/  x=frac  (qat a c)
+    =/  y=frac  (qat b c)
+    $(c +(c), a (eput a c y), b (eput b c x))
+  =/  nmu=(list qvec)
+    (vput (vput mu j a.tr) k (eput b.tr j nu))
+  ::  every row below k sees both columns move
+  =/  i=@ud  +(k)
+  |-  ^-  [bs=(list qvec) mu=(list qvec)]
+  ?:  (gte i n)  [nbs nmu]
+  =/  t=frac    (mu-at nmu i k)
+  =/  nik=frac  (sub:qq (mu-at nmu i j) (mul:qq m t))
+  =/  nij=frac  (add:qq t (mul:qq nu nik))
+  =/  row=qvec  (eput (eput (nth nmu i) k nik) j nij)
+  $(i +(i), nmu (vput nmu i row))
 ::
 +|  %recombination
 ::    +cand:  the candidate factor a subset of modular factors proposes
@@ -361,22 +444,25 @@
   ?>  =(n (rank:zm b))
   ?:  (lth n 2)  b
   =/  cur=zmat  b
+  ::  ONE Gram-Schmidt for the whole reduction.  It is computed here and
+  ::  then MAINTAINED, never recomputed, because every mutation below has
+  ::  a closed-form effect on it:
+  ::
+  ::    size-reduction   b_k -= q*b_j with j < k subtracts a vector lying
+  ::                     in span(b_0 .. b_k-1), which is precisely what
+  ::                     the projection already removes -- so no b* moves
+  ::                     at all, and only mu row k does
+  ::    swap             +gswap, two rows of b* and three groups of mu
+  ::
+  ::  Recomputing from scratch cost a full O(n^3) rational Gram-Schmidt
+  ::  per outer iteration and was almost the entire runtime: hoisting it
+  ::  out of the inner loop alone bought 6x at dimension 9, more than the
+  ::  call-count reduction, which is only possible if the rest is noise.
+  ::  SPEC V2 pins the reduction sequence but NOT this computation.
+  =/  g  (gso cur)
   =/  k=@ud     1
   |-  ^-  zmat
   ?:  =(k n)  cur
-  ::  ONE Gram-Schmidt per outer iteration, not one per size-reduction
-  ::  step.  Everything the rest of this iteration reads survives the
-  ::  reductions below unchanged:
-  ::
-  ::    b*_0 .. b*_k   b_k -= q*b_j with j < k subtracts a vector lying
-  ::                   in span(b_0 .. b_k-1), which is precisely what the
-  ::                   projection already removes, so the orthogonal part
-  ::                   is untouched -- and b_0 .. b_k-1 never move at all
-  ::    mu_i for i < k does not depend on row k
-  ::
-  ::  Only mu row k moves, and it is threaded through the loop instead.
-  ::  Rows above k do change, and are not read before the next +gso.
-  =/  g  (gso cur)
   ::  size-reduce row k against k-1 .. 0, descending
   =/  rk
     =/  j=@ud     (dec k)
@@ -396,13 +482,19 @@
       (qsub mk (qscale (nth mu.g j) [q 1]))
     ?:  =(0 j)  [nx nm]
     $(j (dec j), acc nx, mk nm)
+  ::  install the reduced mu row; no b* moved, and no other mu row did
+  =/  g1  [bs=bs.g mu=(vput mu.g k mk.rk)]
   ::  Lovasz, on the size-reduced basis
   =/  m=frac  (qat mk.rk (dec k))
   =/  rhs=frac
-    (mul:qq (sub:qq del (mul:qq m m)) (nrm2 bs.g (dec k)))
-  ?:  ?!(=(%lt (cmp:qq (nrm2 bs.g k) rhs)))
-    $(cur acc.rk, k +(k))
-  $(cur (zswap acc.rk k (dec k)), k ?:((gth k 1) (dec k) 1))
+    (mul:qq (sub:qq del (mul:qq m m)) (nrm2 bs.g1 (dec k)))
+  ?:  ?!(=(%lt (cmp:qq (nrm2 bs.g1 k) rhs)))
+    $(cur acc.rk, g g1, k +(k))
+  %=  $
+    cur  (zswap acc.rk k (dec k))
+    g    (gswap bs.g1 mu.g1 k n)
+    k    ?:((gth k 1) (dec k) 1)
+  ==
 ::    +factor:  the irreducible factors over Z of a squarefree f
 ::
 ::  [f=zol] -> (list zol), each primitive irreducible with positive lc.

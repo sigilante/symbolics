@@ -21,20 +21,33 @@
 ::
 ::  WHY THIS EXISTS.  SPEC V0 measured Zassenhaus at 204 s on SD_5, which
 ::  is the number phase V1 has to beat, and SD_5 gives r = 16 -- so the
-::  lattice van Hoeij needs reduced is dimension 17 and up.  Measured
-::  2026.8.4 at m=1, bits=136 (the SD_5 lift target, from +mig:zx):
+::  lattice van Hoeij needs reduced is dimension 17 and up.  All at m=1,
+::  bits=136 (the SD_5 lift target, from +mig:zx), measured 2026.8.4:
 ::
-::      dim  5      9.7 s
-::      dim  7     61.4 s
-::      dim  9    314.7 s
+::                      +gso from scratch    once per      maintained
+::                      inside the loop      iteration     incrementally
+::      dim  5                  9.7 s          3.8 s          0.97 s
+::      dim  7                 61.4 s         20.0 s          2.54 s
+::      dim  9                314.7 s         52.1 s          3.44 s
+::      dim 17 (SD_5)               --             --        12.0 s
+::      dim 33 (SD_6)               --             --        49.1 s
 ::
-::  That is ~n^6.5, putting dim 17 near 5.5 hours: 97x over the budget it
-::  must beat, so +lll as written cannot deliver V1.  The cost is +gso,
-::  recomputed from scratch inside the size-reduction loop.  SPEC V2 pins
-::  the reduction SEQUENCE but explicitly NOT the method of computing the
-::  Gram-Schmidt data, so hoisting +gso out of the loop with an
-::  incremental mu update, or moving to an integer-preserving LLL, is
-::  permitted without escalation.  Re-run this to measure any such change.
+::  Each step of removing +gso was worth roughly a factor of n.  The
+::  first two columns could not deliver V1 at all: dim 17 extrapolated to
+::  hours against the 204 s it must beat.  The third does -- 12 s is 17x
+::  under budget, and dim 33 at 49 s makes SD_6 reachable, where
+::  Zassenhaus needs ~2.1e9 subsets and finishes never.
+::
+::  TRACE COLUMNS ARE EXPENSIVE, and this is the design input the table
+::  hides: dim 20 as r=16 m=4 takes 221.7 s, far worse than dim 33 as
+::  r=32 m=1 at 49.1 s.  Cost tracks the number of BIG-entry columns, not
+::  the dimension -- each extra trace column adds a column of residues
+::  modulo p^a and a p^a row.  Keep m small.
+::
+::  SPEC V2 pins the reduction SEQUENCE but explicitly NOT the method of
+::  computing the Gram-Schmidt data, which is what licenses all of this.
+::  Re-run to measure any further change; /gen/lllfp in the scratch pier
+::  is what checks the output is still bit-identical.
 ::
 /-  *baloon, *racoon
 /+  baloon, vh=vanhoeij
