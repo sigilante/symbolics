@@ -70,61 +70,56 @@ holds.
 
 ---
 
-## V1 — the lattice pass does not beat Zassenhaus (OPEN, not blocking)
+## V1 — the lattice pass, and what made it work (RESOLVED)
 
-**Status:** open, and recorded rather than worked around. Phase V1 is
-built and correct; it is not yet faster. **Blocks:** nothing — `+factor:vh`
-agrees with `+firr:zx` on every input, so this is a performance question
-only.
+**Status:** resolved. Phase V1 beats Zassenhaus on `SD_5` by a factor of
+twenty. This entry previously recorded the opposite, and is rewritten
+rather than appended to because the finding was not a nuance that needed
+qualifying — it was wrong, and the machine said so.
 
 Measured both ways, same inputs, same machine:
 
-| | Zassenhaus | van Hoeij |
-|---|---:|---:|
-| `SD_3` | 21.3 ms | 99.4 ms |
-| `SD_4` | 282.3 ms | 2161.3 ms |
-| `SD_5` | 197.9 s | 239.2 s |
+| | Zassenhaus | van Hoeij (before) | van Hoeij (after) |
+|---|---:|---:|---:|
+| `SD_3` | 21.3 ms | 99.4 ms | 43.2 ms |
+| `SD_4` | 282.3 ms | 2161.3 ms | 463.2 ms |
+| `SD_5` | 197.9 s | 239.2 s | **9.6 s** |
 
-`raccoon-spec.md` §V0 named `SD_5` as the number to beat. It is not beaten.
+`raccoon-spec.md` §V0 named `SD_5`'s 204 s as the number to beat.
 
-**The pass is not broken.** On every reducible input tested it proposes
-exactly the true factor indicators, immediately and with no enumeration —
-`(x−1)(x−2)(x−3)` gives `{0},{1},{2}`, `x^6−1` gives all four singletons,
-and irreducible `SD_2` correctly gives only `{0,1}`. Those are pinned in
-`++test-v1-lattice-proposes`.
+**The algorithm never changed. The arithmetic under it did.** The earlier
+entry concluded that the lattice could not separate the Swinnerton–Dyer
+family because separation needs many trace columns and columns cost more
+than the enumeration they replace. The first half was right and the
+second was an artifact of a slow `+lll`:
 
-**The problem is which inputs are slow.** Zassenhaus is fast on reducible
-polynomials — it finds each factor at low cardinality. It is slow only on
-the irreducible-but-totally-split family, where every proper subset must
-be rejected. That is exactly where the lattice fails: on `SD_3` the
-subsets `{1,2}` and `{0,3}` satisfy the trace conditions *honestly*, being
-factorizations over a subfield rather than over ℚ, and no number of
-correct trace conditions of the kind used here excludes them — only trial
-division does. So the lattice proposes, `+cand` rejects, and `+zass` runs
-the full enumeration anyway, having charged for the reduction first.
+- four columns at `r = 16` cost **221.7 s** on the rational Gram–Schmidt,
+  against an enumeration of 197.9 s — so the budget was pinned at two,
+  and two cannot separate;
+- the same lattice reduces in **2.3 s** on the integral one, so the budget
+  became eight, and eight separates.
 
-Two things were tried and are recorded so they are not retried blindly:
+**Why eight and not four.** Four columns separate `SD_3` — it proposes
+`{0,1,2,3}` and concludes irreducibility with no enumeration. They do not
+separate `SD_5`, whose offending subsets have size 8: their indicators are
+*shorter* than the all-ones vector, so they survive four conditions and
+are excluded only by eight. The general shape is that the subsets which
+satisfy the trace conditions honestly, without being factors over ℚ, are
+factorizations over a subfield; each additional power sum is one more
+condition they must survive.
 
-- **`s_1` alone is useless on this family.** A Swinnerton–Dyer polynomial
-  is even, so every modular factor's roots sum to zero and every odd power
-  sum vanishes identically. `+pcols` now skips dead columns.
-- **More columns cost more than they save.** LLL's cost tracks big-entry
-  columns rather than dimension: `r=16, m=4` costs 221.7 s against
-  `r=32, m=1` at 49.1 s. Going from two live columns to four would exceed
-  the enumeration being replaced.
+**What the fix was.** `+lll` now runs on integer Gram determinants and
+scaled `λ` rather than on `$frac`, so the gcd traffic that dominated it is
+gone structurally. Dimension 9 went 315 s → 52 s → 3.4 s → **0.135 s**
+across the four versions, and every one of them produces bit-identical
+output — the fingerprint in `/gen/lllfp` has read 1.514.599.515 through
+all of it, which is what `pinned` requires (SPEC V2).
 
-**What would actually resolve it**, in rough order of expected value:
+**Recorded so it is not re-derived:** the two dead ends were real and are
+still true in isolation. `s_1` alone is useless on this family (an even
+polynomial's modular factors have roots summing to zero, so every odd
+power sum vanishes identically — `+pcols` skips them), and column count is
+genuinely the binding cost. What changed is the price of a column.
 
-1. **A cheaper LLL.** The three `+gso` removals bought 91× at dimension 9;
-   an integer-preserving reduction (de Weger / Kannan–Bachem) removes the
-   `$frac` gcd traffic structurally rather than merely reducing it. If
-   columns were cheap enough, four or six of them would separate.
-2. **Milestone B jets on `%qq`.** The inner loop is bigint rational
-   arithmetic, which is what jets accelerate.
-3. **The real van Hoeij column strategy** — iterating, adding columns only
-   when the previous round failed to separate, rather than fixing the count
-   up front.
-
-Until one of those lands, `+lat-min` is 32: at `r = 32` Zassenhaus
-enumerates ~2.1e9 subsets and does not finish, so the lattice cannot make
-things worse and on a reducible input makes them possible.
+**Still open, minor:** `+lat-min` is 16, the measured win. `r = 12` is
+untested; lowering it should be measured rather than assumed.

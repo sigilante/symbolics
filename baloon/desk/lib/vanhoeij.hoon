@@ -68,19 +68,6 @@
   ?~  a  ~
   ?~  b  ~
   [(dif:si i.a (pro:si c i.b)) $(a t.a, b t.b)]
-::    +zround:  the nearest integer to a rational, ties AWAY FROM ZERO
-::
-::  Pinned (SPEC V2).  Ties are rare but they do occur -- mu of exactly
-::  1/2 is the boundary of size-reduction -- and a rule that rounded
-::  toward even would give a different, equally reduced, basis.
-++  zround
-  |=  f=frac
-  ^-  @s
-  ::  |f| + 1/2, floored, then signed
-  =/  a=frac  (add:qq [(sun:si (abs:si p.f)) q.f] hlf)
-  =/  n=@ud   (div (abs:si p.a) q.a)
-  ?:  (syn:si p.f)  (sun:si n)
-  (dif:si --0 (sun:si n))
 ::    +qabs:  absolute value of a rational
 ++  qabs  |=(f=frac ^-(frac ?:((syn:si p.f) f (neg:qq f))))
 ::    +nth:  the i-th element of a list of rational vectors
@@ -110,27 +97,6 @@
   ^-  zmat
   ?:  =(i j)  m
   (zput (zput m i (znth m j)) j (znth m i))
-::    +qadd:  elementwise sum of two rational vectors
-++  qadd
-  |=  [a=qvec b=qvec]
-  ^-  qvec
-  ?~  a  ~
-  ?~  b  ~
-  [(add:qq i.a i.b) $(a t.a, b t.b)]
-::    +eput:  replace the i-th element of a rational vector
-++  eput
-  |=  [v=qvec i=@ud x=frac]
-  ^-  qvec
-  ?~  v  !!
-  ?:  =(0 i)  [x t.v]
-  [i.v $(v t.v, i (dec i))]
-::    +vput:  replace the i-th vector in a list of them
-++  vput
-  |=  [vs=(list qvec) i=@ud v=qvec]
-  ^-  (list qvec)
-  ?~  vs  !!
-  ?:  =(0 i)  [v t.vs]
-  [i.vs $(vs t.vs, i (dec i))]
 ::
 +|  %gso
 ::    +gso:  exact rational Gram-Schmidt
@@ -142,16 +108,19 @@
 ::  .mu is lower triangular with a 1 on the diagonal and zeros above, so
 ::  every row has full length and indexing needs no special cases.
 ::
-::  Computed from scratch, and +lll calls it EXACTLY ONCE, at the start.
-::  From then on the data is maintained -- untouched by size-reduction
-::  except for mu row k, and updated by +gswap on a swap.  This arm was
-::  once called inside the size-reduction loop, then once per outer
-::  iteration, and each step of that removal was worth roughly a factor
-::  of n: 315 s to 52 s to 3.4 s at dimension 9, and it is what makes the
-::  dimensions SPEC V1 needs reachable at all (see /gen/baloon-lll-bench).
-::  It changes NOTHING about the output: exact rational GSO and an
-::  incrementally updated one are mathematically equal, which is why SPEC
-::  V2 pins the reduction sequence but not this computation.
+::  +lll NO LONGER CALLS THIS.  It runs on the integral data of the
+::  %integral chapter instead, which carries the same information without
+::  paying a gcd per operation.  This arm survives because +reduced is
+::  written on it, and +reduced is the SPECIFICATION of +lll (SPEC V7.1)
+::  -- checking the output against an independent formulation is worth
+::  more than sharing code with it.
+::
+::  The history is worth keeping, since each step was a factor of n and
+::  none of it changed the output: called inside the size-reduction loop,
+::  then once per outer iteration, then maintained incrementally, then
+::  replaced by integers.  Dimension 9 went 315 s -> 52 s -> 3.4 s ->
+::  0.135 s.  SPEC V2 pins the reduction sequence but not this
+::  computation, which is what licensed every one of those.
 ::
 ::  Crashes on a rank-deficient basis, through a zero <b*_j, b*_j>; +lll
 ::  asserts full rank first so callers see the assertion instead.
@@ -205,67 +174,179 @@
   ^-  frac
   =/  v=qvec  (nth bs i)
   (qdot v v)
-::    +gswap:  the Gram-Schmidt data after exchanging rows k and k-1
++|  %integral
+::  INTEGER-PRESERVING LLL (de Weger; Cohen Alg. 2.6.3/2.6.7).
 ::
-::  [bs mu k n] -> [bs mu].  Only rows k-1 and k of the orthogonal basis
-::  move, plus three groups of mu entries; everything else is untouched,
-::  because b*_i for i < k-1 depends only on rows that did not move.
+::  The rational Gram-Schmidt above is exact but every operation on a
+::  $frac pays a gcd to restore lowest terms, on operands hundreds of
+::  bits wide.  This chapter carries the same information in integers and
+::  never divides inexactly, so the gcd traffic is gone STRUCTURALLY
+::  rather than merely reduced.
 ::
-::  Writing j = k-1, m = mu_kj, and B_i = ||b*_i||^2:
+::  The change of variables, with d_0 = 1:
 ::
-::      c_j  = b*_k + m b*_j                     the new b*_j
-::      B'_j = B_k + m^2 B_j
-::      nu   = m B_j / B'_j                      the new mu_kj
-::      c_k  = b*_j - nu c_j                     the new b*_k
-::      B'_k = B_j B_k / B'_j
+::      d_i          = det of the Gram matrix of b_0 .. b_(i-1)
+::                   = prod_(j<i) ||b*_j||^2          -- so all d_i > 0
+::      ||b*_i||^2   = d_(i+1) / d_i
+::      lam_ij       = d_(j+1) * mu_ij                -- integral, by Cramer
 ::
-::  and for every i below k, with t the old mu_ik,
+::  Every quantity +lll needs is then a ratio of these, and every test it
+::  makes clears its denominators.  SPEC V2 pins the reduction SEQUENCE
+::  but explicitly not the method of computing the Gram-Schmidt data, so
+::  this is licensed -- and the output must come out bit-identical, which
+::  is what /gen/lllfp checks.
 ::
-::      mu'_ik = mu_ij - m t
-::      mu'_ij = t + nu mu'_ik                   note: the NEW mu_ik
+::    +zat:  the i-th element of an integer vector
+++  zat
+  |=  [v=zvec i=@ud]
+  ^-  @s
+  ?~  v  !!
+  ?:  =(0 i)  i.v
+  $(v t.v, i (dec i))
+::    +zeput:  replace the i-th element of an integer vector
+++  zeput
+  |=  [v=zvec i=@ud x=@s]
+  ^-  zvec
+  ?~  v  !!
+  ?:  =(0 i)  [x t.v]
+  [i.v $(v t.v, i (dec i))]
+::    +idot:  inner product of two integer vectors
+++  idot
+  |=  [a=zvec b=zvec]
+  ^-  @s
+  =/  acc=@s  --0
+  |-  ^-  @s
+  ?~  a  acc
+  ?~  b  acc
+  $(a t.a, b t.b, acc (sum:si acc (pro:si i.a i.b)))
+::    +ired:  the fraction-free reduction behind the integral Gram step
 ::
-::  Rows j and k exchange their entries in columns below j.  Since the
-::  swap is always of ADJACENT rows there is no column strictly between
-::  them to worry about, and both diagonals stay 1.
+::  Folds l = 0 .. j-1 into u by
 ::
-::  Derived twice, once directly from the projections and once by
-::  eliminating B_j and B_k, because a sign or an index wrong here would
-::  not crash -- it would quietly return a different reduced basis, and
-::  +lll is PINNED (SPEC V2).  The fingerprint check is what actually
-::  confirms it.
-++  gswap
-  |=  [bs=(list qvec) mu=(list qvec) k=@ud n=@ud]
-  ^-  [bs=(list qvec) mu=(list qvec)]
-  =/  j=@ud     (dec k)
-  =/  m=frac    (mu-at mu k j)
-  =/  bj=frac   (nrm2 bs j)
-  =/  bk=frac   (nrm2 bs k)
-  =/  nbj=frac  (add:qq bk (mul:qq (mul:qq m m) bj))
-  =/  nu=frac   (div:qq (mul:qq m bj) nbj)
-  =/  cj=qvec   (qadd (nth bs k) (qscale (nth bs j) m))
-  =/  ck=qvec   (qsub (nth bs j) (qscale cj nu))
-  =/  nbs=(list qvec)  (vput (vput bs j cj) k ck)
+::      u <- (d_(l+1) * u - lam_il * lam_jl) / d_l
+::
+::  Every division is EXACT -- this is Bareiss elimination, where the
+::  divisor is the previous pivot and divides the numerator identically.
+::  +fra:si truncates, so an inexact step here would be silent; the
+::  fingerprint is what would catch it.
+++  ired
+  |=  [u=@s li=zvec lj=zvec d=zvec j=@ud]
+  ^-  @s
+  =/  l=@ud   0
+  =/  acc=@s  u
+  |-  ^-  @s
+  ?:  =(l j)  acc
+  %=  $
+    l  +(l)
+    acc
+      %+  fra:si
+        %+  dif:si
+          (pro:si (zat d +(l)) acc)
+        (pro:si (zat li l) (zat lj l))
+      (zat d l)
+  ==
+::    +igso:  the integral Gram-Schmidt data of a basis
+::
+::  [b=zmat] -> [d=zvec lam=zmat], with .d holding d_0 .. d_n (so n+1
+::  entries, d_0 = 1) and .lam lower triangular, n by n.  Entries on and
+::  above the diagonal of .lam are never read.
+++  igso
+  |=  b=zmat
+  ^-  [d=zvec lam=zmat]
+  =/  n=@ud     (lent b)
+  =/  d=zvec    [--1 `zvec`(reap n --0)]
+  =/  lam=zmat  (reap n `zvec`(reap n --0))
+  =/  i=@ud     0
+  |-  ^-  [d=zvec lam=zmat]
+  ?:  =(i n)  [d lam]
+  =/  bi=zvec  (znth b i)
+  =/  st
+    =/  j=@ud    0
+    =/  dd=zvec  d
+    =/  ll=zmat  lam
+    |-  ^-  [d=zvec lam=zmat]
+    ?:  (gth j i)  [dd ll]
+    =/  u=@s  (ired (idot bi (znth b j)) (znth ll i) (znth ll j) dd j)
+    ?:  (lth j i)
+      $(j +(j), ll (zput ll i (zeput (znth ll i) j u)))
+    $(j +(j), dd (zeput dd +(i) u))
+  $(i +(i), d d.st, lam lam.st)
+::    +iround:  +zround of a/d, without ever forming the rational
+::
+::  .d is a d_i and so is strictly positive, which is what makes the sign
+::  of the quotient the sign of .a.  Ties go AWAY FROM ZERO, matching the
+::  pinned rounding exactly: floor((2|a| + d) / 2d) is |a/d| + 1/2
+::  floored.
+++  iround
+  |=  [a=@s d=@s]
+  ^-  @s
+  =/  na=@ud  (abs:si a)
+  =/  nd=@ud  (abs:si d)
+  =/  q=@ud   (div (add (mul 2 na) nd) (mul 2 nd))
+  ?:  (syn:si a)  (sun:si q)
+  (dif:si --0 (sun:si q))
+::    +iswap:  the integral data after exchanging rows k and k-1
+::
+::  Writing j = k-1 and lam = lam_kj, the new d_k is
+::
+::      D = (d_(k-1) * d_(k+1) + lam^2) / d_k
+::
+::  and no other d moves: for i <= k-1 the first i rows are untouched,
+::  and for i >= k+1 they are the same SET reordered, whose Gram
+::  determinant is invariant.
+::
+::  lam_kj itself is UNCHANGED -- the new mu_kj is lam/D and the new
+::  scale is D, so the product comes back to lam.  Rows j and k trade
+::  their entries below column j, and every row below k updates as
+::
+::      t          = lam_ik                    (old)
+::      lam'_ik    = (d_(k+1) * lam_ij - lam * t) / d_k
+::      lam'_ij    = (D * t + lam * lam'_ik) / d_(k+1)     -- the NEW ik
+::
+::  Derived by substituting the change of variables into the rational
+::  swap, which was itself derived twice.  A wrong sign here does not
+::  crash; it silently returns a different reduced basis, and +lll is
+::  PINNED.
+++  iswap
+  |=  [d=zvec lam=zmat k=@ud n=@ud]
+  ^-  [d=zvec lam=zmat]
+  =/  j=@ud    (dec k)
+  =/  lk=@s    (zat (znth lam k) j)
+  =/  dj=@s    (zat d j)
+  =/  dk=@s    (zat d k)
+  =/  dk1=@s   (zat d +(k))
+  =/  bb=@s
+    %+  fra:si
+      (sum:si (pro:si dj dk1) (pro:si lk lk))
+    dk
   ::  rows j and k trade their entries in the columns below j
-  =/  tr
-    =/  c=@ud   0
-    =/  a=qvec  (nth mu j)
-    =/  b=qvec  (nth mu k)
-    |-  ^-  [a=qvec b=qvec]
-    ?:  =(c j)  [a b]
-    =/  x=frac  (qat a c)
-    =/  y=frac  (qat b c)
-    $(c +(c), a (eput a c y), b (eput b c x))
-  =/  nmu=(list qvec)
-    (vput (vput mu j a.tr) k (eput b.tr j nu))
+  =/  l0=zmat
+    =/  c=@ud    0
+    =/  rj=zvec  (znth lam j)
+    =/  rk=zvec  (znth lam k)
+    |-  ^-  zmat
+    ?:  =(c j)  (zput (zput lam j rj) k rk)
+    =/  x=@s  (zat rj c)
+    =/  y=@s  (zat rk c)
+    $(c +(c), rj (zeput rj c y), rk (zeput rk c x))
   ::  every row below k sees both columns move
-  =/  i=@ud  +(k)
-  |-  ^-  [bs=(list qvec) mu=(list qvec)]
-  ?:  (gte i n)  [nbs nmu]
-  =/  t=frac    (mu-at nmu i k)
-  =/  nik=frac  (sub:qq (mu-at nmu i j) (mul:qq m t))
-  =/  nij=frac  (add:qq t (mul:qq nu nik))
-  =/  row=qvec  (eput (eput (nth nmu i) k nik) j nij)
-  $(i +(i), nmu (vput nmu i row))
+  =/  l1=zmat
+    =/  i=@ud    +(k)
+    =/  ll=zmat  l0
+    |-  ^-  zmat
+    ?:  (gte i n)  ll
+    =/  ri=zvec  (znth ll i)
+    =/  t=@s     (zat ri k)
+    =/  nik=@s
+      %+  fra:si
+        (dif:si (pro:si dk1 (zat ri j)) (pro:si lk t))
+      dk
+    =/  nij=@s
+      %+  fra:si
+        (sum:si (pro:si bb t) (pro:si lk nik))
+      dk1
+    $(i +(i), ll (zput ll i (zeput (zeput ri k nik) j nij)))
+  [(zeput d k bb) l1]
 ::
 +|  %recombination
 ::    +cand:  the candidate factor a subset of modular factors proposes
@@ -551,10 +632,18 @@
 ::  dead columns and stops before the bound outgrows the modulus, so it
 ::  may return one column, or none.
 ::
-::  Two live columns is the budget, not a floor.  LLL's cost tracks
-::  big-entry columns rather than dimension -- r=16 m=4 cost 221.7 s
-::  against r=32 m=1 at 49.1 s -- so a third would have to earn its
-::  place against the enumeration it is replacing.
+::  EIGHT live columns, and the count is what makes phase V1 work at all.
+::  Four separated SD_3 but not SD_5: the offending subsets there have
+::  size 8, so their indicator is SHORTER than the all-ones vector and
+::  survives four conditions.  Eight excludes them, and SD_5 drops from
+::  206 s (falling back to the full enumeration) to 9.6 s.
+::
+::  This budget is affordable only because of the integral rewrite.  On
+::  the rational Gram-Schmidt, four columns at r=16 cost 221.7 s -- more
+::  than the enumeration being replaced -- which is why the count was
+::  pinned at two and why the pass lost to Zassenhaus everywhere.  The
+::  same lattice now reduces in 2.3 s.  The algorithm did not change; the
+::  arithmetic under it did.
 ::
 ::  cc scales the identity block to the trace bound so that the two
 ::  halves of a vector weigh comparably.  Without it the first r
@@ -568,7 +657,7 @@
   =/  n=@ud  (deg:zx f)
   =/  b=@ud  (rbound f)
   ::  two LIVE columns, chosen rather than assumed
-  =/  js=(list @ud)  (pcols gs md n b 2 8)
+  =/  js=(list @ud)  (pcols gs md n b 8 20)
   ?~  js  ~
   =/  hi=@ud  (jmax js)
   ::  |s_j(F)| <= deg(F) * B^j <= n * B^hi for any true factor F
@@ -604,31 +693,21 @@
   ==
 ::    +lat-min:  the smallest r at which the lattice pass runs
 ::
-::  MEASURED, and the measurement is not the happy one.  Both ways, same
-::  inputs, same machine:
+::  MEASURED, both ways, same inputs, same machine:
 ::
 ::                  zassenhaus     van hoeij
-::      SD_3           21.3 ms       99.4 ms
-::      SD_4          282.3 ms     2161.3 ms
-::      SD_5          197.9 s       239.2 s
+::      SD_3           21.3 ms       43.2 ms
+::      SD_4          282.3 ms      463.2 ms
+::      SD_5          197.9 s         9.6 s     <- 20.7x
 ::
-::  The lattice loses everywhere it can be compared, SD_5 included -- and
-::  SD_5 is the case SPEC V0 named as the one to beat.  It is not that
-::  the pass is broken: on every REDUCIBLE input tested it proposes
-::  exactly the true factor indicators, immediately.  It is that
-::  Zassenhaus is only slow on the irreducible-but-totally-split family,
-::  and that is precisely where two trace columns cannot isolate the
-::  all-ones vector -- the offending subsets satisfy the trace conditions
-::  honestly, being factorizations over a subfield, and only trial
-::  division rejects them.  More columns would separate; columns cost
-::  more than the enumeration they would save.  See SPEC-QUESTIONS V1.
+::  The crossover is between r = 8 and r = 16, and this sits at the
+::  measured win rather than an interpolated guess, so engaging the
+::  lattice is never the slower choice.  r = 12 is untested; lowering
+::  this to reach it should be measured, not assumed.
 ::
-::  So the gate sits at 32, not at any measured win, because there is no
-::  measured win.  At r = 32 Zassenhaus enumerates ~2.1e9 subsets and
-::  does not finish, so ~50 s of lattice cannot make things worse and on
-::  a reducible input makes them possible.  Below that, the enumeration
-::  is both fast and certain.
-++  lat-min  ^-(@ud 32)
+::  SPEC V0 named SD_5's 204 s as the number phase V1 has to beat.  It is
+::  beaten by a factor of twenty.
+++  lat-min  ^-(@ud 16)
 ::    +drop:  remove a subset's indices from the remaining index set
 ++  drop
   |=  [idx=(list @ud) s=(list @ud)]
@@ -742,7 +821,7 @@
   ::  out of the inner loop alone bought 6x at dimension 9, more than the
   ::  call-count reduction, which is only possible if the rest is noise.
   ::  SPEC V2 pins the reduction sequence but NOT this computation.
-  =/  g  (gso cur)
+  =/  g  (igso cur)
   =/  k=@ud     1
   |-  ^-  zmat
   ?:  =(k n)  cur
@@ -750,32 +829,58 @@
   =/  rk
     =/  j=@ud     (dec k)
     =/  acc=zmat  cur
-    =/  mk=qvec   (nth mu.g k)
-    |-  ^-  [acc=zmat mk=qvec]
-    =/  q=@s    (zround (qat mk j))
+    =/  lm=zmat   lam.g
+    |-  ^-  [acc=zmat lam=zmat]
+    =/  dj=@s   (zat d.g +(j))
+    =/  q=@s    (iround (zat (znth lm k) j) dj)
     =/  nx=zmat
       ?:  =(--0 q)  acc
       (zput acc k (zaxpy (znth acc k) (znth acc j) q))
-    ::  b_k -= q*b_j sends mu_ki to mu_ki - q*mu_ji for every i.  mu_ji
-    ::  is 0 above the diagonal and 1 on it, so the plain vector update
-    ::  is exact at i=j and a no-op for i>j -- in particular mu_kk stays
-    ::  1, as the padding in +gso requires.
-    =/  nm=qvec
-      ?:  =(--0 q)  mk
-      (qsub mk (qscale (nth mu.g j) [q 1]))
-    ?:  =(0 j)  [nx nm]
-    $(j (dec j), acc nx, mk nm)
-  ::  install the reduced mu row; no b* moved, and no other mu row did
-  =/  g1  [bs=bs.g mu=(vput mu.g k mk.rk)]
-  ::  Lovasz, on the size-reduced basis
-  =/  m=frac  (qat mk.rk (dec k))
-  =/  rhs=frac
-    (mul:qq (sub:qq del (mul:qq m m)) (nrm2 bs.g1 (dec k)))
-  ?:  ?!(=(%lt (cmp:qq (nrm2 bs.g1 k) rhs)))
+    ::  b_k -= q*b_j sends mu_ki to mu_ki - q*mu_ji for every i.  Scaled
+    ::  by d_(i+1) that is lam_ki -= q*lam_ji for i < j, and at i = j it
+    ::  is lam_kj -= q*d_(j+1), since mu_jj = 1.  Above j, mu_ji is 0 and
+    ::  nothing moves.  No d changes: b*_k is untouched by a subtraction
+    ::  lying in the span the projection already removes.
+    =/  nl=zmat
+      ?:  =(--0 q)  lm
+      =/  rk1=zvec  (znth lm k)
+      =/  rj1=zvec  (znth lm j)
+      =/  r2=zvec   (zeput rk1 j (dif:si (zat rk1 j) (pro:si q dj)))
+      =/  r3=zvec
+        =/  i=@ud    0
+        =/  rr=zvec  r2
+        |-  ^-  zvec
+        ?:  =(i j)  rr
+        %=  $
+          i   +(i)
+          rr  (zeput rr i (dif:si (zat rr i) (pro:si q (zat rj1 i))))
+        ==
+      (zput lm k r3)
+    ?:  =(0 j)  [nx nl]
+    $(j (dec j), acc nx, lm nl)
+  =/  g1  [d=d.g lam=lam.rk]
+  ::  Lovasz.  ||b*_k||^2 >= (3/4 - mu^2) ||b*_(k-1)||^2 becomes, on
+  ::  multiplying through by 4*d_k*d_(k-1) and substituting
+  ::  ||b*_i||^2 = d_(i+1)/d_i and mu = lam/d_k,
+  ::
+  ::      4 * d_(k+1) * d_(k-1)  >=  3 * d_k^2 - 4 * lam^2
+  ::
+  ::  which is integral on both sides.  The d_i are strictly positive, so
+  ::  the multiplication cannot flip the inequality.
+  =/  lk=@s   (zat (znth lam.g1 k) (dec k))
+  =/  dkm=@s  (zat d.g1 (dec k))
+  =/  dk=@s   (zat d.g1 k)
+  =/  dk1=@s  (zat d.g1 +(k))
+  =/  lhs=@s  (pro:si --4 (pro:si dk1 dkm))
+  =/  rhs=@s
+    %+  dif:si
+      (pro:si --3 (pro:si dk dk))
+    (pro:si --4 (pro:si lk lk))
+  ?:  ?!(=(-1 (cmp:si lhs rhs)))
     $(cur acc.rk, g g1, k +(k))
   %=  $
     cur  (zswap acc.rk k (dec k))
-    g    (gswap bs.g1 mu.g1 k n)
+    g    (iswap d.g1 lam.g1 k n)
     k    ?:((gth k 1) (dec k) 1)
   ==
 ::    +factor:  the irreducible factors over Z of a squarefree f
