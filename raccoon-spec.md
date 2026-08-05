@@ -945,7 +945,10 @@ the unique representative of an element of ℚ(x); nothing else is.
 | `pow` | `[rfun @s] -> rfun` | Negative exponents via `inv` |
 | `deriv` | `rfun -> rfun` | |
 | `eval` | `[rfun frac] -> frac` | Crashes at a pole |
-| `poles` | `rfun -> (list [p=zol m=@ud])` | The irreducible factors of the denominator with multiplicity — the factorization made visible, since a caller who wants it should not have to redo it |
+| `pderiv` | `qol -> qol` | The formal derivative in ℚ[x]. Exposed because `%qx` has no `+deriv` — §R1 promoted one to `%zx` only — and every caller of `+integrate` needs it to check the answer |
+| `sqf-den` `fac-den` | `qol -> (list [p=qol m=@ud])` | The squarefree and irreducible factorizations of a denominator. `sqf-den` needs no factorization at all and is what Hermite consumes |
+| `poles` | `rfun -> (list [p=qol m=@ud])` | `fac-den` of the denominator — the factorization made visible, since a caller who wants it should not have to redo it |
+| `recombine` | `pfd -> rfun` | Sum a decomposition back up. Public because it is the property test worth having and a caller should not write it twice |
 | `pfrac` | `rfun -> [p=qol ts=(list [n=qol d=qol e=@ud])]` | Polynomial part plus squarefree terms `n/d^e` |
 | `pfrac-full` | `rfun -> [p=qol ts=(list [n=qol d=qol e=@ud])]` | Same, against irreducible `d` |
 | `hermite` | `rfun -> [rat=rfun log=rfun]` | The rational part, and what is left |
@@ -954,6 +957,13 @@ the unique representative of an element of ℚ(x); nothing else is.
 `/lib/racoon-lt`: see §F5.
 
 Every arm is **`free`**.
+
+**Delegated helpers, not API.** `qone`, `pone`, `monic`, `exact`,
+`ppow`, `to-z`, `of-z`, `pegcd`, `psort`, `split`, `expand`, `pf`,
+`terms`, `pint`, and `residue` exist in the same door and are reachable
+— a door has no private chapter, only a `+|` convention — but they are
+delegated in §14's sense and may change without escalation. The library
+header lists both sets so the boundary is stated rather than inferred.
 
 ## F5. The exponential polynomial, and why the transform closes
 
@@ -1008,10 +1018,16 @@ correction, neither are real ones.
 
 | Arm | Signature | Notes |
 |---|---|---|
-| `laplace` | `expo -> rfun` | Total. Each term transforms to a rational function and they sum |
-| `inverse` | `rfun -> (unit expo)` | `~` exactly when §F6's condition fails |
-| `deriv` `integrate` | `expo -> expo` | The class is closed under both, so neither can fail |
+| `canon` | `expo -> expo` | Sort, combine like terms, drop zero coefficients. The only arm accepting an unsorted or redundant list |
+| `laplace` | `expo -> rfun` | **Total.** Each term transforms to a rational function and they sum. `L{t^k f} = (-1)^k F^(k)`, so the `t^k` ladder is `k` applications of `deriv:rf` rather than a closed formula |
+| `inverse` | `rfun -> (unit expo)` | `~` when §F6's condition fails, and — for now — when any pole is repeated |
+| `ederiv` | `expo -> expo` | The class is closed under `d/dt`, so this cannot fail |
+| `eadd` `escale` | `[expo expo] -> expo` / `[expo frac] -> expo` | |
 | `solve-ode` | `[qol (list frac)] -> (unit expo)` | Constant-coefficient homogeneous, given the characteristic polynomial and initial conditions |
+
+`integrate` on `$expo` is **not built**: it is the inverse of `ederiv`
+and wants solving rather than substituting, which is the same shape as
+the repeated-pole expansion and belongs with it.
 
 ## F6. What is out of range, and how a caller finds out
 
@@ -1091,9 +1107,13 @@ No `~|` anywhere (R3).
 - **F2 — integration.** `hermite`, then Rothstein–Trager and
   `integrate`. Depends on `/lib/racoon-alg`.
 - **F3 — transforms.** `$expo`, `laplace`, `inverse`, `solve-ode`, in
-  `/lib/racoon-lt`. **Not built.** F0–F2 are, in `/lib/racoon-rf`; §F5's
-  representation was corrected while working F3 out and the arms below
-  it have not been written against the corrected form.
+  `/lib/racoon-lt`. **Built, with simple poles only.** `+laplace` is
+  total; `+inverse` handles irreducible factors of multiplicity one,
+  linear or quadratic, and returns `~` on a repeated pole. The
+  expansion of `1/((s-σ)² + wsq)^m` is a recurrence, and a recurrence
+  wants the §F9.3 round trip as its test rather than as its
+  afterthought — so it is deferred to F3's second half along with
+  `integrate` on `$expo`.
 
 ## F9. Testing
 

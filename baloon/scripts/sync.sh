@@ -48,6 +48,7 @@ lib/baloon.hoon
 lib/baloon-fmt.hoon
 lib/baloon-cases.hoon
 lib/baloon-alg.hoon
+lib/baloon-rf.hoon
 lib/vanhoeij.hoon
 lib/baloon-vectors.hoon
 tests/lib/baloon.hoon

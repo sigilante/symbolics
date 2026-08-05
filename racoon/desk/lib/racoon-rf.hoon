@@ -25,11 +25,21 @@
 ::  Partial fractions factors the denominator, which is the same cost
 ::  cliff SPEC V0 measured, so this is not decoration.
 ::
-::  THREADING THE SAMPLE IS NORMATIVE (SPEC F1).  F2 calls
-::  /lib/racoon-alg, which is a door over the SAME sample, and it is
-::  called as ~(. al fir) rather than as al.  A caller who binds the
-::  fast factorizer here and gets the slow one one layer down has been
-::  handed wrong performance and no error.
+::  THREADING THE SAMPLE IS NORMATIVE (SPEC F1).  A consumer that calls
+::  another door over the SAME sample must pass ~(. that fir) rather
+::  than `that`: a caller who binds the fast factorizer here and gets
+::  the slow one one layer down has been handed wrong performance and
+::  no error.
+::
+::  PUBLIC API (SPEC F4): new of-q of-p zero one is-zero deg neg add sub
+::  mul div inv pow deriv eval pderiv sqf-den fac-den poles pfrac
+::  pfrac-full recombine hermite integrate.
+::
+::  Delegated helpers, which SPEC S14 lets change without escalation:
+::  qone pone monic exact ppow to-z of-z pegcd psort split expand pf
+::  terms pint residue.  They are reachable -- a door has no private
+::  chapter, only a convention -- and resting on them is the caller's
+::  risk, not this library's contract.
 ::
 /-  *racoon
 /+  racoon, rr=racoon-roots, al=racoon-alg

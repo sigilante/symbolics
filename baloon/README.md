@@ -39,6 +39,7 @@ baloon/
     lib/baloon-fmt.hoon       rendering and parsing, all three rings
     lib/vanhoeij.hoon         LLL and van Hoeij -- imports BOTH libraries
     lib/baloon-alg.hoon       racoon-alg with van Hoeij bound in
+    lib/baloon-rf.hoon        racoon-rf with van Hoeij bound in
     tests/lib/baloon.hoon     test suite -- Q, Z, and Z/n
     tests/lib/vanhoeij.hoon   LLL and van Hoeij
     gen/baloon-bench.hoon     benchmark generator
