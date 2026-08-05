@@ -49,6 +49,22 @@ from its own text — and reaches both libraries through symlinks.
 
 - [`cascabel/README.md`](./cascabel/README.md)
 
+##  Nockapp
+
+`nockapp/` is a second example, and a different kind: **Tip5 as an
+independent witness**. Tip5 is the algebraic sponge hash Nockchain uses,
+and it already has an authoritative Hoon implementation with a Rust jet —
+but those two share a lineage, so their agreeing mostly confirms that one
+reading of the paper was transcribed consistently. `/lib/tip5` is built
+from Racoon's modular arithmetic and Baloon's matrices instead, and agrees
+with 300 of Nockchain's own published vectors for a different reason.
+
+It has already earned its keep: **"Tip5 with 5 rounds" names two different
+functions in nockchain-official**, and a round count alone does not say
+which one you get.
+
+- [`nockapp/README.md`](./nockapp/README.md)
+
 ##  Libraries
 
 ### Racoon (Real AlgebraiCs in hOON)
