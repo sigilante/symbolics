@@ -962,30 +962,55 @@ phase F3 needs one more type. It does not need a general expression
 tree, because the class that is closed under differentiation,
 integration, and the Laplace transform is small and nameable:
 
+**The obvious representation is wrong, and this section records why
+before anyone writes it.** The first form of this table was
+
 ```hoon
-::    $eterm: c · t^k · e^(s·t) · cos(w·t)   or   ... · sin(w·t)
 +$  eterm  [c=anum k=@ud s=anum w=anum tr=?(%cos %sin)]
+```
+
+with `$anum` coefficients, on the reasoning that σ and ω are real
+algebraic and `/lib/racoon-alg` names them. It does. The problem is the
+**coefficient field of the transform**: `L{e^{σt}} = 1/(s - σ)`, which is
+not a rational function over ℚ when σ is irrational. So `+laplace` would
+not land in `$rfun` at all, and the two arms would not compose.
+
+The fix is to notice what the inverse transform of a rational function
+over ℚ actually produces. With linear and quadratic factors only,
+completing the square gives **σ and ω² both rational** — only ω itself is
+irrational. And the sine term always arrives carrying a compensating
+`1/ω`, because that is what differentiating the quadratic contributes. So
+normalize the basis to absorb it:
+
+```hoon
+::    $eterm: c · t^k · e^(sig·t) · cos(sqrt(wsq)·t)          when %cos
+::            c · t^k · e^(sig·t) · sin(sqrt(wsq)·t)/sqrt(wsq) when %sin
++$  eterm  [c=frac k=@ud sig=frac wsq=frac tr=?(%cos %sin)]
 ::    $expo: a finite sum of them, sorted, no zero coefficients
 +$  expo  (list eterm)
 ```
 
-`w = 0` with `tr = %cos` is the pure exponential case, since `cos 0 = 1`;
-that is why the trigonometric factor is not a `(unit ...)`. Sorting and
-zero-stripping are pinned, so `$expo` is canonical and the arms stay
-`free`.
+**Every coefficient is now rational**, both transforms land where they
+should, and the class is still closed under differentiation and
+integration. `wsq = 0` with `tr = %cos` is the pure exponential case,
+since `cos 0 = 1`; the `%sin` convention degenerates continuously there
+too, since `sin(ωt)/ω → t` as `ω → 0`, which is the same `t^k` ladder the
+repeated-root case walks.
+
+`/lib/racoon-lt` therefore needs **no algebraic numbers at all** and does
+not import `/lib/racoon-alg`. Sorting and zero-stripping are pinned, so
+`$expo` is canonical and the arms stay `free`.
 
 **Nothing here is complex.** A rational denominator's non-real roots come
-in conjugate pairs, and each pair contributes one real term
-`e^{σt}(P cos ωt + Q sin ωt)` with σ and ω real algebraic. `/lib/racoon-alg`
-represents both. Complex algebraic numbers stay fenced by §A9 and are not
-needed.
+in conjugate pairs, and each pair contributes one real term. Complex
+algebraic numbers stay fenced by §A9 and are not needed — and after this
+correction, neither are real ones.
 
 | Arm | Signature | Notes |
 |---|---|---|
 | `laplace` | `expo -> rfun` | Total. Each term transforms to a rational function and they sum |
 | `inverse` | `rfun -> (unit expo)` | `~` exactly when §F6's condition fails |
 | `deriv` `integrate` | `expo -> expo` | The class is closed under both, so neither can fail |
-| `eval` | `[expo anum] -> anum` | Exact at algebraic `t`; irrational values of `e^t` are **not** in `$anum` and this arm does not pretend otherwise — see §F9 |
 | `solve-ode` | `[qol (list frac)] -> (unit expo)` | Constant-coefficient homogeneous, given the characteristic polynomial and initial conditions |
 
 ## F6. What is out of range, and how a caller finds out
@@ -1066,7 +1091,9 @@ No `~|` anywhere (R3).
 - **F2 — integration.** `hermite`, then Rothstein–Trager and
   `integrate`. Depends on `/lib/racoon-alg`.
 - **F3 — transforms.** `$expo`, `laplace`, `inverse`, `solve-ode`, in
-  `/lib/racoon-lt`.
+  `/lib/racoon-lt`. **Not built.** F0–F2 are, in `/lib/racoon-rf`; §F5's
+  representation was corrected while working F3 out and the arms below
+  it have not been written against the corrected form.
 
 ## F9. Testing
 
