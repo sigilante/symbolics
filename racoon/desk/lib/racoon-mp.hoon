@@ -34,22 +34,21 @@
 ::  remainder, unique in several variables only when dividing by a
 ::  Groebner basis -- so no arm here changes answer with the order.
 ::
-::  STATUS: M0 and M1 are built and verified in-ship -- ordering,
-::  arithmetic, degree, content, primitive part, evaluation, partial
-::  evaluation, the derivative, and the %zx bridge all check out against
-::  hand-computed answers.
+::  STATUS: M0, M1, and M2 are built and verified in-ship.  M3
+::  (squarefree decomposition) and M4 (multivariate rational functions)
+::  are specified in SPEC M6 and not written.
 ::
-::  M2 (+gcd and the recursive machinery it rests on) IS NOT WORKING.
-::  It builds, and one bug is already fixed -- +contentv used to lift its
-::  result back to arity n, which made +gcd recurse at its own arity
-::  forever, a loop that is silent because every step is well-formed and
-::  merely never smaller.  A second fault remains: +canon's uniform-arity
-::  assertion fires from inside +to-rec, so some arm is producing a
-::  polynomial whose exponent vectors disagree in length.  Do not call
-::  +gcd, +ppv, +contentv, +prem, or +xdiv until that is found.
+::  +gcd is checked by its DEFINITION rather than by agreement: the
+::  product divides both arguments exactly -- which +xdiv decides -- and
+::  the two cofactors are coprime.  Both are exact and need no oracle.
+::  Arity 1 additionally agrees with +gcd:zx arm for arm, which is the
+::  strongest check available here, since %zx is already verified
+::  against SymPy over the whole Milestone A corpus.
 ::
-::  Nothing imports this file yet, and no test suite references it, so
-::  the fault is inert.
+::  THE GCD IS PRIMITIVE, so gcd(6xy, 15y) is y and not 3y.  That is
+::  SPEC M3's pinned convention and §8's univariate one, and it is
+::  written here because the first test to assert otherwise was the
+::  test, not the library.
 ::
 /-  *racoon
 /+  racoon
