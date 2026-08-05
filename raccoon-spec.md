@@ -1154,7 +1154,20 @@ No `~|` anywhere (R3).
    degree-5 irreducible with one real root, which must produce `~` from
    `+inverse` and not a wrong answer.
 6. **Benchmarks.** `integrate` at denominator degrees 4, 8, and 16, both
-   factorizer bindings, through `scripts/bench.sh`. Recorded, no gates.
+   factorizer bindings, through `scripts/bench.sh`. **Measured**; the
+   table is in `racoon/README.md`. Two families are needed, because
+   "expensive to factor" and "integrable" pull against each other — the
+   denominators Zassenhaus finds hard are irreducible with many modular
+   factors, and an irreducible denominator of degree above 2 usually has
+   irrational residues, which §F6 puts out of range.
+
+   **The result is about `lat-min`, not about `integrate`.** At degree
+   16 the split denominator has `r = 16`, so the gate engages and van
+   Hoeij runs — and it is **1.8× slower**, because sixteen linear
+   factors recombine at cardinality one and the lattice is pure
+   overhead. `lat-min` gates on `r` alone, and `r` cannot distinguish
+   sixteen factors that recombine trivially from sixteen that need
+   39,202 subsets. See `baloon/SPEC-QUESTIONS.md` V1.
 
 ## F10. Out of scope — hard fence
 

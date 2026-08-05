@@ -24,7 +24,9 @@
 ::
 /-  spider, *racoon
 /+  strandio, racoon, rr=racoon-roots, fmt=racoon-fmt, al=racoon-alg
+/+  rf=racoon-rf
 =,  strand=strand:spider
+=/  qx  qx:racoon
 =>
 |%
 ::    $job:  what to measure, as a FLAT four-tuple
@@ -34,7 +36,46 @@
 ::  two polynomials ride in .a and .b.
 ::
 ::      [%alg 'p' 'q' 0]      the sum of two algebraic numbers
+::      [%int d fam 0]        +integrate:rf on a degree-d denominator,
+::                            at the DEFAULT binding.  SPEC F9.6.
 +$  job  [tag=@tas a=@ b=@ c=@]
+::    +int-case:  the integrand for the %int benchmark
+::
+::  Two families, because "expensive to factor" and "integrable" pull
+::  against each other -- the denominators Zassenhaus finds hard are
+::  irreducible with many modular factors, and an irreducible
+::  denominator of degree > 2 usually has IRRATIONAL residues, which
+::  SPEC F6 puts out of range.  So:
+::
+::    fam 0   1 / prod_(i=1..d) (x - i)
+::            splits completely, so r = d and every residue is
+::            rational.  Zassenhaus finds all d factors at cardinality
+::            one, which is the cheap end of recombination.
+::
+::    fam 1   (x^d + 1)' / (x^d + 1)
+::            irreducible, and the residue is 1 by construction, since
+::            int g'/g is log g.  MEASURED r = 2 at every degree here,
+::            not the large r this was reached for -- x^d + 1 splits
+::            into two modular pieces and the +lat-min gate never
+::            engages.  What it measures is the single-factor path:
+::            Hermite and one residue on a high-degree denominator,
+::            with no partial-fraction spread.
+::
+::  Both are built rather than transcribed, so neither can be a wrong
+::  literal.  The same twelve lines appear in /ted/baloon-bench: the
+::  two bindings live in different desks on purpose, which is what
+::  keeps racoon/desk building alone.
+++  int-case
+  |=  [d=@ud fam=@ud]
+  ^-  qol
+  ?:  =(0 fam)
+    =/  i=@ud    1
+    =/  acc=qol  ~[[--1 1]]
+    |-  ^-  qol
+    ?:  (gth i d)  acc
+    $(i +(i), acc (mul:qx acc ~[[(dif:si --0 (sun:si i)) 1] [--1 1]]))
+  %-  canon:qx
+  (weld ~[`frac`[--1 1]] (weld (reap (dec d) `frac`[--0 1]) ~[`frac`[--1 1]]))
 --
 ^-  thread:spider
 |=  arg=vase
@@ -51,6 +92,25 @@
 ::  itself.  No tag is 0, so a null head is unambiguously the wrapper.
 =/  raw=*  ?:(?@(q.arg & =(~ -.q.arg)) +.q.arg q.arg)
 =/  j=job  ;;(job raw)
+::  %int: SPEC F9.6, at the door's DEFAULT binding.  Built outside the
+::  bracket, since constructing a degree-16 denominator is not the
+::  measurement.
+=/  ig=rfun:rf
+  ?.  =(%int tag.j)  zero:rf
+  =/  g=qol  (int-case a.j b.j)
+  ?:  =(0 b.j)  (new:rf ~[[--1 1]] g)
+  (new:rf (pderiv:rf g) g)
+?:  =(%int tag.j)
+  ;<  ~       bind:m  (sleep:strandio ~s0)
+  ;<  t0=@da  bind:m  get-time:strandio
+  =/  r  (integrate:rf ig)
+  ;<  ~       bind:m  (sleep:strandio ~s0)
+  ;<  t1=@da  bind:m  get-time:strandio
+  ::  the check is the number of logarithmic terms: an integrand that
+  ::  fell out of range returns ~ and would otherwise look merely fast
+  =/  chk=@ud  ?~(r 0 (lent ls.u.r))
+  =/  us=@ud   (div (mul (sub t1 t0) 1.000.000) (bex 64))
+  (pure:m !>([us chk]))
 ?>  =(%alg tag.j)
 =/  pa=(unit zol)  (redz:fmt a.j)
 =/  pb=(unit zol)  (redz:fmt b.j)

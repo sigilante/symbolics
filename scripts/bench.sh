@@ -33,6 +33,8 @@
 #   scripts/bench.sh lll 17 1 136           +lll on a 17-row lattice
 #   scripts/bench.sh alg 'x^2 - 2' 'x^2 - 3'   algebraic sum, default
 #   scripts/bench.sh alg -f 'x^2 - 2' 'x^2 - 3'  same, van Hoeij bound
+#   scripts/bench.sh int 16 0               integrate, default binding
+#   scripts/bench.sh int -f 16 0            integrate, van Hoeij bound
 #
 # Every run prints "us check", where .check is derived from the answer:
 # a benchmark that measured a crash, or an arm that returned instantly
@@ -72,6 +74,15 @@ case "$kind" in
         thread=baloon-bench; arg="[%vh $1 $2 0]" ;;
   lll)  [ "$#" -eq 3 ] || { echo "usage: bench.sh lll <r> <m> <bits>" >&2; exit 2; }
         thread=baloon-bench; arg="[%lll $1 $2 $3]" ;;
+  int)
+        # SPEC F9.6.  fam 0 is 1/prod(x-i), which splits so r = degree;
+        # fam 1 is g'/g for g = x^d + 1, irreducible, where the residue
+        # is 1 by construction and the factorization is the expensive
+        # part.  -f picks the thread the same way `alg` does.
+        thread=racoon-bench
+        if [ "${1:-}" = "-f" ]; then thread=baloon-bench; shift; fi
+        [ "$#" -eq 2 ] || { echo "usage: bench.sh int [-f] <degree> <fam>" >&2; exit 2; }
+        arg="[%int $1 $2 0]" ;;
   alg)
         # the two bindings live in different desks on purpose, so the
         # -f flag picks the THREAD, not a field: /ted/racoon-bench is

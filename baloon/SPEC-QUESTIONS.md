@@ -127,5 +127,26 @@ polynomial's modular factors have roots summing to zero, so every odd
 power sum vanishes identically — `+pcols` skips them), and column count is
 genuinely the binding cost. What changed is the price of a column.
 
-**Still open, minor:** `+lat-min` is 16, the measured win. `r = 12` is
-untested; lowering it should be measured rather than assumed.
+**Still open:** `+lat-min` is 16, the measured win *on this family*.
+`r = 12` is untested; lowering it should be measured rather than
+assumed.
+
+**And a second workload says 16 is too low for it.** SPEC F9.6
+benchmarked `integrate:racoon-rf` on `1/∏(x−i)` at degree 16 — a
+denominator that splits into sixteen distinct linear factors, so
+`r = 16` and the gate engages. Van Hoeij is **1.8× slower** there
+(477 ms against 259 ms), because sixteen linear factors recombine at
+cardinality *one*: Zassenhaus finds every factor on its first pass and
+the lattice is pure overhead.
+
+This does not make `lat-min = 16` wrong for `SD_5`, where it is worth
+21×. It makes the *predictor* wrong. `r` alone cannot distinguish
+sixteen factors that recombine trivially from sixteen that need 39,202
+subsets, and those are the two ends of the same number. A gate that
+measured how deep the enumeration actually goes would separate them —
+but that is not knowable before enumerating, which is the whole
+difficulty.
+
+The cheap mitigation, unmeasured: try Zassenhaus at cardinality one
+first and engage the lattice only for what survives. That costs `r`
+trial divisions, which the lattice pass would have paid anyway.

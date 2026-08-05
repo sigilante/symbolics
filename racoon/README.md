@@ -571,6 +571,50 @@ across two orders of magnitude, which is the check that matters:
 | `lll 16 1 136` | 634 ms | 0.641 s |
 | `alg` deg 4 + 4 | 3.31 s | 3.34 s |
 
+### Integration, both factorizer bindings — §F9.6
+
+```
+scripts/bench.sh int 16 0        1/∏(x−i), default binding
+scripts/bench.sh int -f 16 0     the same, van Hoeij bound
+```
+
+Two families are needed, because **"expensive to factor" and
+"integrable" pull against each other**: the denominators Zassenhaus
+finds hard are irreducible with many modular factors, and an irreducible
+denominator of degree above 2 usually has irrational residues, which
+§F6 puts out of range. Floor subtracted, best of two:
+
+| denominator | deg | `r` | `firr:zx` | van Hoeij |
+|---|---:|---:|---:|---:|
+| `1/∏(x−i)` | 4 | 4 | 18 ms | 20 ms |
+| | 8 | 8 | 60 ms | 66 ms |
+| | 16 | **16** | **259 ms** | **477 ms** |
+| `g′/g`, `g = x^d+1` | 4 | 2 | 8 ms | 9 ms |
+| | 8 | 2 | 12 ms | 14 ms |
+| | 16 | 2 | 26 ms | 27 ms |
+
+**The interesting row is the third, and it is about `lat-min` rather
+than about `integrate`.** A denominator that splits into sixteen
+distinct linear factors has `r = 16`, so the gate engages and van Hoeij
+runs — and it is **1.8× slower**, because sixteen linear factors
+recombine at cardinality *one*. Zassenhaus finds every factor on its
+first pass and the lattice is pure overhead.
+
+That does not make `lat-min = 16` wrong for `SD_5`, where it is worth
+21×. It makes the *predictor* wrong: `r` alone cannot distinguish
+sixteen factors that recombine trivially from sixteen that need 39,202
+subsets, and those are the two ends of the same number.
+`baloon/SPEC-QUESTIONS.md` V1 records it as open, with the cheap
+mitigation — try cardinality one first, engage the lattice only for what
+survives.
+
+**The second family measures something else than intended, and the
+comment in `/ted/racoon-bench` now says so.** `x^d + 1` was reached for
+as the factorization-expensive case; measured, it has `r = 2` at every
+degree, so the gate never engages and both bindings agree. What those
+rows actually show is the single-factor path — Hermite and one residue
+on a high-degree denominator, with no partial-fraction spread.
+
 ### Recorded baselines
 
 Vere 4.6, `%zuse` 409, fake `~zod`, `--loom 33`, Darwin arm64. 100 iterations

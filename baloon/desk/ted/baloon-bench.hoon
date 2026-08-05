@@ -42,9 +42,10 @@
 ::
 /-  spider, *baloon, *racoon
 /+  strandio, baloon, racoon, vh=vanhoeij, cas=baloon-cases
-/+  rr=racoon-roots, fmt=racoon-fmt, ba=baloon-alg
+/+  rr=racoon-roots, fmt=racoon-fmt, ba=baloon-alg, brf=baloon-rf
 =,  strand=strand:spider
 =/  zx  zx:racoon
+=/  qx  qx:racoon
 =/  zm  zm:baloon
 =>
 |%
@@ -95,6 +96,25 @@
 =/  b=zmat   ?:(=(%lll tag.j) (lattice:cas a.j b.j c.j) ~)
 ::  the algebraic operands, likewise built before the clock starts --
 ::  canonicalizing one is itself a factorization
+::  the %int integrand, built before the clock starts.  fam 0 is
+::  1/prod(x-i), which splits so r = degree; fam 1 is g'/g for
+::  g = x^d + 1, where r is 2 at every degree measured and the
+::  +lat-min gate never engages.  The twelve lines are duplicated from
+::  /ted/racoon-bench, which carries the full note -- the two bindings
+::  live in different desks so that racoon/desk keeps building alone.
+=/  ig=rfun:brf
+  ?.  =(%int tag.j)  zero:brf
+  =/  g=qol
+    ?:  =(0 b.j)
+      =/  i=@ud    1
+      =/  acc=qol  ~[[--1 1]]
+      |-  ^-  qol
+      ?:  (gth i a.j)  acc
+      $(i +(i), acc (mul:qx acc ~[[(dif:si --0 (sun:si i)) 1] [--1 1]]))
+    %-  canon:qx
+    (weld ~[`frac`[--1 1]] (weld (reap (dec a.j) `frac`[--0 1]) ~[`frac`[--1 1]]))
+  ?:  =(0 b.j)  (new:brf ~[[--1 1]] g)
+  (new:brf (pderiv:brf g) g)
 =/  ab=(unit [anum:ba anum:ba])
   ?.  =(%alg tag.j)  ~
   =/  pa=(unit zol)  (redz:fmt a.j)
@@ -116,6 +136,7 @@
   (fact:vh f 0)
 =/  red=zmat  ?:(=(%lll tag.j) (lll:vh b) ~)
 =/  sum=(unit anum:ba)  ?~(ab ~ `(add:ba -.u.ab +.u.ab))
+=/  ir  ?:(=(%int tag.j) (integrate:brf ig) ~)
 ;<  ~       bind:m  (sleep:strandio ~s0)
 ;<  t1=@da  bind:m  get-time:strandio
 ::  OUTSIDE it: the check.  This is not pedantry -- +reduced is the
@@ -134,6 +155,8 @@
     ::  the degree of the sum's minimal polynomial: 0 means the input
     ::  did not parse, which bench.sh reports rather than hiding
     %alg  ?~(sum 0 (deg:ba u.sum))
+    ::  the number of logarithmic terms -- see /ted/racoon-bench
+    %int  ?~(ir 0 (lent ls.u.ir))
   ==
 ::  microseconds: @dr counts 2^-64 seconds, so scale before dividing to
 ::  keep the integer division from flooring everything short to zero
