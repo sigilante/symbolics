@@ -136,7 +136,7 @@ structural. What is not canonical is the choice of tower: `log(x²)` and
 `2·log(x)` build different towers for the same function. `+norm` pins a
 tower-construction procedure; it does not claim it is the only one.
 
-## 4. Dependencies, and the one that does not exist
+## 4. Dependencies, and the one that is not built
 
 Calhoon imports `/lib/racoon`, `/lib/racoon-alg`, `/lib/racoon-rf`,
 `/lib/racoon-lt`, and `/lib/racoon-mp`. It is a consumer of all five and
