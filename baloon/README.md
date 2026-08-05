@@ -177,6 +177,27 @@ lattice costs more than trying ten subsets, so at `SD_3` and `SD_4` van
 Hoeij is roughly 1.5× slower. That is what `+lat-min` is for: engaging
 the lattice is never the slower choice at the default entry point.
 
+**Re-run it as data, not as terminal output.** `~>(%bout ...)` slogs and
+returns nothing, so a script has to scrape the pane for it — which is
+how the `dim 9` row below got measured as `+baloon-lll-bench 9 1 136` for
+a while, a lattice of dimension **ten**. `scripts/bench.sh` goes over
+`%fyrd` instead and gets the number back as a value:
+
+```
+scripts/bench.sh nop              the harness floor, about 10 ms
+scripts/bench.sh vh 5 0           SD_5, Zassenhaus
+scripts/bench.sh vh 5 1           SD_5, van Hoeij
+scripts/bench.sh lll 16 1 136     dim 17 -- r + m, so 16 and not 17
+```
+
+Each run also returns a check derived from the answer — the factor count
+for `vh`, `reduced` for `lll` — so a benchmark that measured a crash
+cannot pass for a fast one. The check is computed *after* the clock
+stops: `+reduced` is a full rational Gram–Schmidt, and charging it to the
+measurement put every `lll` reading about 60% over the recorded figure
+until that was fixed. See `racoon/README.md` for the cross-check against
+`%bout`.
+
 **What made it work was not the algorithm.** An earlier `+lll` on
 rational Gram–Schmidt made four trace columns at `r = 16` cost 221.7 s,
 against an enumeration of 197.9 s — so the column budget was two, and two

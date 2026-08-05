@@ -46,11 +46,13 @@ files="
 sur/baloon.hoon
 lib/baloon.hoon
 lib/baloon-fmt.hoon
+lib/baloon-cases.hoon
 lib/baloon-alg.hoon
 lib/vanhoeij.hoon
 lib/baloon-vectors.hoon
 tests/lib/baloon.hoon
 tests/lib/vanhoeij.hoon
+ted/baloon-bench.hoon
 gen/baloon-bench.hoon
 gen/baloon-det.hoon
 gen/baloon-lll.hoon

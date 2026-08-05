@@ -526,6 +526,46 @@ accumulator keeps the work from being elided.
 **There are no performance gates in Milestone A.** These numbers are the
 denominator for Milestone B speedup claims.
 
+### Numbers that come back as data
+
+`~>(%bout ...)` is a **slog**: it prints to the ship's output and returns
+nothing, so reading it back means scraping the terminal. That is fine for
+a person and bad for a script — it produced four distinct failures in one
+afternoon, the worst being a `-test` that ran *before* its `|commit`
+landed and reported a negative control as passing.
+
+```
+scripts/bench.sh nop                                    the harness floor
+scripts/bench.sh alg 'x^4 - 10x^2 + 1' 'x^4 - 24x^2 + 4'
+scripts/bench.sh alg -f 'x^4 - 10x^2 + 1' 'x^4 - 24x^2 + 4'
+```
+
+`/ted/racoon-bench` is a thread; `%fyrd` is synchronous and returns the
+thread's product, so none of the four failures is possible. It reports
+microseconds *and* a check derived from the answer — for `alg`, the
+degree of the sum's minimal polynomial — because a benchmark that
+measured a crash is exactly what a bare duration cannot show.
+
+The `-f` flag picks the **thread**, not a flag on the job:
+`/ted/racoon-bench` is Racoon-only and gets `firr:zx` from the door's
+default, while `/ted/baloon-bench` binds `factor:vh`. That is the same
+split `/gen/racoon-alg-bench` and `/gen/baloon-alg-bench` use, and it is
+what keeps `racoon/desk` building alone.
+
+The clock is two zero-length sleeps around the work, since Arvo's `now`
+is fixed within an event. It costs about **10 ms**, which `nop` measures
+rather than assumes and which is *not* subtracted — read sub-millisecond
+readings as "small", not as exact. Above that it agrees with `%bout`
+across two orders of magnitude, which is the check that matters:
+
+| | `bench.sh` − floor | `%bout` |
+|---|---:|---:|
+| `vh 3 0` | 21 ms | 22.4 ms |
+| `vh 4 0` | 288 ms | 298.7 ms |
+| `lll 8 1 136` | 135 ms | 0.135 s |
+| `lll 16 1 136` | 634 ms | 0.641 s |
+| `alg` deg 4 + 4 | 3.31 s | 3.34 s |
+
 ### Recorded baselines
 
 Vere 4.6, `%zuse` 409, fake `~zod`, `--loom 33`, Darwin arm64. 100 iterations

@@ -1,8 +1,14 @@
   ::  /gen/baloon-lll-bench
 ::::  Time +lll:vh on a van Hoeij-shaped lattice -- SPEC V0, V7
 ::
-::  Usage:  +baloon-lll-bench 9 1 136
-::          +baloon-lll-bench 17 1 136
+::  Usage:  +baloon-lll-bench 8 1 136        dim 9
+::          +baloon-lll-bench 16 1 136       dim 17
+::
+::  The DIMENSION is r + m, so the first argument is one less than the
+::  row of the table below.  The usage line here said 9 and 17 for a
+::  while, which is dim 10 and dim 18 -- caught by scripts/bench.sh
+::  reading 60% over the recorded figures until the arguments were
+::  lined up.
 ::
 ::  Arguments are [r=@ud m=@ud bits=@ud]: r modular factors, m power-sum
 ::  columns, and a lift modulus of 2^bits.  Builds the lattice SPEC V3
@@ -51,7 +57,7 @@
 ::  is what checks the output is still bit-identical.
 ::
 /-  *baloon, *racoon
-/+  baloon, vh=vanhoeij
+/+  baloon, vh=vanhoeij, cas=baloon-cases
 =/  zm  zm:baloon
 :-  %say
 |=  [* [r=@ud m=@ud bits=@ud ~] ~]
@@ -59,7 +65,7 @@
 |^  ^-  tang
     ?:  |(=(0 r) =(0 m) =(0 bits))
       ~[leaf+"r, m, and bits must all be nonzero"]
-    =/  b=zmat  build
+    =/  b=zmat  (lattice:cas r m bits)
     =/  d=@ud   (lent b)
     ::  block triangular with unit and p^a diagonals, so this cannot fail;
     ::  asserted anyway because +lll asserts it and a silent shape bug here
@@ -69,72 +75,4 @@
     =/  red=zmat  ~>(%bout (lll:vh b))
     :~  leaf+"dim {<d>}  bits {<bits>}  reduced {<(reduced:vh red)>}"
     ==
-::    +rng:  one step of a linear congruential generator, modulo 2^64
-::
-::  Knuth's MMIX constants.  The quality of the stream does not matter --
-::  these are lattice entries, not a statistical sample -- but determinism
-::  does, so the seed below is fixed and the numbers are reproducible.
-++  rng
-  |=  x=@ud
-  ^-  @ud
-  %+  mod
-    (add (mul x 6.364.136.223.846.793.005) 1.442.695.040.888.963.407)
-  (bex 64)
-::    +draw:  a pseudo-random value in [0, md), with the next state
-::
-::  Three LCG steps concatenated, so the value is up to 192 bits before
-::  the reduction -- enough to fill a 136-bit modulus without the top of
-::  the range going unused.
-++  draw
-  |=  [x=@ud md=@ud]
-  ^-  [v=@ud s=@ud]
-  =/  a=@ud  (rng x)
-  =/  b=@ud  (rng a)
-  =/  c=@ud  (rng b)
-  :_  c
-  %+  mod
-    :(add (mul a (bex 128)) (mul b (bex 64)) c)
-  md
-::    +spike:  a length-n row holding v at index i and --0 elsewhere
-++  spike
-  |=  [i=@ud n=@ud v=@s]
-  ^-  zvec
-  =/  k=@ud  0
-  =|  out=zvec
-  |-  ^-  zvec
-  ?:  =(k n)  (flop out)
-  $(k +(k), out [?:(=(k i) v --0) out])
-::    +cols:  m pseudo-random entries in [0, md), with the next state
-++  cols
-  |=  [s=@ud md=@ud]
-  ^-  [v=zvec s=@ud]
-  =/  k=@ud   0
-  =/  st=@ud  s
-  =|  out=zvec
-  |-  ^-  [v=zvec s=@ud]
-  ?:  =(k m)  [(flop out) st]
-  =/  d  (draw st md)
-  $(k +(k), st s.d, out [(sun:si v.d) out])
-::    +build:  the van Hoeij lattice at these parameters
-++  build
-  ^-  zmat
-  =/  md=@ud  (bex bits)
-  =/  i=@ud   0
-  =/  st=@ud  20.260.804
-  =|  top=zmat
-  |-  ^-  zmat
-  ?.  =(i r)
-    =/  c  (cols st md)
-    %=  $
-      i    +(i)
-      st   s.c
-      top  [(weld (spike i r --1) v.c) top]
-    ==
-  ::  the p^a I_m block, beneath r columns of zeros
-  =/  j=@ud  0
-  =|  low=zmat
-  |-  ^-  zmat
-  ?:  =(j m)  (weld (flop top) (flop low))
-  =/  row=zvec  (weld `zvec`(reap r --0) (spike j m (sun:si md)))
-  $(j +(j), low [row low])
 --
