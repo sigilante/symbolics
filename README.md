@@ -36,9 +36,17 @@ single existing battery axis, because the `+zm` and `+mm` sub-cores were
 declared empty from the outset for exactly that purpose.
 
 Racoon's Milestone C is under way rather than done: integer factorization
-is built, real-root isolation (§R) and algebraic number arithmetic (§A)
-are specified and complete, van Hoeij is specified (§V) with its LLL
-phase built, and sparse multivariate remains unspecified.
+is built; real-root isolation (§R), algebraic number arithmetic (§A), and
+van Hoeij recombination (§V) are specified and complete; **the rational
+function field (§F) is specified and not yet built**; and sparse
+multivariate remains unspecified.
+
+§F is where the stack turns into a calculus engine — rational functions,
+partial fractions, integration by Hermite reduction and Rothstein–Trager,
+and the Laplace transform — and it needs no primitive that does not
+already exist. §F10 records why the *symbolic* half cannot follow it into
+Racoon: Richardson's theorem makes canonical form undecidable for
+elementary expressions, and canonical outputs are what this library is.
 
 ##  Cascabel
 

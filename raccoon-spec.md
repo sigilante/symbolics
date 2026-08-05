@@ -281,7 +281,7 @@ A phase closes when: library compiles clean; all tests for this and prior phases
 
 ## 13. Out of scope — hard fence
 
-No floating point (numerics owns it). No multivariate polynomials, no Gröbner bases. No symbolic expression front end, no simplifier, no integration/Risch. ~~No LLL / van Hoeij.~~ **Lifted — see §V.** This is a Milestone A fence, and §V supersedes it exactly as §R and §A supersede the real-root and algebraic-number lines above. No primality *proving*. No performance work beyond recording baselines. No C/Rust jets, no runtime modifications. No `%base` changes beyond adding the listed files. Milestone C candidates, for context only: van Hoeij recombination; real-root isolation via Sturm/Descartes (the "Real" in the backronym); sparse multivariate.
+No floating point (numerics owns it). No multivariate polynomials, no Gröbner bases. No symbolic expression front end, no simplifier, ~~no integration/Risch~~ — **the rational half is lifted, see §F; Risch, the expression front end, and the simplifier stand, and §F10 says why the last two cannot live here at all.** ~~No LLL / van Hoeij.~~ **Lifted — see §V.** This is a Milestone A fence, and §V supersedes it exactly as §R and §A supersede the real-root and algebraic-number lines above. No primality *proving*. No performance work beyond recording baselines. No C/Rust jets, no runtime modifications. No `%base` changes beyond adding the listed files. Milestone C candidates, for context only: van Hoeij recombination; real-root isolation via Sturm/Descartes (the "Real" in the backronym); sparse multivariate.
 
 ## 14. Escalation and decision authority
 
@@ -831,3 +831,271 @@ No floating-point or heuristic LLL variants; exact rationals only. No
 BKZ, no deep insertion, no block reduction. No lattice cryptography, no
 CVP or SVP solvers beyond what recombination needs. No multivariate or
 algebraic-function-field factorization.
+
+---
+
+# Milestone C — the rational function field
+
+**Engineering Specification v0.2 — Milestone C, phase F: rational
+functions, their integration, and the Laplace transform**
+
+§13 fences out "integration/Risch" as a Milestone A boundary. This
+section supersedes the *rational* half of it, exactly as §V superseded
+the LLL line: everything below is closed-form, decidable, and reachable
+from arms that already exist. The transcendental half — `exp`, `log`,
+`sin` as symbols, and a general simplifier — stays fenced and is
+addressed in §F9.
+
+## F0. Why this is reachable now, and what it is worth
+
+Integration of rational functions needs exactly four things: polynomial
+GCD, squarefree decomposition, resultants, and factorization over ℚ. All
+four are in the frozen library, and phase A added the fifth thing the
+logarithmic part needs — **real algebraic numbers to name the roots of
+the Rothstein–Trager resultant.** Nothing here requires a primitive that
+does not exist.
+
+The reach is larger than "integrate a rational function" suggests. For
+linear systems with constant coefficients — which is most of what a
+Mathcad-style tool is asked — the Laplace transform of the answer *is* a
+rational function, partial fractions *is* the inverse transform, and the
+characteristic polynomial is `charpoly:qm` followed by `factor:zx`.
+Transfer functions, poles and zeros, step responses, and constant-
+coefficient ODEs are all one field's arithmetic.
+
+**Every arm is `free`.** `$rfun` in lowest terms with a monic
+denominator is a unique mathematical object, and so is the exponential
+polynomial of §F5. This is worth stating early because it is exactly
+what phase (B) — symbolic expressions — will *not* be able to promise;
+see §F9.
+
+## F1. Where it lives
+
+**Two consumer libraries, both importing `/lib/racoon` and nothing from
+Baloon:**
+
+| | |
+|---|---|
+| `/lib/racoon-rf` | the field, decomposition, and integration — phases F0–F2 |
+| `/lib/racoon-lt` | the Laplace transform and the exponential-polynomial class — phase F3 |
+
+Seventh and eighth applications of the consumer rule after `racoon-fmt`,
+`racoon-rs`, `racoon-fp3`, `racoon-zfac`, `racoon-roots`, and
+`racoon-alg`. `%zx` and `%qx` stay frozen; nothing inside them needs
+this.
+
+**Both are doors over their factorization step**, per the pattern R4
+settled for `/lib/racoon-alg`: the sample is `fir=$-(zol (list zol))`,
+"primitive squarefree polynomial to its irreducible factors", defaulting
+to `firr:zx`. A Baloon-side `/lib/baloon-rf` binds `factor:vh`. This is
+not decoration — partial fractions factors the denominator, which is the
+same cost cliff §V0 measured, and a denominator with sixteen modular
+factors is not exotic.
+
+**The binding must be threaded, and this is the trap.** `/lib/racoon-rf`
+calls `/lib/racoon-alg` for root selection, and `racoon-alg` is a door
+over the *same* sample. Passing `~(. al fir)` rather than `al` is
+normative: a caller who binds the fast factorizer at the top and gets the
+slow one three layers down has been silently given the wrong performance
+and no error.
+
+## F2. Representation
+
+```hoon
+::    $rfun: a rational function over Q.
+::
+::  .num and .den are coprime, .den is MONIC and nonzero.  Zero is
+::  [~ ~[[--1 1]]], that is 0/1.
++$  rfun  [num=qol den=qol]
+```
+
+**This form is canonical**, which buys the same two things §A2 bought:
+`=(a b)` decides equality with no normalization pass, and every arm is
+`free` so a jet may use any algorithm. Monic-denominator plus coprime is
+the unique representative of an element of ℚ(x); nothing else is.
+
+## F3. Canonical conventions (normative)
+
+| Item | Convention |
+|---|---|
+| **Reduction** | Every arm produces lowest terms with a monic denominator. `+new` is the only arm accepting an unreduced pair, mirroring `+canon` in `%zx` and `+make` in `/lib/racoon-alg` |
+| **Zero and one** | `0/1` and `1/1`. A zero numerator forces `den = ~[1]`, so zero has one representative |
+| **Degree** | `+deg` produces `@s`, `deg num - deg den`, which is negative for a proper fraction. The degree of zero crashes, as `deg:zx` does |
+| `+deriv` | Quotient rule, then reduce. Note the denominator of `(u/v)'` is `v²`, which is **not** in lowest terms in general — the reduction is not optional |
+| `+eval` | `[rfun frac] -> frac`. Crashes at a pole; see §F4 |
+| **Squarefree partial fractions** | `+pfrac` decomposes against the *squarefree* factorization of the denominator, which needs no irreducible factorization and is therefore cheap and always available. This is the form Hermite reduction consumes |
+| **Full partial fractions** | `+pfrac-full` decomposes against the irreducible factorization over ℚ. Ordering is pinned: ascending by `pcmp:zx` on the denominator base, then ascending by power. Without a pinned order the output is not canonical and the arm could not be `free` |
+| **Bezout, not undetermined coefficients** | Splitting `a/(b·c)` with `gcd(b,c) = 1` uses the extended Euclidean algorithm on polynomials, derived in the consumer from `divmod:qx`. Solving a linear system for the coefficients would work and would drag Baloon in for nothing |
+| **Hermite reduction** | The rational part of the integral. Produces `[rat=rfun log=rfun]` where `log` has a squarefree denominator, so what remains is purely logarithmic |
+| **Rothstein–Trager** | The logarithmic part. `Res_x(a - t·b', b)` is a polynomial in `t`; its roots are the residues, and each is a real algebraic number produced by `/lib/racoon-alg`. Complex residues are out of range — see §F6 |
+| **The constant of integration is 0** | `+integrate` produces the antiderivative vanishing at no particular point; the constant is pinned to zero so the product is a function of the input alone |
+
+## F4. Public API
+
+`/lib/racoon-rf`:
+
+| Arm | Signature | Notes |
+|---|---|---|
+| `new` | `[qol qol] -> rfun` | Reduce. The only arm accepting an unreduced pair |
+| `of-q` `of-p` | `frac -> rfun` / `qol -> rfun` | Embed a constant, embed a polynomial |
+| `zero` `one` | `rfun` | |
+| `is-zero` `deg` | `rfun -> ?` / `rfun -> @s` | |
+| `add` `sub` `mul` `div` | `[rfun rfun] -> rfun` | `div` crashes on a zero divisor |
+| `neg` `inv` | `rfun -> rfun` | `inv` crashes on zero |
+| `pow` | `[rfun @s] -> rfun` | Negative exponents via `inv` |
+| `deriv` | `rfun -> rfun` | |
+| `eval` | `[rfun frac] -> frac` | Crashes at a pole |
+| `poles` | `rfun -> (list [p=zol m=@ud])` | The irreducible factors of the denominator with multiplicity — the factorization made visible, since a caller who wants it should not have to redo it |
+| `pfrac` | `rfun -> [p=qol ts=(list [n=qol d=qol e=@ud])]` | Polynomial part plus squarefree terms `n/d^e` |
+| `pfrac-full` | `rfun -> [p=qol ts=(list [n=qol d=qol e=@ud])]` | Same, against irreducible `d` |
+| `hermite` | `rfun -> [rat=rfun log=rfun]` | The rational part, and what is left |
+| `integrate` | `rfun -> (unit [rat=rfun ls=(list [c=anum a=qol])])` | `rat` plus a sum of `c · log(a)`. `~` when a residue is not real — §F6 |
+
+`/lib/racoon-lt`: see §F5.
+
+Every arm is **`free`**.
+
+## F5. The exponential polynomial, and why the transform closes
+
+Inverse Laplace of a rational function is not a rational function, so
+phase F3 needs one more type. It does not need a general expression
+tree, because the class that is closed under differentiation,
+integration, and the Laplace transform is small and nameable:
+
+```hoon
+::    $eterm: c · t^k · e^(s·t) · cos(w·t)   or   ... · sin(w·t)
++$  eterm  [c=anum k=@ud s=anum w=anum tr=?(%cos %sin)]
+::    $expo: a finite sum of them, sorted, no zero coefficients
++$  expo  (list eterm)
+```
+
+`w = 0` with `tr = %cos` is the pure exponential case, since `cos 0 = 1`;
+that is why the trigonometric factor is not a `(unit ...)`. Sorting and
+zero-stripping are pinned, so `$expo` is canonical and the arms stay
+`free`.
+
+**Nothing here is complex.** A rational denominator's non-real roots come
+in conjugate pairs, and each pair contributes one real term
+`e^{σt}(P cos ωt + Q sin ωt)` with σ and ω real algebraic. `/lib/racoon-alg`
+represents both. Complex algebraic numbers stay fenced by §A9 and are not
+needed.
+
+| Arm | Signature | Notes |
+|---|---|---|
+| `laplace` | `expo -> rfun` | Total. Each term transforms to a rational function and they sum |
+| `inverse` | `rfun -> (unit expo)` | `~` exactly when §F6's condition fails |
+| `deriv` `integrate` | `expo -> expo` | The class is closed under both, so neither can fail |
+| `eval` | `[expo anum] -> anum` | Exact at algebraic `t`; irrational values of `e^t` are **not** in `$anum` and this arm does not pretend otherwise — see §F9 |
+| `solve-ode` | `[qol (list frac)] -> (unit expo)` | Constant-coefficient homogeneous, given the characteristic polynomial and initial conditions |
+
+## F6. What is out of range, and how a caller finds out
+
+`+inverse` and `+integrate` produce `~` rather than crashing, because
+being out of range is a property of the *input* that the caller could not
+reasonably have checked in advance.
+
+**The condition is decidable and cheap.** Factor the denominator over ℚ;
+each irreducible factor `g` is in range when
+
+- `deg g = 1` — a real root, trivially; or
+- `deg g = 2` — the real quadratic is itself the factor, and σ and ω come
+  from completing the square, so a negative discriminant is fine; or
+- `(count:roots g lo hi) = deg g` over a bound containing every root —
+  all roots real, and `/lib/racoon-alg` names them.
+
+An irreducible factor of degree ≥ 3 with non-real roots is the whole of
+what is excluded. Naming its roots needs **complex** root isolation,
+which §A9 fences and this section does not lift.
+
+This is a real limit and it is stated rather than buried: it excludes,
+for example, the inverse transform of `1/(s⁵ + s + 1)`. It excludes
+nothing that factors into linears and quadratics over ℚ, which is every
+transfer function anyone writes by hand.
+
+## F7. Crash table (normative — every row gets a test)
+
+| Arm | Condition | Behavior |
+|---|---|---|
+| `new` | `den = ~` | crash |
+| `inv` `div` | the argument is zero | crash |
+| `pow` | negative exponent of zero | crash |
+| `deg` | the argument is zero | crash |
+| `eval` | the point is a pole | crash |
+| `integrate` | a residue is not real | **no crash**: product is `~` |
+| `inverse` | §F6's condition fails | **no crash**: product is `~` |
+| `solve-ode` | wrong number of initial conditions | crash |
+| `solve-ode` | the characteristic polynomial is out of §F6's range | **no crash**: `~` |
+
+No `~|` anywhere (R3).
+
+## F8. Phases
+
+- **F0 — the field.** `$rfun`, `new`, arithmetic, `deriv`, `eval`, `deg`.
+  No factorization anywhere, so this phase is verifiable on its own and
+  the door's sample is never read.
+- **F1 — decomposition.** `poles`, `pfrac`, `pfrac-full`. The first
+  phase that factors, and therefore the first that can be slow.
+- **F2 — integration.** `hermite`, then Rothstein–Trager and
+  `integrate`. Depends on `/lib/racoon-alg`.
+- **F3 — transforms.** `$expo`, `laplace`, `inverse`, `solve-ode`, in
+  `/lib/racoon-lt`.
+
+## F9. Testing
+
+1. **Integration is verified by differentiating the answer.** An
+   antiderivative is not unique — the constant, and every `log(a)` term
+   up to the sign and scale of `a` — so SymPy's form is neither
+   necessary nor sufficient, exactly as §V7.1 concluded for LLL. The
+   definition is exact and complete instead: `deriv(integrate(f))` must
+   equal `f`, over `$rfun` for the rational part and by re-deriving the
+   logarithmic part symbolically. **This needs no oracle at all.**
+2. **Partial fractions IS canonical once §F3 pins the order**, so it can
+   be checked against SymPy's `apart` — after confirming the convention
+   agrees, per §11.3, and recording what was confirmed.
+3. **The transform round-trips.** `inverse(laplace(e))` is `e` on the
+   whole exponential-polynomial class, and `laplace(inverse(f))` is `f`
+   whenever `inverse` produced a value. Both are oracle-free.
+4. **Cross-checks needing no oracle.** `deriv` obeys the product and
+   quotient rules on random pairs; `pfrac` recombines to its input;
+   `eval` commutes with the field operations away from poles;
+   `integrate` of a proper fraction with a squarefree denominator has an
+   empty rational part.
+5. **Adversarial.** A denominator that is a perfect power; a numerator
+   whose degree exceeds the denominator's; `1/(x² + 1)`, whose residues
+   are not real but whose *integral* is — the arctangent case, which is
+   the one a naive Rothstein–Trager gets wrong by returning `~`;
+   repeated roots in `solve-ode`, which give the `t^k` factors; a
+   degree-5 irreducible with one real root, which must produce `~` from
+   `+inverse` and not a wrong answer.
+6. **Benchmarks.** `integrate` at denominator degrees 4, 8, and 16, both
+   factorizer bindings, through `scripts/bench.sh`. Recorded, no gates.
+
+## F10. Out of scope — hard fence
+
+No `exp`, `log`, `sin`, or `cos` as **symbols**: they appear only as the
+structured `$expo` of §F5 and as the `log(a)` terms of `+integrate`,
+both of which are closed classes rather than an expression language. No
+symbolic expression tree, no simplifier, no pattern matching or
+rewriting — that is phase (B), it is a different contract (see below),
+and it does not live in Racoon.
+
+No Risch algorithm and no transcendental integration. No definite
+integration, no improper integrals, no contour methods. No Fourier
+transform: it needs either complex algebraic numbers or a distribution
+theory, and both are out. No complex algebraic numbers — §A9 stands, and
+§F6 states precisely what that costs.
+
+No multivariate rational functions. No differential equations beyond
+constant coefficients — variable coefficients need power series or
+differential Galois theory, and neither is specified here.
+
+**The reason phase (B) cannot be a section of this document.** Racoon's
+whole design rests on canonical outputs: unique objects, structural
+equality, every arm `free`. A symbolic expression language cannot have
+that property. By Richardson's theorem, deciding whether an elementary
+expression is identically zero is **undecidable**, so there is no
+canonical form to name and no `=(a b)` that decides equality. Every
+simplifier arm would have to be `pinned` — the procedure becoming the
+contract, as it is for `egcd:nz` and `lll` — which inverts this
+project's disposition rather than extending it. That belongs in a
+sibling with its own spec, standing on this one the way Baloon does.

@@ -45,6 +45,7 @@ underdetermined, two-sided crash tables, and no `~|` anywhere.
 | ~~Algebraic number arithmetic~~ | **Complete**, as `/lib/racoon-alg` — §A, all four phases. Not on §13's original list; it is what real-root isolation was for |
 | ~~van Hoeij recombination~~ | **Complete** (§V), in `baloon/desk/lib/vanhoeij.hoon`, since it consumes both libraries. **The benchmark was wrong and was measured**: `factor:zx` does `SD_4` in 302 ms, not "out of scope". The cliff was `SD_5` at 204 s — now 9.4 s. See §V0 and Baloon's README |
 | van Hoeij recombination, original entry | Would attack the known cost cliff — Zassenhaus is exponential in the worst case, and `SD_4`+ is out of scope until this lands. Needs LLL, which both specs fence out, so it requires escalation first |
+| Rational function field | **Specified** (§F), not built. Rational functions, partial fractions, integration by Hermite + Rothstein–Trager, and the Laplace transform. Needs no primitive that does not exist — phase A's real algebraic numbers are what name the residues |
 | Sparse multivariate | The largest and least specified |
 
 ## Layout
