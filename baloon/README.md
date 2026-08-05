@@ -38,6 +38,7 @@ baloon/
     lib/baloon-vectors.hoon   generated vectors -- never hand-edited
     lib/baloon-fmt.hoon       rendering and parsing, all three rings
     lib/vanhoeij.hoon         LLL and van Hoeij -- imports BOTH libraries
+    lib/baloon-alg.hoon       racoon-alg with van Hoeij bound in
     tests/lib/baloon.hoon     test suite -- Q, Z, and Z/n
     tests/lib/vanhoeij.hoon   LLL and van Hoeij
     gen/baloon-bench.hoon     benchmark generator
@@ -45,6 +46,7 @@ baloon/
     gen/baloon-lll.hoon       reduce an integer lattice basis
     gen/baloon-lll-bench.hoon time +lll on a van Hoeij-shaped lattice
     gen/baloon-vh-bench.hoon  van Hoeij against Zassenhaus, same input
+    gen/baloon-alg-bench.hoon algebraic arithmetic, van Hoeij column
   tools/genvec.py             SymPy vector generator
   tools/requirements.txt      pinned SymPy version
   scripts/sync.sh             copy desk/ into the pier
@@ -183,6 +185,28 @@ determinants brought the same reduction to 2.3 s, the budget became
 eight, and eight separates. `baloon/SPEC-QUESTIONS.md` V1 records the
 whole line, including the two dead ends, which are still true in
 isolation.
+
+### The first consumer: `/lib/baloon-alg`
+
+Racoon's `/lib/racoon-alg` — real algebraic numbers — reduces every
+operation to a minimal polynomial, which means factoring, and that is
+where `factor` earns its keep. But `racoon/desk` builds from Racoon
+alone and must keep doing so, and `/lib/vanhoeij` is on this side.
+
+So `racoon-alg` is a **door over its recombination step**, defaulting to
+`firr:zx`, and this file is that door with `factor:vh` bound in:
+
+```hoon
+/+  al=racoon-alg, vh=vanhoeij
+~(. al factor:vh)
+```
+
+That is the entire library. It exists so the fast path is a plain import
+rather than a line someone has to remember — forgetting it returns the
+right answer at 281.9 s instead of 90.4 s, with nothing to notice. The
+two bindings are asserted to agree in `tests/lib/vanhoeij`, and
+`/gen/baloon-alg-bench` is the van Hoeij column of the table in
+`racoon/README.md`.
 
 ## Every arm in `+qm`, `+zm`, and `+mm` is `free`
 

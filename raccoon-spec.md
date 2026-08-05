@@ -474,6 +474,11 @@ value rather than a polynomial someone had to know to write down.
 
 It reuses `$ivl` from `/lib/racoon-roots` rather than redeclaring it.
 
+**It is a door, and this import list is why.** Its recombination step is
+the sample rather than a seventh import, so a faster factorizer can be
+bound from a desk this one does not know about — which is what
+`/lib/baloon-alg` does with `+factor:vh`. See §A8 and R4.
+
 ## A2. Representation
 
 ```hoon
@@ -608,8 +613,11 @@ named from theory is a claim, not a fact.** Theory names the exponential
 step because that is the step theory notices.
 
 The concluding paragraph held up: the factorization *was* built as a
-single call, and swapping it took one arm. `/lib/racoon-alg` now factors
-through `+facz`, which is van Hoeij. See `racoon/SPEC-QUESTIONS.md` R4.
+single call, and swapping it took one arm. `/lib/racoon-alg` factors
+through `+facz`, whose recombination step is **the library's door
+sample** rather than an import — defaulting to `firr:zx`, and bound to
+`factor:vh` by `/lib/baloon-alg`. §A1's dependency list therefore still
+holds exactly as written. See `racoon/SPEC-QUESTIONS.md` R4.
 
 ---
 
@@ -785,8 +793,10 @@ No `~|` anywhere.
 **Both are built.** `SD_5` factors in 9.42 s against Zassenhaus's
 202.5 s, which is the §V0 target beaten by 21.5×; the §V7.5 table is in
 `baloon/README.md` and `/gen/baloon-vh-bench` reproduces it. The first
-consumer is `/lib/racoon-alg`, whose one factorization call now goes
-through `+factor:vh` — see §A8, which the same measurement corrected.
+consumer is `/lib/racoon-alg`, whose one factorization call takes
+`+factor:vh` as a door sample — bound by `/lib/baloon-alg`, so that
+Racoon's desk keeps building alone. See §A8, which the same measurement
+corrected.
 
 ## V7. Testing
 

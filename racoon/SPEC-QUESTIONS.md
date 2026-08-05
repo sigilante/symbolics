@@ -274,21 +274,53 @@ pinning it; this says confirm a bottleneck before designing around it.
 
 **What changed in the code.** `/lib/racoon-alg` gained `+facz`, which is
 `factor:zx`'s pipeline — Yun's squarefree decomposition, then
-recombination per part — with `factor:vh` in place of `firr:zx`. `+make`
+recombination per part — with the recombination step left open. `+make`
 calls it, and `+make` is the only factorization site in the library,
 which is what §A8 asked A2 to guarantee. Below `lat-min = 16` modular
-factors `factor:vh` degenerates to `firr:zx` exactly, so the swap cannot
+factors `factor:vh` degenerates to `firr:zx` exactly, so no binding can
 be the slower choice; the first row above is that degeneracy, measured.
 
-**The dependency, stated plainly.** `/lib/racoon-alg` now imports
-`/lib/vanhoeij`, which imports Baloon. So one file in `racoon/desk`
-requires Baloon on the desk to build. `/lib/racoon` is untouched and
-still depends on nothing, and no frozen core moved — this is a consumer
-importing a consumer, which is the shape R4 chose in the first place. The
-alternative considered was promoting `+bires` and the root-selection loop
-to racoon-alg's public API and building a second `add`/`mul`/`div` next
-to `/lib/vanhoeij`; it keeps Racoon's desk self-contained at the cost of
-duplicating the arithmetic, and was rejected as the worse trade.
+**The dependency, and the second pass that removed it.** The swap first
+landed as an import: `/lib/racoon-alg` took `/+ vh=vanhoeij`, which meant
+one file in `racoon/desk` needed Baloon to build. That was the wrong
+shape, and the fix is the one Hoon has for exactly this — **the
+factorizer is the library's sample, not its import.**
+
+```hoon
+=<  ~(. alg firr:zx)                 ::  default: Zassenhaus, Racoon-only
+|%
+++  alg
+  |_  fir=$-(zol (list zol))         ::  primitive squarefree -> irreducibles
+```
+
+Two arms already satisfy that contract natively — `firr:zx` and
+`factor:vh` — so neither side needs a wrapper and nothing is duplicated.
+`/lib/baloon-alg` is `~(. al factor:vh)` as a file.
+
+**Why the sample works where a parameter would have been unbearable.**
+`+add`, `+mul`, `+div`, and `+root` all reach factorization through
+`+make`, so injecting from outside by argument would mean threading a
+gate through every arm. An arm calling another arm of its own door
+resolves against that door's sample instead, so setting it once at the
+top reaches every arm underneath and no signature changes.
+
+`/lib/racoon` was untouched throughout and no frozen core moved. Two
+things are worth naming rather than discovering later:
+
+- **A silent slow path.** Forget to bind and you get the right answer at
+  281.9 s instead of 90.4 s, with nothing to notice. That is why
+  `/lib/baloon-alg` exists as a file rather than as a line in a comment.
+- **The default stands on a delegated arm.** `firr:zx` is not in §9's
+  public list, and §14 lets delegated helpers change without escalation.
+  Same desk, so this is not the cross-desk hazard that forced the last
+  round of promotions — but defaulting to public `factor:zx` instead
+  would run Yun's decomposition twice per call to buy nothing, so the
+  thread is named here instead of pulled.
+
+The alternative considered before the door was promoting `+bires` and
+the root-selection loop to racoon-alg's public API and building a second
+`add`/`mul`/`div` next to `/lib/vanhoeij`. It reaches the same place by
+duplicating the arithmetic, and the door reaches it by adding a sample.
 
 **Left open.** The bivariate resultant is now ~90% of the degree-32 sum
 and 100% of the degree-16 one. Evaluation–interpolation was chosen in §A3

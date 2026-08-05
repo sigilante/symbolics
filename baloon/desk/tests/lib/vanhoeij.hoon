@@ -13,7 +13,7 @@
 ::
 /-  *baloon, *racoon
 /+  *test, baloon, racoon, vec=baloon-vectors, fmt=baloon-fmt
-/+  vh=vanhoeij
+/+  vh=vanhoeij, al=racoon-alg, ba=baloon-alg
 =/  qq  qq:racoon
 =/  qx  qx:racoon
 =/  qm  qm:baloon
@@ -403,5 +403,37 @@
     ::  and negative leading coefficient
     (expect-fail |.((factor:vh ~[--2 -1])))               ::  -(x-2)
     (expect-success |.((factor:vh ~[-2 --0 --1])))
+  ==
+::    +test-v1-alg-binding:  the two bindings of /lib/racoon-alg agree
+::
+::  /lib/racoon-alg is a door over its recombination step: .al below is
+::  the default binding, +firr:zx, and /lib/baloon-alg is the same door
+::  with +factor:vh in the sample.  SPEC V7.3 says the two algorithms
+::  must agree on every input; here that is asserted through a CONSUMER
+::  of both, which is the thing a caller actually gets.
+::
+::  This is the arm that fails if the injection silently stops reaching
+::  +make -- if the sample were threaded wrongly, or an arm called its
+::  own +facz through a differently-bound copy of the door.  +add and
+::  +mul reach factorization only through +make, so exercising both
+::  covers the path from either direction.
+::
+::  Degrees are small on purpose.  What is under test is that the
+::  binding arrives, not that van Hoeij is fast; the cases where it is
+::  faster take ten seconds each and live in /gen/baloon-vh-bench.
+++  test-v1-alg-binding
+  =/  s2  (make:al ~[-2 --0 --1] [[--1 1] [--2 1]])      ::  sqrt 2
+  =/  s3  (make:al ~[-3 --0 --1] [[--1 1] [--2 1]])      ::  sqrt 3
+  =/  b2  (make:ba ~[-2 --0 --1] [[--1 1] [--2 1]])
+  =/  b3  (make:ba ~[-3 --0 --1] [[--1 1] [--2 1]])
+  ;:  weld
+    (expect-eq !>(s2) !>(b2))
+    ::  sqrt2 + sqrt3 is degree 4 -- the resultant is degree 4 and stays
+    ::  there, so this checks the factor-and-select step ran at all
+    (expect-eq !>((add:al s2 s3)) !>((add:ba b2 b3)))
+    ::  sqrt2 * sqrt3 is sqrt6, degree 2 from a degree-4 resultant: the
+    ::  collapsing case, which a wrong binding would get wrong loudly
+    (expect-eq !>((mul:al s2 s3)) !>((mul:ba b2 b3)))
+    (expect-eq !>((div:al s2 s3)) !>((div:ba b2 b3)))
   ==
 --

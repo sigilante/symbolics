@@ -13,10 +13,15 @@
 ::  Both operands are canonicalized OUTSIDE the timed region, so what is
 ::  charged is the operation and not the parsing and isolation.
 ::
-::  MEASURED.  Vere 4.6, %zuse 409, fake ~zod, --loom 33, Darwin arm64.
-::  "before" is +factor:zx, "after" is van Hoeij through +facz:
+::  THIS GEN TIMES THE DEFAULT BINDING, +firr:zx -- /lib/racoon-alg is a
+::  door over its recombination step, and racoon/desk builds from Racoon
+::  alone, so the van Hoeij column cannot be produced from here.
+::  /gen/baloon-alg-bench is the same generator through /lib/baloon-alg
+::  and produces it.
 ::
-::                                        deg     before      after
+::  MEASURED.  Vere 4.6, %zuse 409, fake ~zod, --loom 33, Darwin arm64:
+::
+::                                        deg     firr:zx   van hoeij
 ::    (sqrt2+sqrt3) + (sqrt5+sqrt7)      4 + 4     3.34 s     3.34 s
 ::    (SD_4's root)  + sqrt11           16 + 2   281.9 s     90.4 s
 ::

@@ -67,7 +67,7 @@ racoon/
     lib/racoon-fp3.hoon       extension fields F_p[x]/(m)
     lib/racoon-zfac.hoon      integer factorization and its consequences
     lib/racoon-roots.hoon     real roots -- Milestone C, phase R complete
-    lib/racoon-alg.hoon       real algebraic numbers -- phase A; needs Baloon
+    lib/racoon-alg.hoon       real algebraic numbers -- phase A, a door
     gen/racoon-bench.hoon     benchmark generator
     gen/racoon-factor.hoon    factor a polynomial from the dojo
     gen/racoon-gcd.hoon       gcd of two polynomials from the dojo
@@ -116,10 +116,9 @@ scripts/sync.sh                       # host
 boots or commits, because conflating the copy with the commit makes a failed
 build hard to attribute. Override the pier with `RACOON_PIER=/path/to/zod`.
 
-**One file needs Baloon on the desk: `/lib/racoon-alg`**, which reaches
-van Hoeij for its factorization step. Everything else here builds from
-Racoon's desk alone, `/lib/racoon` included. Run `baloon/scripts/sync.sh`
-too, or that one library fails to build and nothing else notices.
+**Every file here builds from Racoon's desk alone**, `/lib/racoon-alg`
+included — it reaches van Hoeij through a door sample rather than an
+import, so Baloon binds it in from that side. See below.
 
 For interactive work there is a human-readable surface — `/lib/racoon-fmt`
 renders and parses conventional notation, so nothing has to be read as a
@@ -405,20 +404,35 @@ So degree 4 was never blocked, degree 32 no longer is, and the next
 thing worth optimizing here is the evaluation–interpolation resultant
 rather than the factorization.
 
-**The factorization is one call, and it now calls van Hoeij.** `+facz`
-is Yun's squarefree decomposition followed by `factor:vh` on each part —
-`factor:zx`'s pipeline with the recombination swapped. Below sixteen
-modular factors `factor:vh` *is* `firr:zx`, falling through the
-`lat-min` gate to the identical enumeration, so this is never the slower
-choice. §A8 asked for exactly this ("a single call that a better
-algorithm can replace") and that is the whole change.
+**The factorization is one call, and the call is the door's sample.**
+`/lib/racoon-alg` is a door over `fir`, which takes a primitive
+squarefree polynomial to its irreducible factors. `+facz` — Yun's
+squarefree decomposition, then `fir` per part — is the only arm that
+reads it, and `+make` is the only arm that calls `+facz`:
 
-**The price is a dependency**, and it is the one thing here that is not
-free: `/lib/racoon-alg` imports `/lib/vanhoeij`, which imports Baloon, so
-this library alone among Racoon's consumers needs Baloon on the desk.
-`/lib/racoon` itself is untouched and still depends on nothing.
-`SPEC-QUESTIONS.md` R4 records both that decision and the one before it —
-that van Hoeij lives in a consumer importing both libraries, rather than
+```hoon
+/+  al=racoon-alg               ::  firr:zx, the default; Racoon only
+/+  ba=baloon-alg               ::  ~(. al factor:vh), the same door bound
+```
+
+Two arms already have that contract natively: `firr:zx`, which is
+Zassenhaus and is bound as the default, and `factor:vh`, which is van
+Hoeij. Below sixteen modular factors `factor:vh` *is* `firr:zx` — it
+falls through the `lat-min` gate to the identical enumeration — so
+neither binding can be the slower choice on any input.
+
+**This is why the dependency runs the right way.** An import would have
+made `racoon/desk` need Baloon to build; a sample does not, because
+`+add`, `+mul`, `+div`, and `+root` all reach factorization through
+`+make`, and an arm calling another arm of its own door resolves against
+that door's sample. Setting it once at the top reaches everything
+underneath, with nothing threaded through the arms.
+
+`/lib/baloon-alg` is the bound instance as a file, so the fast path is
+also a plain import — a caller who forgets to bind gets the right answer
+slowly and silently, which is worth a two-line file to prevent.
+`SPEC-QUESTIONS.md` R4 records this and the decision before it, that van
+Hoeij lives in a consumer importing both libraries rather than
 duplicating Baloon's integer matrices inside Racoon.
 
 **Verification.** SymPy `minimal_polynomial` is the oracle — it *is* the
@@ -748,7 +762,8 @@ trying everything is a better test than sampling.
 | — | `factor:zx` monic-izes nothing; recombination multiplies by `lc` | Follows §9's pinned pipeline literally. The lifted factors are kept monic by dividing `f` through by its leading coefficient mod `p^k` — valid because `p ∤ lc(f)`, so `lc` is a unit at every power of `p`. |
 | — | Delegated private helpers in `zx` beyond §9's public list | `crt-lift`, `hstep`, `hlift`, `firr`; and `npow`, `mstrip`, `mderiv`, `mproot`, `remod` in `pv`. §14 delegates helper structure and naming. `xdiv`, now public, is worth noting: Z is not a field, so exact division goes through `pdiv` and then divides the quotient by `lc(b)^e` — and it returns a wrong answer rather than crashing on an inexact division, which is why its docstring points callers at `pdiv` when exactness is not already known. |
 | — | `%zx` unfrozen once for phase V1; six helpers promoted and two arms added | `+zmod` and `+hdata` added, and `xdiv`, `lift`, `combos`, `mprod` promoted out of the delegated set, because `/lib/vanhoeij` consumes all of them across a desk boundary and §14 lets delegated helpers change without escalation — a cross-desk consumer cannot rest on that. `+deriv` was promoted in the same batch, which is exactly the condition SPEC-QUESTIONS R1 named for revisiting it. The batch moves the battery axes of every arm after `+eval`, which is free only because Milestone B has not opened; any further insertion belongs in this window or not at all. |
-| — | `/lib/racoon-alg` imports `/lib/vanhoeij`, and so needs Baloon | The one factorization site, `+facz`, reaches van Hoeij instead of `firr:zx`. Measured: it does nothing at degree 16, where the bivariate resultant is the whole cost, and takes the degree-32 sum from 281.9 s to 90.4 s. `/lib/racoon` is untouched and still depends on nothing; this is a consumer importing a consumer, which is the shape R4 already chose. The alternative — promoting `+bires` and the selection loop, then duplicating `add`/`mul`/`div` next to `/lib/vanhoeij` — keeps Racoon's desk self-contained by duplicating the arithmetic, and was the worse trade. |
+| — | `/lib/racoon-alg` is a door over its recombination step, not an importer of one | Reaching van Hoeij by import made `racoon/desk` need Baloon to build. As a sample it does not, and the injection needs no threading: every arithmetic arm reaches factorization through `+make`, and an arm calling its own door's arm resolves against that door's sample. `firr:zx` is the default, `/lib/baloon-alg` is the same door with `factor:vh` bound. Measured, the binding is worth nothing at degree 16 — where the bivariate resultant is the whole cost — and takes the degree-32 sum from 281.9 s to 90.4 s. The rejected alternative was promoting `+bires` and the selection loop and duplicating `add`/`mul`/`div` next to `/lib/vanhoeij`. |
+| — | The default binding is `firr:zx`, which is delegated rather than public | §14 lets delegated helpers change without escalation, so a default standing on one is a thread worth naming. It is the same desk, which is the hazard §14 is not about, and the alternative — defaulting to public `factor:zx` — would run Yun's decomposition twice on every call to save nothing. Revisit if `%zx` is ever unfrozen again. |
 | — | `res` oracle is the Sylvester determinant, not `sympy.resultant` | SymPy normalizes argument order by degree and so loses the sign when `deg a < deg b` and both degrees are odd; it disagreed with the definition on 19/300 sampled pairs. The determinant is definitional and self-consistent. The library correspondingly swaps to `deg a >= deg b` with the `(-1)^(mn)` sign, which the subresultant recurrence requires. |
 | — | `gcd:qx` clears denominators and delegates to `gcd:zx` | Running Euclid over `$frac` directly invites rational coefficient swell — the classic failure mode. Delegating inherits both `gcd:zx`'s modular algorithm and its trial-division certification. |
 | — | Private helpers live in `+pv`, outside the `%racoon` core | Helper churn cannot disturb the battery layout of a hinted core when the R6 freeze lands, and `=<` keeps them genuinely private. |
