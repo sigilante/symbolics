@@ -50,6 +50,7 @@ lib/racoon-zfac.hoon
 lib/racoon-roots.hoon
 lib/racoon-alg.hoon
 lib/racoon-rf.hoon
+lib/racoon-mp.hoon
 lib/racoon-lt.hoon
 lib/racoon-vectors.hoon
 tests/lib/racoon.hoon
@@ -60,6 +61,7 @@ tests/lib/racoon-zfac.hoon
 tests/lib/racoon-roots.hoon
 tests/lib/racoon-alg.hoon
 tests/lib/racoon-rf.hoon
+tests/lib/racoon-mp.hoon
 tests/lib/racoon-lt.hoon
 ted/racoon-bench.hoon
 gen/racoon-bench.hoon
