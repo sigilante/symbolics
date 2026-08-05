@@ -1020,7 +1020,7 @@ correction, neither are real ones.
 |---|---|---|
 | `canon` | `expo -> expo` | Sort, combine like terms, drop zero coefficients. The only arm accepting an unsorted or redundant list |
 | `laplace` | `expo -> rfun` | **Total.** Each term transforms to a rational function and they sum. `L{t^k f} = (-1)^k F^(k)`, so the `t^k` ladder is `k` applications of `deriv:rf` rather than a closed formula |
-| `inverse` | `rfun -> (unit expo)` | `~` when §F6's condition fails, and — for now — when any pole is repeated |
+| `inverse` | `rfun -> (unit expo)` | `~` exactly when §F6's condition fails. Repeated poles included, at any multiplicity |
 | `ederiv` | `expo -> expo` | The class is closed under `d/dt`, so this cannot fail |
 | `eadd` `escale` | `[expo expo] -> expo` / `[expo frac] -> expo` | |
 | `solve-ode` | `[qol (list frac)] -> (unit expo)` | Constant-coefficient homogeneous, given the characteristic polynomial and initial conditions |
@@ -1107,13 +1107,23 @@ No `~|` anywhere (R3).
 - **F2 — integration.** `hermite`, then Rothstein–Trager and
   `integrate`. Depends on `/lib/racoon-alg`.
 - **F3 — transforms.** `$expo`, `laplace`, `inverse`, `solve-ode`, in
-  `/lib/racoon-lt`. **Built, with simple poles only.** `+laplace` is
-  total; `+inverse` handles irreducible factors of multiplicity one,
-  linear or quadratic, and returns `~` on a repeated pole. The
-  expansion of `1/((s-σ)² + wsq)^m` is a recurrence, and a recurrence
-  wants the §F9.3 round trip as its test rather than as its
-  afterthought — so it is deferred to F3's second half along with
-  `integrate` on `$expo`.
+  `/lib/racoon-lt`. **Built.** `+laplace` is total; `+inverse` handles
+  linear and quadratic irreducible factors at **any multiplicity**. The
+  repeated-quadratic expansion is the recurrence
+
+  ```
+  P_1 = cos(ωt)          Q_1 = sin(ωt)/ω
+  P_(j+1) = t·Q_j / 2j
+  Q_(j+1) = [(2j-1)·Q_j - t·P_j] / 2jw
+  ```
+
+  where `P_j = L⁻¹{s/(s²+w)^j}` and `Q_j = L⁻¹{1/(s²+w)^j}`. The second
+  falls out of `d/ds[s/q^j]` once `s²` is rewritten as `q - w`, which is
+  what leaves a `w` in the denominator rather than an `s` — and is why
+  §F5's normalized sine keeps every coefficient rational here too.
+
+  Only `integrate` on `$expo` remains: it is the inverse of `ederiv` and
+  wants solving rather than substituting.
 
 ## F9. Testing
 

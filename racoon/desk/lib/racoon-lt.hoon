@@ -12,11 +12,10 @@
 ::  ~(. rfd fir) and never plain `rfd`.
 ::
 ::  WHAT IS BUILT.  +laplace is total.  +inverse handles denominators
-::  whose irreducible factors are SIMPLE -- multiplicity one -- and
-::  linear or quadratic.  Repeated factors return ~; that is the second
-::  half of F3 and is not written, because the expansion of
-::  1/((s-sig)^2 + wsq)^m is a recurrence and a recurrence wants the
-::  round trip below as its test rather than as its afterthought.
+::  whose irreducible factors are linear or quadratic, at ANY
+::  multiplicity -- repeated poles included, by the recurrence in
+::  +base-pq.  A factor of degree 3 or more, or a quadratic whose roots
+::  are real and irrational, is out of range and returns ~ (SPEC F6).
 ::
 ::  THE ROUND TRIP IS THE TEST.  +laplace was built first on purpose: it
 ::  is the k-th s-derivative of a base transform, which is +deriv:rf
@@ -72,6 +71,28 @@
   ++  qi  |=(n=@s ^-(frac [n 1]))
   ::    +is-qz:  is this rational zero?
   ++  is-qz  |=(a=frac ^-(? =(--0 p.a)))
+  ::    +fact:  n! as a rational
+  ++  fact
+    |=  n=@ud
+    ^-  frac
+    =/  i=@ud    1
+    =/  acc=@ud  1
+    |-  ^-  frac
+    ?:  (gth i n)  [(sun:si acc) 1]
+    $(i +(i), acc (mul acc i))
+  ::    +tmul:  multiply by t, which is k+1 on every term
+  ::
+  ::  No +canon needed: raising every k by one preserves both
+  ::  distinctness and the pinned order, since k is the last sort key.
+  ++  tmul  |=(e=expo ^-(expo (turn e |=(x=eterm ^-(eterm x(k +(k.x)))))))
+  ::    +setsig:  multiply by e^(g*t), on terms that carry no exponential
+  ::
+  ::  +canon IS needed here: sig is the FIRST sort key, so changing it
+  ::  reorders.
+  ++  setsig
+    |=  [e=expo g=frac]
+    ^-  expo
+    (canon (turn e |=(x=eterm ^-(eterm x(sig g)))))
   ::    +coef:  the coefficient of x^i, zero past the end
   ++  coef
     |=  [a=qol i=@ud]
@@ -165,6 +186,44 @@
         x(tr %cos)
     ==
   ::
+  ::    +base-pq:  the two inverse transforms of a repeated quadratic
+  ::
+  ::  [w j] -> [p q], where with q(s) = s^2 + w,
+  ::
+  ::      P_j = L^-1{ s / q^j }        Q_j = L^-1{ 1 / q^j }
+  ::
+  ::  at sigma = 0.  Both come from differentiating the transform, which
+  ::  is the same L{t*f} = -F'(s) the t^k ladder in +lap-term uses:
+  ::
+  ::      P_1 = cos(wt)                Q_1 = sin(wt)/w
+  ::      P_(j+1) = t*Q_j / (2j)
+  ::      Q_(j+1) = [(2j-1)*Q_j - t*P_j] / (2*j*w)
+  ::
+  ::  The second falls out of d/ds[s/q^j] once s^2 is rewritten as
+  ::  q - w, which is what keeps a w in the denominator rather than an
+  ::  s.  Checked against SymPy at j = 1, 2, 3 before being written, and
+  ::  checked here by the round trip afterwards.
+  ::
+  ::  Everything stays rational: the normalized sine basis carries the
+  ::  1/omega, and w -- not omega -- is what the recurrence divides by.
+  ++  base-pq
+    |=  [w=frac j=@ud]
+    ^-  [p=expo q=expo]
+    =/  p=expo  ~[[qo 0 qz w %cos]]
+    =/  q=expo  ~[[qo 0 qz w %sin]]
+    =/  i=@ud   1
+    |-  ^-  [p=expo q=expo]
+    ?:  (gte i j)  [p q]
+    =/  tw=frac  (qi (sun:si (mul 2 i)))
+    =/  np=expo  (escale (tmul q) (inv:qq tw))
+    =/  nq=expo
+      %+  escale
+        %+  eadd
+          (escale q (qi (sun:si (dec (mul 2 i)))))
+        (escale (tmul p) (qi -1))
+      (inv:qq (mul:qq tw w))
+    $(i +(i), p np, q nq)
+  ::
   +|  %transform
   ::    +lap-term:  the transform of one term
   ::
@@ -223,23 +282,28 @@
   ++  inv-term
     |=  t=pterm:rf
     ^-  (unit expo)
-    ?.  =(1 e.t)  ~
     =/  dg=@ud  (deg:qx d.t)
     ?:  =(1 dg)
+      ::  c/(s-r)^e is c * t^(e-1) * e^(rt) / (e-1)!, which at e = 1 is
+      ::  the plain exponential
       =/  r=frac  (neg:qq (coef d.t 0))
-      `~[[(coef n.t 0) 0 r qz %cos]]
+      =/  c=frac  (div:qq (coef n.t 0) (fact (dec e.t)))
+      `~[[c (dec e.t) r qz %cos]]
     ?.  =(2 dg)  ~
-    =/  b=frac   (coef d.t 1)
-    =/  c0=frac  (coef d.t 0)
+    =/  b=frac    (coef d.t 1)
+    =/  c0=frac   (coef d.t 0)
     =/  sig=frac  (neg:qq (div:qq b (qi --2)))
     =/  wsq=frac  (sub:qq c0 (div:qq (mul:qq b b) (qi --4)))
     ?.  =(%gt (cmp:qq wsq qz))  ~
+    ::  n = A*(s - sig) + (A*sig + B), so the two pieces ride P_e and
+    ::  Q_e, and the exponential comes back on at the end
     =/  aa=frac  (coef n.t 1)
-    =/  bb=frac  (coef n.t 0)
+    =/  bb=frac  (add:qq (coef n.t 0) (mul:qq aa sig))
+    =/  pq  (base-pq wsq e.t)
     :-  ~
-    :~  [aa 0 sig wsq %cos]
-        [(add:qq bb (mul:qq aa sig)) 0 sig wsq %sin]
-    ==
+    %+  setsig
+      (eadd (escale p.pq aa) (escale q.pq bb))
+    sig
   ::    +inverse:  the inverse transform, when it is in range
   ::
   ::  ~ rather than a crash: being out of range is a property of the

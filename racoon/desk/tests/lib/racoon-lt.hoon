@@ -46,9 +46,8 @@
 +|  %f3-transform
 ::    +test-f3-round-trip:  inverse . laplace is the identity
 ::
-::  Every term here has k = 0, because a t^k factor transforms to a
-::  REPEATED pole and +inverse does not do those yet -- see
-::  ++test-f3-repeated-is-out-of-range, which asserts exactly that.
+::  A t^k factor transforms to a REPEATED pole, so the k > 0 cases here
+::  are the recurrence in +base-pq going round and coming back.
 ++  test-f3-round-trip
   =/  cs=(list expo:lt)
     :~  ~[(e --3 0 --2 --0 %cos)]                 ::  3e^2t
@@ -61,6 +60,14 @@
         ~[(e --1 0 --0 --0 %cos)]                 ::  the constant 1
         ~[(e --5 0 -2 --9 %sin) (e --1 0 --4 --0 %cos)]
         ~[(e --1 0 --1 --0 %cos) (e -1 0 -1 --0 %cos)]
+        ::  repeated poles, linear and quadratic, to multiplicity four
+        ~[(e --1 1 --2 --0 %cos)]                 ::  t e^2t
+        ~[(e --1 3 -1 --0 %cos)]                  ::  t^3 e^-t
+        ~[(e --1 1 --0 --1 %cos)]                 ::  t cos t
+        ~[(e --1 1 --0 --1 %sin)]                 ::  t sin(t)
+        ~[(e --1 2 --0 --4 %cos)]                 ::  t^2 cos 2t
+        ~[(e --1 1 --1 --9 %sin)]                 ::  t e^t sin(3t)/3
+        ~[(e --1 2 --1 --1 %cos) (e --3 0 -2 --0 %cos)]
     ==
   =|  out=tang
   |-  ^-  tang
@@ -171,9 +178,6 @@
 ::    +test-f3-out-of-range:  SPEC F6, as a value and not a crash
 ++  test-f3-out-of-range
   ;:  weld
-    ::  a repeated pole: L{t e^2t} is 1/(s-2)^2, and the expansion of a
-    ::  repeated factor is the unbuilt half of F3
-    (expect-eq !>(~) !>((inverse:lt (new:rf (p ~[--1]) (p ~[--4 -4 --1])))))
     ::  an irreducible quadratic with wsq < 0: s^2 - 2 has real but
     ::  IRRATIONAL roots, so the exponents are not rational and $eterm
     ::  cannot hold them
@@ -185,6 +189,36 @@
     (expect-eq !>(~) !>((inverse:lt (of-p:rf (p ~[--1 --1])))))
     ::  but zero inverts to the empty sum rather than failing
     (expect-eq !>(`(unit expo:lt)`[~ ~]) !>((inverse:lt zero:rf)))
+  ==
+::    +test-f3-repeated:  the repeated-pole expansion, by value
+::
+::  The recurrence in +base-pq was checked against SymPy at j = 1, 2, 3
+::  before it was written; these are the same identities asserted in
+::  Hoon, so a later edit to it cannot drift silently.
+++  test-f3-repeated
+  ;:  weld
+    ::  1/(s-2)^2 -> t e^2t
+    %+  expect-eq
+      !>(`(unit expo:lt)`[~ ~[(e --1 1 --2 --0 %cos)]])
+    !>((inverse:lt (new:rf (p ~[--1]) (p ~[--4 -4 --1]))))
+    ::  1/(s-1)^4 -> t^3 e^t / 3!
+    %+  expect-eq
+      !>  ^-  (unit expo:lt)
+      [~ ~[[[--1 6] 3 (q --1) (q --0) %cos]]]
+    !>((inverse:lt (new:rf (p ~[--1]) (p ~[--1 -4 --6 -4 --1]))))
+    ::  1/(s^2+1)^2 -> (sin t - t cos t)/2, which is Q_2 with w = 1
+    %+  expect-eq
+      !>  ^-  (unit expo:lt)
+      :-  ~
+      :~  [[-1 2] 1 (q --0) (q --1) %cos]
+          [[--1 2] 0 (q --0) (q --1) %sin]
+      ==
+    !>((inverse:lt (new:rf (p ~[--1]) (p ~[--1 --0 --2 --0 --1]))))
+    ::  s/(s^2+1)^2 -> t sin(t)/2, which is P_2
+    %+  expect-eq
+      !>  ^-  (unit expo:lt)
+      [~ ~[[[--1 2] 1 (q --0) (q --1) %sin]]]
+    !>((inverse:lt (new:rf (p ~[--0 --1]) (p ~[--1 --0 --2 --0 --1]))))
   ==
 ::    +test-f3-crash:  SPEC F7's crashing row
 ++  test-f3-crash
