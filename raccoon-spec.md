@@ -927,7 +927,7 @@ the unique representative of an element of ℚ(x); nothing else is.
 | **Full partial fractions** | `+pfrac-full` decomposes against the irreducible factorization over ℚ. Ordering is pinned: ascending by `pcmp:zx` on the denominator base, then ascending by power. Without a pinned order the output is not canonical and the arm could not be `free` |
 | **Bezout, not undetermined coefficients** | Splitting `a/(b·c)` with `gcd(b,c) = 1` uses the extended Euclidean algorithm on polynomials, derived in the consumer from `divmod:qx`. Solving a linear system for the coefficients would work and would drag Baloon in for nothing |
 | **Hermite reduction** | The rational part of the integral. Produces `[rat=rfun log=rfun]` where `log` has a squarefree denominator, so what remains is purely logarithmic |
-| **Rothstein–Trager** | The logarithmic part. `Res_x(a - t·b', b)` is a polynomial in `t`; its roots are the residues, and each is a real algebraic number produced by `/lib/racoon-alg`. Complex residues are out of range — see §F6 |
+| **Rothstein–Trager, by residue rather than by resultant** | The logarithmic part. For squarefree `d` with irreducible factor `g`, every root `α` of `g` has residue `a(α)/d'(α)`, and those residues are all one **rational** `c` exactly when `a·(d')⁻¹ mod g` is the constant `c`. Testing each factor directly avoids forming `Res_x(a - t·d', d)` at all — no bivariate resultant, no interpolation, no second factorization. Irrational residues are out of range; see §F6 |
 | **The constant of integration is 0** | `+integrate` produces the antiderivative vanishing at no particular point; the constant is pinned to zero so the product is a function of the input alone |
 
 ## F4. Public API
@@ -949,7 +949,7 @@ the unique representative of an element of ℚ(x); nothing else is.
 | `pfrac` | `rfun -> [p=qol ts=(list [n=qol d=qol e=@ud])]` | Polynomial part plus squarefree terms `n/d^e` |
 | `pfrac-full` | `rfun -> [p=qol ts=(list [n=qol d=qol e=@ud])]` | Same, against irreducible `d` |
 | `hermite` | `rfun -> [rat=rfun log=rfun]` | The rational part, and what is left |
-| `integrate` | `rfun -> (unit [rat=rfun ls=(list [c=anum a=qol])])` | `rat` plus a sum of `c · log(a)`. `~` when a residue is not real — §F6 |
+| `integrate` | `rfun -> (unit [rat=rfun ls=(list [c=frac a=qol])])` | `rat` plus a sum of `c · log(a)`. Coefficients are **rational**, not `$anum` — §F6 says why. `~` when a residue is not |
 
 `/lib/racoon-lt`: see §F5.
 
@@ -992,25 +992,53 @@ needed.
 
 `+inverse` and `+integrate` produce `~` rather than crashing, because
 being out of range is a property of the *input* that the caller could not
-reasonably have checked in advance.
+reasonably have checked in advance. The two arms have **different**
+conditions and they are not the same fence.
 
-**The condition is decidable and cheap.** Factor the denominator over ℚ;
-each irreducible factor `g` is in range when
+### `+integrate`: the residues must be rational
+
+**This section was wrong when it was written, and is corrected rather
+than quietly narrowed.** It said real algebraic residues were in range,
+on the grounds that `/lib/racoon-alg` can name them. Naming them was
+never the problem. The log *argument* is `gcd(a - c·d', d)` computed over
+**ℚ(c)[x]**, and polynomial arithmetic over an algebraic extension of ℚ
+does not exist in this project — `/lib/racoon-fp3` has that shape for
+𝔽p and nothing has it for ℚ. So the reachable class is the **rational**
+residues.
+
+The condition is decidable per irreducible factor `g` of the squarefree
+denominator, and needs only the extended Euclidean algorithm: `a·(d')⁻¹
+mod g` is either a constant, and then that constant is the residue, or it
+is not, and then the residues genuinely differ between conjugate roots.
+
+That class is larger than "the denominator splits into linear factors":
+`∫ 2x/(x² + 1)` has residue 1 at both roots and comes back as
+`log(x² + 1)`. What it excludes is `∫ 1/(x² + 1)` — the arctangent, whose
+residues are `∓i/2` — and every case like it.
+
+Lifting this wants either Lazard–Rioboo–Trager or a RootSum
+representation of the answer, and both are **new specification, not new
+code**. Neither is in scope here.
+
+### `+inverse`: the poles must be nameable in ℝ
+
+Unaffected by the above, because it needs no arithmetic in an extension —
+only σ and ω, which come from a rational quadratic by completing the
+square. Factor the denominator over ℚ; each irreducible factor `g` is in
+range when
 
 - `deg g = 1` — a real root, trivially; or
-- `deg g = 2` — the real quadratic is itself the factor, and σ and ω come
-  from completing the square, so a negative discriminant is fine; or
+- `deg g = 2` — the real quadratic *is* the factor, so a negative
+  discriminant is fine; or
 - `(count:roots g lo hi) = deg g` over a bound containing every root —
   all roots real, and `/lib/racoon-alg` names them.
 
 An irreducible factor of degree ≥ 3 with non-real roots is the whole of
 what is excluded. Naming its roots needs **complex** root isolation,
-which §A9 fences and this section does not lift.
-
-This is a real limit and it is stated rather than buried: it excludes,
-for example, the inverse transform of `1/(s⁵ + s + 1)`. It excludes
-nothing that factors into linears and quadratics over ℚ, which is every
-transfer function anyone writes by hand.
+which §A9 fences and this section does not lift. It excludes the inverse
+transform of `1/(s⁵ + s + 1)`; it excludes nothing that factors into
+linears and quadratics over ℚ, which is every transfer function anyone
+writes by hand.
 
 ## F7. Crash table (normative — every row gets a test)
 
@@ -1021,7 +1049,7 @@ transfer function anyone writes by hand.
 | `pow` | negative exponent of zero | crash |
 | `deg` | the argument is zero | crash |
 | `eval` | the point is a pole | crash |
-| `integrate` | a residue is not real | **no crash**: product is `~` |
+| `integrate` | a residue is not rational | **no crash**: product is `~` |
 | `inverse` | §F6's condition fails | **no crash**: product is `~` |
 | `solve-ode` | wrong number of initial conditions | crash |
 | `solve-ode` | the characteristic polynomial is out of §F6's range | **no crash**: `~` |
@@ -1089,6 +1117,11 @@ No multivariate rational functions. No differential equations beyond
 constant coefficients — variable coefficients need power series or
 differential Galois theory, and neither is specified here.
 
+No polynomial arithmetic over an algebraic extension of ℚ. That is the
+one absence §F6 turned into a visible limit, and it is named here so
+that lifting it is recognised as its own piece of work rather than a
+patch to `+integrate`.
+
 **The reason phase (B) cannot be a section of this document.** Racoon's
 whole design rests on canonical outputs: unique objects, structural
 equality, every arm `free`. A symbolic expression language cannot have
@@ -1099,3 +1132,7 @@ simplifier arm would have to be `pinned` — the procedure becoming the
 contract, as it is for `egcd:nz` and `lll` — which inverts this
 project's disposition rather than extending it. That belongs in a
 sibling with its own spec, standing on this one the way Baloon does.
+
+**That sibling is named Calhoon.** It is not specified here and no arm
+of this document depends on it; the name is recorded so that §F10's
+fence has something to point at.
