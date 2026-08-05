@@ -48,6 +48,9 @@ already exist. §F10 records why the *symbolic* half cannot follow it into
 Racoon: Richardson's theorem makes canonical form undecidable for
 elementary expressions, and canonical outputs are what this library is.
 
+That symbolic half is **Calhoon**, specified in `calhoon-spec.md` and not
+yet built.
+
 ##  Cascabel
 
 `cascabel/` is an example application: a `/lib/shoe` agent that answers the
@@ -72,6 +75,28 @@ functions in nockchain-official**, and a round count alone does not say
 which one you get.
 
 - [`nockapp/README.md`](./nockapp/README.md)
+
+##  Calhoon
+
+`calhoon-spec.md` specifies the symbolic layer — expression trees,
+differentiation, integration by parts and the textbook table, Risch,
+hypergeometric summation, and the Laplace and Fourier transforms.
+**Specified, not built.**
+
+It is a sibling rather than a Racoon phase, and §1 of that document says
+why: Racoon rests on canonical outputs and structural equality, and by
+Richardson's theorem an elementary expression language cannot have
+either. Calhoon's arms are `pinned` where Racoon's are `free`, its
+equality *semi*-decides, and its heuristics are made safe by verifying
+every answer rather than by being correct — the same discipline §V4 uses
+for the van Hoeij lattice.
+
+Two things block it, both recorded in `calhoon-spec.md` §4 and §12:
+**sparse multivariate polynomials do not exist in Racoon** and are a hard
+prerequisite from phase K2 on, and linear algebra over ℚ(x) needs either
+a local elimination or a Baloon door over a field.
+
+- [`calhoon-spec.md`](./calhoon-spec.md) — normative
 
 ##  Libraries
 
