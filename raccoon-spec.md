@@ -1378,9 +1378,22 @@ No `~|` anywhere (R3).
 - **M3 — squarefree decomposition.** Yun in `x_1` on the primitive part
   plus the recursive content step; see §M3's last row for the trap.
 - **M4 — multivariate rational functions.** `$mrf`, coprime with a
-  denominator whose leading coefficient is 1 in the pinned order, and the
-  field arithmetic on it. Canonical, so equality is structural — which is
-  what `calhoon-spec.md` §2 needs its decidable fragment to rest on.
+  denominator whose leading coefficient is **positive** in the pinned
+  order, and the field arithmetic on it. Canonical, so equality is
+  structural — which is what `calhoon-spec.md` §2 needs its decidable
+  fragment to rest on.
+
+  **Over ℤ, and monic is neither available nor needed.** This line first
+  said "leading coefficient is 1", which silently assumed a ℚ
+  coefficient ring. Quotients of ℤ[x₁…xₙ] already give the whole of
+  ℚ(x₁…xₙ) — `2x/3y` is representable and *is* `(2/3)x/y` — so the
+  normalization is the sign, and `+qp` is not on the critical path for
+  Calhoon after all.
+
+  Reducing to lowest terms needs **both** GCDs: the true GCD over ℤ is
+  the GCD of the contents times the GCD of the primitive parts, and
+  `+gcd` produces only the second, so dividing by `+gcd` alone leaves
+  `2x/4y` unreduced.
 
 ## M7. Testing
 

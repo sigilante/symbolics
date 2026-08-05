@@ -46,7 +46,7 @@ underdetermined, two-sided crash tables, and no `~|` anywhere.
 | ~~van Hoeij recombination~~ | **Complete** (§V), in `baloon/desk/lib/vanhoeij.hoon`, since it consumes both libraries. **The benchmark was wrong and was measured**: `factor:zx` does `SD_4` in 302 ms, not "out of scope". The cliff was `SD_5` at 204 s — now 9.4 s. See §V0 and Baloon's README |
 | van Hoeij recombination, original entry | Would attack the known cost cliff — Zassenhaus is exponential in the worst case, and `SD_4`+ is out of scope until this lands. Needs LLL, which both specs fence out, so it requires escalation first |
 | Rational function field | **Specified (§F); F0–F3 built** as `/lib/racoon-rf` and `/lib/racoon-lt`, repeated poles included. Rational functions, partial fractions, integration by Hermite + Rothstein–Trager, and the Laplace transform. Needs no primitive that does not exist — phase A's real algebraic numbers are what name the residues |
-| ~~Sparse multivariate~~ | **Specified** (§M), not built, as `/lib/racoon-mp`. Sparse and canonical over ℤ and ℚ, with a recursive primitive-PRS gcd. It stopped being a candidate when `calhoon-spec.md` §4 made it a prerequisite: Calhoon's expression tower is multivariate by construction, and it cannot proceed past phase K1 without this |
+| ~~Sparse multivariate~~ | **Specified (§M) and built** as `/lib/racoon-mp`, all five phases. Sparse and canonical over ℤ and ℚ, with a recursive primitive-PRS gcd. It stopped being a candidate when `calhoon-spec.md` §4 made it a prerequisite: Calhoon's expression tower is multivariate by construction, and it cannot proceed past phase K1 without this |
 
 ## Layout
 
@@ -73,6 +73,7 @@ racoon/
     lib/racoon-alg.hoon       real algebraic numbers -- phase A, a door
     lib/racoon-rf.hoon        rational functions -- phase F, also a door
     lib/racoon-lt.hoon        the Laplace transform -- phase F3
+    lib/racoon-mp.hoon        sparse multivariate polynomials -- phase M
     gen/racoon-bench.hoon     benchmark generator
     gen/racoon-factor.hoon    factor a polynomial from the dojo
     gen/racoon-gcd.hoon       gcd of two polynomials from the dojo

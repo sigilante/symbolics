@@ -34,9 +34,7 @@
 ::  remainder, unique in several variables only when dividing by a
 ::  Groebner basis -- so no arm here changes answer with the order.
 ::
-::  STATUS: M0, M1, and M2 are built and verified in-ship.  M3
-::  (squarefree decomposition) and M4 (multivariate rational functions)
-::  are specified in SPEC M6 and not written.
+::  STATUS: M0 through M4 are built and verified in-ship.
 ::
 ::  +gcd is checked by its DEFINITION rather than by agreement: the
 ::  product divides both arguments exactly -- which +xdiv decides -- and
@@ -44,6 +42,13 @@
 ::  Arity 1 additionally agrees with +gcd:zx arm for arm, which is the
 ::  strongest check available here, since %zx is already verified
 ::  against SymPy over the whole Milestone A corpus.
+::
+::  $mrf IS OVER Z, not Q, and that is not a compromise: quotients of
+::  Z[x_1..x_n] already give the whole of Q(x_1..x_n) -- 2x/3y is
+::  representable and IS (2/3)x/y.  So the denominator normalizes to a
+::  POSITIVE LEADING COEFFICIENT rather than to 1, which monic would
+::  have required a Q coefficient ring for.  SPEC M6's M4 line is
+::  amended to match.
 ::
 ::  THE GCD IS PRIMITIVE, so gcd(6xy, 15y) is y and not 3y.  That is
 ::  SPEC M3's pinned convention and §8's univariate one, and it is
@@ -69,6 +74,19 @@
 ::  Terms descending in the pinned order, no zero coefficient, uniform
 ::  arity.  The zero polynomial is ~.
 +$  zmp  (list zmt)
+::    $zmfac:  a squarefree decomposition, shaped like $zfac
+::
+::  input = c * prod(p_i ^ m_i), each p_i squarefree and primitive with
+::  positive leading coefficient, the p_i pairwise coprime, at most one
+::  per multiplicity.
++$  zmfac  [c=@s fs=(list [p=zmp m=@ud])]
+::    $mrf:  a rational function in Q(x_1..x_n)
+::
+::  .num and .den coprime over Z, .den with a POSITIVE leading
+::  coefficient.  Not monic: monic would need Q coefficients, and
+::  quotients of Z[x..] already give the whole field -- 2x/3y is
+::  representable and (2/3)x/y is the same element.
++$  mrf  [num=zmp den=zmp]
 ::
 +|  %monomials
 ::    +mcmp:  the pinned term order, lexicographic
@@ -523,6 +541,105 @@
       $(u v, v (ppv r))
     (norm (mul d g))
   ::
+  +|  %squarefree
+  ::    +yun:  Yun's algorithm in x_0
+  ::
+  ::  .f must be primitive in x_0 and over Z, with positive degree in
+  ::  x_0.  Characteristic 0, so there is no f' = 0 case.
+  ::
+  ::  Every division here is exact: .f is primitive, so gcd(f, f') is
+  ::  already primitive and equals the true GCD rather than a factor of
+  ::  it.  A factor of .f lying wholly in R would contradict primitivity,
+  ::  which is also why an .ai of degree 0 in x_0 is a unit and dropped.
+  ++  yun
+    |=  f=zmp
+    ^-  (list [p=zmp m=@ud])
+    =/  fp=zmp  (deriv f 0)
+    =/  a=zmp   (gcd f fp)
+    =/  b=zmp   (xdiv f a)
+    =/  d=zmp   (sub (xdiv fp a) (deriv b 0))
+    =/  i=@ud   1
+    =|  out=(list [p=zmp m=@ud])
+    |-  ^-  (list [p=zmp m=@ud])
+    ?:  =(0 (degv b 0))  (flop out)
+    =/  ai=zmp  (gcd b d)
+    =/  nb=zmp  (xdiv b ai)
+    %=  $
+      i    +(i)
+      b    nb
+      d    (sub (xdiv d ai) (deriv nb 0))
+      out  ?:(=(0 (degv ai 0)) out [[ai i] out])
+    ==
+  ::    +merge:  one entry per multiplicity, by multiplying
+  ::
+  ::  The parts coming from x_0 and the parts coming from the content
+  ::  are coprime, so a product of two at the same multiplicity is still
+  ::  squarefree -- which is what $zmfac's "at most one per
+  ::  multiplicity" requires.
+  ++  merge
+    |=  es=(list [p=zmp m=@ud])
+    ^-  (list [p=zmp m=@ud])
+    ?~  es  ~
+    ::  one widened copy: ?~ above refined .es non-empty, which makes an
+    ::  unannotated ?~ on it vain AND makes the wet +skim below refuse
+    ::  to nest.  Both go away here.
+    =/  ws=(list [p=zmp m=@ud])  es
+    =/  hi=@ud
+      =/  ls=(list [p=zmp m=@ud])  ws
+      =/  x=@ud  0
+      |-  ^-  @ud
+      ?~  ls  x
+      $(ls t.ls, x (max x m.i.ls))
+    =/  k=@ud  1
+    =|  out=(list [p=zmp m=@ud])
+    |-  ^-  (list [p=zmp m=@ud])
+    ?:  (gth k hi)  (flop out)
+    =/  ps=(list [p=zmp m=@ud])  (skim ws |=(e=[p=zmp m=@ud] ^-(? =(k m.e))))
+    ?~  ps  $(k +(k))
+    =/  pr=zmp
+      =/  ls=(list [p=zmp m=@ud])  t.ps
+      =/  acc=zmp  p.i.ps
+      |-  ^-  zmp
+      ?~  ls  acc
+      $(ls t.ls, acc (mul acc p.i.ls))
+    ::  $ and not ^$: the |- above closed inside its own =/, so the
+    ::  nearest loop here is already the outer one
+    $(k +(k), out [[pr k] out])
+  ::    +sqfree:  squarefree decomposition
+  ::
+  ::  Yun in x_0 on the PRIMITIVE PART, plus a recursive decomposition
+  ::  of the content -- SPEC M3.  Running Yun on the whole polynomial
+  ::  instead silently misses repeated factors that do not involve x_0,
+  ::  and that is the obvious mistake here, which is why the reason it
+  ::  works is written down: a primitive polynomial has no factor lying
+  ::  entirely in R, so every repeated factor has positive degree in
+  ::  x_0 and is caught by gcd(f, df/dx_0).
+  ::
+  ::  Arity 1 delegates to +sqfree:zx, the same base case +gcd uses.
+  ++  sqfree
+    |=  a=zmp
+    ^-  zmfac
+    ?~  a  !!
+    =/  ct=@ud  (content a)
+    =/  c=@s    ?:((syn:si (lc a)) (sun:si ct) (dif:si --0 (sun:si ct)))
+    =/  f=zmp   (xdiv a (con c (arity a)))
+    ?:  =(0 (deg f))  [c ~]
+    =/  n=@ud  (arity f)
+    ?:  =(1 n)
+      =/  u=(unit zol)  (to-uni f 0)
+      ?~  u  !!
+      =/  z=zfac  (sqfree:zx u.u)
+      :-  (pro:si c c.z)
+      (turn fs.z |=([p=zol m=@ud] ^-([zmp @ud] [(of-uni p 0 1) m])))
+    =/  cv=zmp  (contentv f)
+    =/  pv=zmp  (xdiv f (lift0 cv))
+    =/  hi=(list [p=zmp m=@ud])  ?:(=(0 (degv pv 0)) ~ (yun pv))
+    =/  lo=(list [p=zmp m=@ud])
+      ?:  =(0 (deg cv))  ~
+      (turn fs:(sqfree cv) |=([p=zmp m=@ud] ^-([zmp @ud] [(lift0 p) m])))
+    [c (merge (weld hi lo))]
+  ::
+  ::
   +|  %bridge
   ::    +to-uni:  down to %zx when only variable i occurs
   ::
@@ -565,5 +682,63 @@
     ?~  cs  (canon out)
     ?:  =(--0 i.cs)  $(cs t.cs, e +(e))
     $(cs t.cs, e +(e), out [[(snap (mzero n) i e) i.cs] out])
+  --
+::
++|  %rational
+::    +rf:  rational functions over Z[x_1..x_n]
+::
+::  A SIBLING of +zp rather than a core inside it: nested, its +one,
+::  +zero, +neg, +add, +mul, and +sub shadow +zp's, and the ^ escape is
+::  ambiguous with three of the same name in scope.  Out here every
+::  reference qualifies.
+++  rf
+  |%
+::    +new:  reduce to lowest terms with a positive denominator lc
+::
+::  The TRUE gcd over Z is the gcd of the contents times the gcd of
+::  the primitive parts, and +gcd produces only the second -- so
+::  dividing by +gcd alone would leave 2x/4y unreduced.
+++  new
+  |=  [n=zmp d=zmp]
+  ^-  mrf
+  ?~  d  !!
+  ?:  =(~ n)  [~ (one:zp (arity:zp d))]
+  ?>  (same-arity:zp n d)
+  =/  ic=@ud  (gcd:nz (content:zp n) (content:zp d))
+  =/  g=zmp   (scale:zp (gcd:zp n d) (sun:si ic))
+  =/  n2=zmp  (xdiv:zp n g)
+  =/  d2=zmp  (xdiv:zp d g)
+  ?:  (syn:si (lc:zp d2))  [n2 d2]
+  [(neg:zp n2) (neg:zp d2)]
+::    +is-zero:  structural
+++  is-zero  |=(f=mrf ^-(? =(~ num.f)))
+::    +zero:  0/1 at this arity
+++  zero  |=(n=@ud ^-(mrf [~ (one:zp n)]))
+::    +one:  1/1 at this arity
+++  one  |=(n=@ud ^-(mrf [(one:zp n) (one:zp n)]))
+::    +neg:  negation, which cannot disturb the form
+++  neg  |=(f=mrf ^-(mrf [(neg:zp num.f) den.f]))
+::    +add:  addition
+++  add
+  |=  [a=mrf b=mrf]
+  ^-  mrf
+  %+  new
+    (add:zp (mul:zp num.a den.b) (mul:zp num.b den.a))
+  (mul:zp den.a den.b)
+::    +sub:  subtraction
+++  sub  |=([a=mrf b=mrf] ^-(mrf (add a (neg b))))
+::    +mul:  multiplication
+++  mul
+  |=  [a=mrf b=mrf]
+  ^-  mrf
+  (new (mul:zp num.a num.b) (mul:zp den.a den.b))
+::    +inv:  the inverse; crashes on zero
+++  inv
+  |=  f=mrf
+  ^-  mrf
+  ?<  (is-zero f)
+  (new den.f num.f)
+::    +div:  division; crashes on a zero divisor
+++  div  |=([a=mrf b=mrf] ^-(mrf (mul a (inv b))))
   --
 --
