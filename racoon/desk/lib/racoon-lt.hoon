@@ -136,7 +136,20 @@
   ++  canon
     |=  e=expo
     ^-  expo
-    =/  ts=expo   (sort e eord)
+    ::  the degenerate sine is NOT a distinct term.  sin(wt)/w -> t as
+    ::  w -> 0, so [c k sig 0 %sin] is c*t^(k+1)*e^(sig t), which is
+    ::  [c k+1 sig 0 %cos] -- and without this rewrite two $eterm
+    ::  denote one function, +laplace maps them to the same $rfun, and
+    ::  the claim that equality is structural is false.  Nothing in this
+    ::  library produces such a term; a caller can write one.
+    =/  ts=expo
+      %+  sort
+        %+  turn  e
+        |=  x=eterm
+        ^-  eterm
+        ?.  ?&(=(%sin tr.x) (is-qz wsq.x))  x
+        x(k +(k.x), tr %cos)
+      eord
     =/  cur=expo  ~
     =|  out=expo
     |-  ^-  expo
@@ -223,6 +236,135 @@
         (escale (tmul p) (qi -1))
       (inv:qq (mul:qq tw w))
     $(i +(i), p np, q nq)
+  ::
+  +|  %integration
+  ::    +bkeys:  the distinct (sig, wsq) blocks of a CANONICAL $expo
+  ::
+  ::  +canon sorts by sig then wsq, so equal keys are adjacent and this
+  ::  is one pass.
+  ++  bkeys
+    |=  e=expo
+    ^-  (list [g=frac w=frac])
+    ::  the previous key is carried as a plain value rather than read
+    ::  back off the accumulator: ?= on the accumulator refines it, and
+    ::  then +snag will not nest against the refined type
+    =/  cs=expo  e
+    =/  hav=?   %.n
+    =/  lst=[g=frac w=frac]  [qz qz]
+    =|  out=(list [g=frac w=frac])
+    |-  ^-  (list [g=frac w=frac])
+    ?~  cs  (flop out)
+    =/  ky=[g=frac w=frac]  [sig.i.cs wsq.i.cs]
+    ?:  &(hav =(ky lst))  $(cs t.cs)
+    $(cs t.cs, hav %.y, lst ky, out [ky out])
+  ::    +at-zero:  the value at t = 0
+  ::
+  ::  Only k = 0 cosine terms survive it: t^k vanishes for k > 0, and
+  ::  every sine term is zero at the origin -- including the degenerate
+  ::  one, which +canon has already rewritten into a cosine anyway.
+  ++  at-zero
+    |=  e=expo
+    ^-  frac
+    =/  cs=expo   e
+    =/  acc=frac  qz
+    |-  ^-  frac
+    ?~  cs  acc
+    ?.  ?&(=(0 k.i.cs) =(%cos tr.i.cs))  $(cs t.cs)
+    $(cs t.cs, acc (add:qq acc c.i.cs))
+  ::    +blk-int:  integrate one (sig, wsq) block
+  ::
+  ::  Writing a block as the coefficient pairs (a_k, b_k) of
+  ::  t^k cos and t^k sin-normalized, +ederiv acts as
+  ::
+  ::      D_k = M E_k + (k+1) E_(k+1),      M = [[sig 1] [-wsq sig]]
+  ::
+  ::  -- block-triangular, level k feeding level k-1.  So integration is
+  ::  the same recurrence read DOWNWARD from the top level, which is why
+  ::  this arm solves rather than substitutes: there is no closed form to
+  ::  apply term by term, but there is an exactly determined system.
+  ::
+  ::  det M = sig^2 + wsq, and it is zero only when both are, so the one
+  ::  special case is the pure polynomial in t -- the only block where
+  ::  integration RAISES k rather than preserving it.
+  ++  blk-int
+    |=  [g=frac w=frac ts=expo]
+    ^-  expo
+    =/  det=frac  (add:qq (mul:qq g g) w)
+    ?:  (is-qz det)
+      %+  turn  ts
+      |=  x=eterm
+      ^-  eterm
+      x(c (div:qq c.x (qi (sun:si +(k.x)))), k +(k.x))
+    =/  kk=@ud
+      =/  m=@ud   0
+      =/  cs=expo  ts
+      |-  ^-  @ud
+      ?~  cs  m
+      $(cs t.cs, m (max m k.i.cs))
+    ::  the derivative's coefficients, indexed by k
+    =/  ds=(list [a=frac b=frac])
+      %+  turn  (gulf 0 kk)
+      |=  k=@ud
+      ^-  [a=frac b=frac]
+      =/  cs=expo   ts
+      =/  a=frac    qz
+      =/  b=frac    qz
+      |-  ^-  [a=frac b=frac]
+      ?~  cs  [a b]
+      ?.  =(k k.i.cs)  $(cs t.cs)
+      ?:  =(%cos tr.i.cs)  $(cs t.cs, a (add:qq a c.i.cs))
+      $(cs t.cs, b (add:qq b c.i.cs))
+    =/  i=@ud  0
+    =/  nx=[a=frac b=frac]  [qz qz]
+    =/  res=expo  ~
+    |-  ^-  expo
+    ?:  (gth i kk)  (canon res)
+    =/  k=@ud   (sub kk i)
+    =/  d=[a=frac b=frac]  (snag k ds)
+    =/  kp=frac  (qi (sun:si +(k)))
+    ::  the right-hand side, less what level k+1 already contributed
+    =/  ra=frac  (sub:qq a.d (mul:qq kp a.nx))
+    =/  rb=frac  (sub:qq b.d (mul:qq kp b.nx))
+    ::  M^-1 = (1/det) [[sig -1] [wsq sig]]
+    =/  ea=frac  (div:qq (sub:qq (mul:qq g ra) rb) det)
+    =/  eb=frac  (div:qq (add:qq (mul:qq w ra) (mul:qq g rb)) det)
+    %=  $
+      i    +(i)
+      nx   [ea eb]
+      ::  annotated: an un-typed ~[...] infers as a fixed tuple, which
+      ::  the wet +skip cannot nest
+      res
+        %+  weld
+          %+  skip  `expo`~[[ea k g w %cos] [eb k g w %sin]]
+          |=(x=eterm ^-(? (is-qz c.x)))
+        res
+    ==
+  ::    +eintegrate:  the antiderivative vanishing at t = 0
+  ::
+  ::  The constant is pinned to make the product a function of the input
+  ::  alone, exactly as SPEC F3 pins it for +integrate on $rfun.  With
+  ::  that convention this is the definite integral from 0 to t, so
+  ::  L{eintegrate(e)} is laplace(e)/s -- which is how the suite checks
+  ::  it against an arm that does not share a line of code with it.
+  ++  eintegrate
+    |=  e=expo
+    ^-  expo
+    =/  ce=expo  (canon e)
+    =/  cs=(list [g=frac w=frac])  (bkeys ce)
+    =/  acc=expo  ~
+    |-  ^-  expo
+    ?~  cs
+      =/  v0=frac  (at-zero acc)
+      ?:  (is-qz v0)  (canon acc)
+      (canon [[(neg:qq v0) 0 qz qz %cos] acc])
+    =/  blk=expo
+      %+  skim  ce
+      |=  x=eterm
+      ^-  ?
+      ?&  =(%eq (cmp:qq sig.x g.i.cs))
+          =(%eq (cmp:qq wsq.x w.i.cs))
+      ==
+    $(cs t.cs, acc (weld acc (blk-int g.i.cs w.i.cs blk)))
   ::
   +|  %transform
   ::    +lap-term:  the transform of one term

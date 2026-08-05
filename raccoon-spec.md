@@ -1021,7 +1021,8 @@ correction, neither are real ones.
 | `canon` | `expo -> expo` | Sort, combine like terms, drop zero coefficients. The only arm accepting an unsorted or redundant list |
 | `laplace` | `expo -> rfun` | **Total.** Each term transforms to a rational function and they sum. `L{t^k f} = (-1)^k F^(k)`, so the `t^k` ladder is `k` applications of `deriv:rf` rather than a closed formula |
 | `inverse` | `rfun -> (unit expo)` | `~` exactly when §F6's condition fails. Repeated poles included, at any multiplicity |
-| `ederiv` | `expo -> expo` | The class is closed under `d/dt`, so this cannot fail |
+| `ederiv` `eintegrate` | `expo -> expo` | The class is closed under both, so neither can fail. `eintegrate` produces the antiderivative **vanishing at t = 0** — pinned, as §F3 pins the constant for `+integrate` on `$rfun`, so the product is a function of the input alone |
+| `at-zero` | `expo -> frac` | The value at the origin. Exposed because it is what pins the constant, and a caller checking the answer needs it |
 | `eadd` `escale` | `[expo expo] -> expo` / `[expo frac] -> expo` | |
 | `solve-ode` | `[qol (list frac)] -> (unit expo)` | Constant-coefficient homogeneous, given the characteristic polynomial and initial conditions |
 
@@ -1122,8 +1123,8 @@ No `~|` anywhere (R3).
   what leaves a `w` in the denominator rather than an `s` — and is why
   §F5's normalized sine keeps every coefficient rational here too.
 
-  Only `integrate` on `$expo` remains: it is the inverse of `ederiv` and
-  wants solving rather than substituting.
+  `eintegrate` completes the phase; see §F5 for the recurrence it solves
+  and for the degenerate-sine rewrite that building it turned up.
 
 ## F9. Testing
 

@@ -109,6 +109,14 @@
     !>((canon:lt ~[(e --2 0 --2 --0 %cos) (e -2 0 --2 --0 %cos)]))
     ::  a zero coefficient is not a term
     (expect-eq !>(`expo:lt`~) !>((canon:lt ~[(e --0 0 --1 --1 %sin)])))
+    ::  THE DEGENERATE SINE IS NOT A DISTINCT TERM.  sin(wt)/w -> t as
+    ::  w -> 0, so [c k sig 0 %sin] is the same function as
+    ::  [c k+1 sig 0 %cos] -- and +laplace maps them to the same $rfun,
+    ::  which is how the redundancy was found.  Without the rewrite
+    ::  $expo is not canonical and structural equality is a false claim.
+    %+  expect-eq
+      !>(`expo:lt`~[(e --1 2 --2 --0 %cos)])
+    !>((canon:lt ~[(e --1 1 --2 --0 %sin)]))
     ::  order does not survive as information
     %+  expect-eq
       !>((canon:lt ~[(e --1 0 --1 --0 %cos) (e --2 0 --3 --0 %cos)]))
@@ -219,6 +227,84 @@
       !>  ^-  (unit expo:lt)
       [~ ~[[[--1 2] 1 (q --0) (q --1) %sin]]]
     !>((inverse:lt (new:rf (p ~[--0 --1]) (p ~[--1 --0 --2 --0 --1]))))
+  ==
+::    +test-f3-integrate:  the antiderivative, checked two ways
+::
+::  +eintegrate solves rather than substitutes: written as coefficient
+::  pairs, +ederiv acts on a (sig, wsq) block as
+::  D_k = M E_k + (k+1) E_(k+1), and integration reads that recurrence
+::  downward from the top level.  So the arm has no closed form to
+::  compare against, and two independent checks stand in for one:
+::
+::    d/dt of the answer is the input, which is the definition; and
+::    L of the answer is L of the input over s, which goes through
+::    +laplace -- an arm sharing no line of code with +eintegrate.
+::
+::  The constant is pinned to make the answer vanish at t = 0, so the
+::  second identity is the definite integral from 0 to t and holds
+::  exactly rather than up to a constant.
+++  test-f3-integrate
+  =/  cs=(list expo:lt)
+    :~  ~[(e --1 0 --0 --0 %cos)]                 ::  1
+        ~[(e --1 2 --0 --0 %cos)]                 ::  t^2
+        ~[(e --1 0 --2 --0 %cos)]                 ::  e^2t
+        ~[(e --1 1 --2 --0 %cos)]                 ::  t e^2t
+        ~[(e --1 3 -1 --0 %cos)]                  ::  t^3 e^-t
+        ~[(e --1 0 --0 --1 %cos)]                 ::  cos t
+        ~[(e --1 0 --0 --1 %sin)]                 ::  sin t
+        ~[(e --1 1 --0 --4 %cos)]                 ::  t cos 2t
+        ~[(e --1 0 --1 --9 %sin)]                 ::  e^t sin(3t)/3
+        ~[(e --1 2 --1 --1 %cos)]                 ::  t^2 e^t cos t
+        ~[(e --2 1 --1 --1 %cos) (e --3 0 -2 --0 %cos) (e --1 2 --0 --0 %cos)]
+    ==
+  =/  ess=rfun:rf  (of-p:rf (p ~[--0 --1]))
+  =|  out=tang
+  |-  ^-  tang
+  ?~  cs  out
+  =/  ii  (eintegrate:lt i.cs)
+  %=  $
+    cs  t.cs
+    out
+      %+  weld  out
+      ;:  weld
+        ::  the definition
+        (expect-eq !>((canon:lt i.cs)) !>((ederiv:lt ii)))
+        ::  and L{int f} = F(s)/s, through an arm that shares no code
+        (expect-eq !>((laplace:lt ii)) !>((div:rf (laplace:lt i.cs) ess)))
+        ::  the pinned constant
+        (expect-eq !>(`frac`[--0 1]) !>((at-zero:lt ii)))
+      ==
+  ==
+::    +test-f3-integrate-values:  answers a reader can check by eye
+++  test-f3-integrate-values
+  ;:  weld
+    ::  int 1 dt = t
+    %+  expect-eq
+      !>(`expo:lt`~[(e --1 1 --0 --0 %cos)])
+    !>((eintegrate:lt ~[(e --1 0 --0 --0 %cos)]))
+    ::  int t^2 dt = t^3/3
+    %+  expect-eq
+      !>  ^-  expo:lt
+      ~[[[--1 3] 3 (q --0) (q --0) %cos]]
+    !>((eintegrate:lt ~[(e --1 2 --0 --0 %cos)]))
+    ::  int e^2t dt = (e^2t - 1)/2 -- the -1/2 is the pinned constant
+    %+  expect-eq
+      !>  ^-  expo:lt
+      :~  [[-1 2] 0 (q --0) (q --0) %cos]
+          [[--1 2] 0 (q --2) (q --0) %cos]
+      ==
+    !>((eintegrate:lt ~[(e --1 0 --2 --0 %cos)]))
+    ::  int cos t dt = sin t, which in this basis is the sine at wsq = 1
+    %+  expect-eq
+      !>(`expo:lt`~[(e --1 0 --0 --1 %sin)])
+    !>((eintegrate:lt ~[(e --1 0 --0 --1 %cos)]))
+    ::  int sin t dt = 1 - cos t
+    %+  expect-eq
+      !>  ^-  expo:lt
+      :~  [(q --1) 0 (q --0) (q --0) %cos]
+          [(q -1) 0 (q --0) (q --1) %cos]
+      ==
+    !>((eintegrate:lt ~[(e --1 0 --0 --1 %sin)]))
   ==
 ::    +test-f3-crash:  SPEC F7's crashing row
 ++  test-f3-crash
