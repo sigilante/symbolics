@@ -281,7 +281,7 @@ A phase closes when: library compiles clean; all tests for this and prior phases
 
 ## 13. Out of scope — hard fence
 
-No floating point (numerics owns it). No multivariate polynomials, no Gröbner bases. No symbolic expression front end, no simplifier, ~~no integration/Risch~~ — **the rational half is lifted, see §F; Risch, the expression front end, and the simplifier stand, and §F10 says why the last two cannot live here at all.** ~~No LLL / van Hoeij.~~ **Lifted — see §V.** This is a Milestone A fence, and §V supersedes it exactly as §R and §A supersede the real-root and algebraic-number lines above. No primality *proving*. No performance work beyond recording baselines. No C/Rust jets, no runtime modifications. No `%base` changes beyond adding the listed files. Milestone C candidates, for context only: van Hoeij recombination; real-root isolation via Sturm/Descartes (the "Real" in the backronym); sparse multivariate.
+No floating point (numerics owns it). ~~No multivariate polynomials~~ — **lifted, see §M**, which `calhoon-spec.md` §4 made a prerequisite rather than a candidate. No Gröbner bases, and §M8 does not approach that fence. No symbolic expression front end, no simplifier, ~~no integration/Risch~~ — **the rational half is lifted, see §F; Risch, the expression front end, and the simplifier stand, and §F10 says why the last two cannot live here at all.** ~~No LLL / van Hoeij.~~ **Lifted — see §V.** This is a Milestone A fence, and §V supersedes it exactly as §R and §A supersede the real-root and algebraic-number lines above. No primality *proving*. No performance work beyond recording baselines. No C/Rust jets, no runtime modifications. No `%base` changes beyond adding the listed files. Milestone C candidates, for context only: van Hoeij recombination; real-root isolation via Sturm/Descartes (the "Real" in the backronym); sparse multivariate.
 
 ## 14. Escalation and decision authority
 
@@ -1207,3 +1207,243 @@ sibling with its own spec, standing on this one the way Baloon does.
 **That sibling is named Calhoon.** It is not specified here and no arm
 of this document depends on it; the name is recorded so that §F10's
 fence has something to point at.
+
+---
+
+# Milestone C — sparse multivariate polynomials
+
+**Engineering Specification v0.2 — Milestone C, phase M: ℤ[x₁…xₙ] and
+ℚ[x₁…xₙ], sparse and canonical**
+
+§13 fences out multivariate polynomials as a Milestone A boundary and
+lists "sparse multivariate" as the largest and least specified Milestone
+C candidate. This supersedes the first and answers the second, exactly as
+§V superseded the LLL line and §F the rational half of the integration
+line.
+
+## M0. Why now, and what it unblocks
+
+Every previous Milestone C phase was reached for on its own merits. This
+one has a named consumer that cannot proceed without it.
+
+`calhoon-spec.md` §3 represents a symbolic expression as a rational
+function of `x` **and of every kernel in its differential field tower**.
+That is multivariate by construction, and `%zx` and `%qx` are univariate.
+§4 of that document makes this phase a hard prerequisite for Calhoon from
+its phase K2 onward, and argues — correctly — that it belongs here rather
+than there: **multivariate polynomials are canonical objects with `free`
+arms, which is this library's business.** Building them inside Calhoon
+would put canonical algebra above the layer that gave up canonicality.
+
+Two smaller things fall out. §A3's bivariate resultants are computed by
+evaluation and interpolation because "Racoon cannot form them
+symbolically"; with this phase it can, and that arm becomes a candidate
+for simplification rather than a workaround. And §F's rational function
+field gains a multivariate sibling (§M6 phase M4) at almost no cost once
+the GCD exists.
+
+**Sparse, and the word is load-bearing.** A dense representation stores a
+coefficient per monomial, which in `n` variables of degree `d` is
+`(d+1)^n` slots — exponential in the number of variables, and Calhoon's
+towers routinely reach four or five. Only nonzero terms are stored.
+
+## M1. Where it lives
+
+**`/lib/racoon-mp`, a consumer**, importing `/lib/racoon` and nothing
+else. Ninth application of the rule after `racoon-fmt`, `racoon-rs`,
+`racoon-fp3`, `racoon-zfac`, `racoon-roots`, `racoon-alg`, `racoon-rf`,
+and `racoon-lt`.
+
+**It cannot go inside `%racoon`, and this is forced rather than
+preferred.** That core is frozen at five arms under R6, and Q5 records
+why the five slots were reserved up front: adding a sixth arm moves the
+battery axes of the five already there, which is the one thing R6
+forbids. `%zx` and `%qx` stay frozen and gain nothing.
+
+The consequence is worth stating plainly: these arms are **canonical and
+`free`**, like the rest of the library, but they sit outside the frozen
+interface, so they carry no R6 obligation until a milestone freezes them.
+Milestone B has not opened; when it does, this library freezes on its own
+gate rather than on `%racoon`'s.
+
+## M2. Representation
+
+```hoon
+::    $mono: an exponent vector, one entry per variable
+::
+::  Position 0 is the MOST significant variable.  Every $mono in a
+::  polynomial has the same length, which is that polynomial's arity.
++$  mono  (list @ud)
+::    $zmt: one term of a polynomial over Z
++$  zmt  [m=mono c=@s]
+::    $zmp: a polynomial in Z[x_1..x_n]
+::
+::  Terms DESCENDING in the pinned order of §M3, no term with a zero
+::  coefficient, every .m of equal length.  The zero polynomial is ~.
++$  zmp  (list zmt)
+::    $qmt, $qmp: the same over Q, with $frac coefficients
++$  qmt  [m=mono c=frac]
++$  qmp  (list qmt)
+```
+
+**A sorted list and not a `(map mono ...)`.** A Hoon `map` is canonically
+shaped, so `=(a b)` would work — but its iteration order is `mor`, a hash
+order, which makes the leading term an O(n) search and makes every
+printed form arbitrary. A list sorted by the term order puts the leading
+term at the head, gives `=` for free, and makes `+show` deterministic and
+mathematically meaningful.
+
+**Arity is derived, not stored.** It is the length of any `$mono`, and
+`+canon` asserts they agree. This is Baloon's "dimensions derived, not
+stored" applied again, for the same reason: carrying the arity separately
+adds an invariant that can desync, while deriving it adds only the one
+that cannot be avoided. The zero polynomial therefore has no arity, and
+`+arity` crashes on it exactly as `+deg:zx` crashes on `~`.
+
+**ℤ below, ℚ above, and ℚ delegates.** `$qmp` exists for consumers that
+need a field; `+gcd:qp` clears denominators and delegates to `+gcd:zp`,
+the same shape `gcd:qx` already has and for the same reason — the ℤ
+algorithm controls coefficient swell and the ℚ one does not.
+
+## M3. Canonical conventions (normative)
+
+| Item | Convention |
+|---|---|
+| **Term order: LEXICOGRAPHIC, pinned** | Compare exponent vectors left to right; the first position where they differ decides, larger exponent greater. Variable 0 is most significant. Terms are stored **descending**, so the head is the leading term |
+| **Why lex, and why it is not load-bearing** | Any total order gives a canonical representation. Lex is chosen because it aligns with the recursive view — "univariate in `x_1` over `R[x_2..x_n]`" — that every algorithm below uses, so the leading term in the order *is* the leading coefficient of that view. **No arm's value depends on the choice**, because §M8 fences out the one operation that would (division with remainder by a non-Gröbner basis). It is pinned only so that `=` decides |
+| **Canonical form** | Descending, no zero coefficients, uniform arity. `+canon` is the only arm accepting anything else, mirroring `+canon:zx` |
+| `+arity` `+deg` `+degv` | Arity crashes on `~`. `+deg` is **total** degree, `+degv` the degree in one variable; both crash on `~`, as `+deg:zx` does |
+| **`+content` and `+pp` are recursive** | For `$zmp` the content is the integer GCD of the coefficients, as in §8's univariate row. For the *recursive view* — needed by the GCD — `+contentv` produces the content in `R[x_2..x_n]`, itself a `$zmp` of arity `n-1` |
+| **GCD normalization** | Primitive with **positive leading coefficient** in the pinned order. `gcd(~, ~) = ~`. Identical to §8's univariate convention, so the two agree when `n = 1` |
+| **Reference GCD: recursive primitive PRS** | View as univariate in `x_1` over `ℤ[x_2..x_n]`; take contents recursively; run the subresultant polynomial remainder sequence on the primitive parts; recombine. Chosen for the same reason §R chose Sturm over VCA: **simpler and more obviously correct, which is this project's stated order of priorities.** The output is canonical, so a jet may use Zippel's sparse interpolation, EEZ, or anything else and need only agree on the answer |
+| **Exact division only** | `+xdiv` divides when the division is exact and crashes otherwise. General division with remainder is **not** offered; see §M8 |
+| **Squarefree decomposition is recursive too** | Yun's algorithm in `x_1` applied to the *primitive part*, plus a recursive decomposition of the content. Correct because a primitive polynomial has no factor lying entirely in `R`, so every repeated factor has positive degree in `x_1` and is therefore caught by `gcd(f, ∂f/∂x_1)`. Getting this wrong — running Yun on the whole polynomial and missing repeated factors that do not involve `x_1` — is the obvious mistake and is why the reason is written down |
+
+## M4. Public API
+
+| Arm | Signature | Notes |
+|---|---|---|
+| `canon` | `zmp -> zmp` | Sort, combine like terms, drop zeros, assert uniform arity. The only arm accepting non-canonical input |
+| `zero` `one` | `zmp` / `@ud -> zmp` | `one` takes the arity, since the constant 1 has one |
+| `is-zero` | `zmp -> ?` | Structural |
+| `arity` `deg` `degv` | `zmp -> @ud` / `zmp -> @ud` / `[zmp @ud] -> @ud` | All crash on `~` |
+| `lt` `lc` | `zmp -> zmt` / `zmp -> @s` | Leading term and leading coefficient in the pinned order |
+| `var` | `[@ud @ud] -> zmp` | `x_i` at arity `n` — the generator, since writing one by hand is where mistakes go |
+| `add` `sub` `neg` `mul` | | Uniform arity asserted |
+| `scale` `pow` | `[zmp @s] -> zmp` / `[zmp @ud] -> zmp` | |
+| `eval` | `[zmp (list @s)] -> @s` | Full evaluation; the list length must equal the arity |
+| `evalv` | `[zmp @ud @s] -> zmp` | **Partial** — substitute one variable, dropping it, so the arity falls by one |
+| `deriv` | `[zmp @ud] -> zmp` | Partial derivative |
+| `content` `pp` | `zmp -> @ud` / `zmp -> zmp` | Integer content, as §8 |
+| `contentv` `ppv` | `zmp -> zmp` | Content in `R[x_2..x_n]` and the primitive part against it |
+| `xdiv` | `[zmp zmp] -> zmp` | **Exact** division; crashes when inexact |
+| `pdiv` | `[zmp zmp] -> [q=zmp r=zmp @ud]` | Pseudo-division in `x_1`, with the power of the leading coefficient it multiplied through by |
+| `gcd` | `[zmp zmp] -> zmp` | Primitive, positive leading coefficient |
+| `sqfree` | `zmp -> [c=@s fs=(list [p=zmp m=@ud])]` | Squarefree decomposition; shape mirrors `$zfac` |
+| `to-uni` `of-uni` | `[zmp @ud] -> (unit zol)` / `[zol @ud @ud] -> zmp` | Bridge to `%zx` when only one variable actually occurs — the arms that let a caller fall back into the frozen, jetted library |
+| `show` `read` | `[zmp (list @tas)] -> @t` / `[@t (list @tas)] -> (unit zmp)` | Human surface, taking the variable names |
+
+`+qp` mirrors all of it over `$frac`, plus `clear` and `embed` between
+the two, exactly as `%qx` relates to `%zx`.
+
+Every arm is **`free`**: each product is a unique mathematical object.
+
+## M5. Crash table (normative — every row gets a test)
+
+| Arm | Condition | Behavior |
+|---|---|---|
+| `canon` | exponent vectors of differing length | crash |
+| `arity` `deg` `degv` | argument is `~` | crash |
+| `lt` `lc` | argument is `~` | crash |
+| `degv` `evalv` `deriv` | variable index ≥ arity | crash |
+| `add` `sub` `mul` `gcd` `xdiv` | operands of differing arity, both nonzero | crash |
+| `eval` | point list length ≠ arity | crash |
+| `xdiv` | the division is not exact | crash |
+| `xdiv` `pdiv` | divisor is `~` | crash |
+| `sqfree` | argument is `~` | crash |
+| `to-uni` | more than one variable occurs | **no crash**: product is `~` |
+| `read` | parse failure | **no crash**: product is `~` |
+
+No `~|` anywhere (R3).
+
+## M6. Phases
+
+- **M0 — representation and arithmetic.** `$mono`, `$zmp`, `$qmp`,
+  `canon`, `var`, arithmetic, the degree family, `eval`, `evalv`,
+  `deriv`, `show`, `read`. No division, so it is verifiable on its own.
+- **M1 — division and content.** `xdiv`, `pdiv`, `content`, `pp`,
+  `contentv`, `ppv`, `to-uni`, `of-uni`.
+- **M2 — GCD.** The recursive primitive PRS. The heavy phase, and the one
+  the two after it depend on.
+- **M3 — squarefree decomposition.** Yun in `x_1` on the primitive part
+  plus the recursive content step; see §M3's last row for the trap.
+- **M4 — multivariate rational functions.** `$mrf`, coprime with a
+  denominator whose leading coefficient is 1 in the pinned order, and the
+  field arithmetic on it. Canonical, so equality is structural — which is
+  what `calhoon-spec.md` §2 needs its decidable fragment to rest on.
+
+## M7. Testing
+
+1. **SymPy is a usable oracle here, unlike for §F's antiderivatives**,
+   because every product is canonical. `Poly` with an explicit generator
+   list and `lex` order matches §M3's convention directly; `gcd` and
+   `sqf_list` are canonical up to a unit, and §M3 pins the unit. Confirm
+   the convention before pinning against the tool, per §11.3 — in
+   particular that SymPy's `lex` orders generators the same way this
+   document does.
+2. **Arithmetic is checked by ring laws**, which need no oracle:
+   associativity, commutativity, distributivity, and `f·1 = f` over
+   random sparse polynomials at arities 1 through 5.
+3. **`gcd` is checked by its definition, not by agreement.** `g` divides
+   both arguments exactly — which `+xdiv` decides — and `f/g` and `h/g`
+   are coprime. Both are exact and need no oracle. Agreement with SymPy
+   is then a second, independent check rather than the only one.
+4. **`n = 1` must agree with `%zx` arm for arm.** `gcd`, `content`, `pp`,
+   `sqfree`, and `deriv` at arity 1 must equal their univariate
+   counterparts through `to-uni`. This is the strongest test available:
+   the frozen library is already verified against SymPy over the whole
+   Milestone A corpus, so this inherits that verification wholesale.
+5. **Sparsity is asserted, not assumed.** A polynomial with two terms in
+   five variables of degree twenty must have two terms in its
+   representation. A test that only used dense inputs would pass with a
+   dense implementation and lose the entire point of the phase.
+6. **Adversarial.** Repeated factors not involving `x_1` — the §M3 trap;
+   a GCD that is a constant; a GCD that is the whole of one argument;
+   polynomials whose contents carry the whole GCD; arity-1 inputs, which
+   must not take a different code path; and the zero polynomial in every
+   binary arm.
+7. **Benchmarks.** `gcd` at arities 2, 3, and 4 with fifty terms each,
+   through `scripts/bench.sh`. Recorded, no gates — and expected to be
+   slow, since the reference is a PRS and §M3 says so.
+
+## M8. Out of scope — hard fence
+
+**No Gröbner bases**, no Buchberger, no ideal arithmetic, no elimination
+theory. §13's fence on these stands unlifted and this phase does not
+approach it.
+
+**No general division with remainder.** In several variables the
+remainder depends on the term order *and* on the order in which divisors
+are tried, and it is unique only when dividing by a Gröbner basis. Since
+Gröbner is fenced, offering the arm would be offering an answer whose
+meaning the caller cannot pin down. `+xdiv` is exact division, which is
+unique when it succeeds, and `+pdiv` is pseudo-division in a named
+variable, which is univariate in disguise and therefore well defined.
+
+**No multivariate factorization into irreducibles.** Squarefree
+decomposition is in; Hensel lifting in several variables and EEZ are a
+phase of their own. `calhoon-spec.md` does not need it.
+
+**No multivariate resultants** as a primitive. The resultant in one named
+variable is the univariate resultant of the recursive view and a caller
+can build it; a general multivariate resultant is a different object and
+is not specified here.
+
+**No coefficient rings beyond ℤ and ℚ.** No `ℤ/n` multivariate core: the
+reference GCD is a PRS and does not need one. A modular or sparse
+interpolation GCD would, and that is a jet's business — the output is
+canonical, so a jet may reach for whatever it needs without this document
+declaring it.
+
+**No performance work beyond recording baselines**, unchanged from every
+other phase here.

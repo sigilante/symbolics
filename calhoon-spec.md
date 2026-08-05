@@ -138,24 +138,25 @@ tower-construction procedure; it does not claim it is the only one.
 
 ## 4. Dependencies, and the one that does not exist
 
-Calhoon imports `/lib/racoon`, `/lib/racoon-alg`, `/lib/racoon-rf`, and
-`/lib/racoon-lt`. It is a consumer of all four and adds nothing to any.
+Calhoon imports `/lib/racoon`, `/lib/racoon-alg`, `/lib/racoon-rf`,
+`/lib/racoon-lt`, and `/lib/racoon-mp`. It is a consumer of all five and
+adds nothing to any.
 
-**It also needs multivariate polynomial arithmetic over ℚ, which no
-library in this repository has.** §3's representation is a rational
-function in `x` *and every kernel* — that is multivariate by
-construction, and `%zx`/`%qx` are univariate.
+**It also needs multivariate polynomial arithmetic over ℚ.** §3's
+representation is a rational function in `x` *and every kernel* — that is
+multivariate by construction, and `%zx`/`%qx` are univariate.
 
-`raccoon-spec.md` §13 lists sparse multivariate as a Milestone C
-candidate and it remains unspecified. **It is a hard prerequisite for
-Calhoon phase K2 onward**, and it belongs in Racoon rather than here:
-multivariate polynomials are canonical objects with `free` arms, which is
-Racoon's business and not this document's. Building them inside Calhoon
-would put canonical algebra above the layer that gave up canonicality.
+**That is now `raccoon-spec.md` §M**, specified in response to this
+section: `/lib/racoon-mp`, sparse and canonical, with §M6 phase M4
+supplying exactly the multivariate rational functions §3 quotients. It
+belongs there rather than here for the reason §M0 restates — multivariate
+polynomials are canonical objects with `free` arms, and building them
+inside Calhoon would put canonical algebra above the layer that gave up
+canonicality.
 
-Phase K0 and K1 are univariate and can proceed before it; everything
-after cannot. **Sequencing conclusion: specify and build Racoon's sparse
-multivariate phase before Calhoon K2.**
+**It is specified and not yet built**, and it remains a hard prerequisite
+for Calhoon from phase K2 onward. Phases K0 and K1 are univariate and can
+proceed before it; everything after cannot.
 
 ### 4.1 Baloon interop, precisely
 
@@ -357,9 +358,10 @@ quietly wrong, and because "just simplify √(x²) to x" will be proposed.
 
 ## 12. Open questions for the first escalation round
 
-1. **Does sparse multivariate go in Racoon, and under which milestone?**
-   §4 argues yes and that it blocks K2. It needs a Racoon spec section
-   before Calhoon can proceed past K1.
+1. ~~**Does sparse multivariate go in Racoon?**~~ **Answered:** yes,
+   `raccoon-spec.md` §M, Milestone C phase M, as `/lib/racoon-mp`. Still
+   unbuilt, so it still blocks K2 — but the question is closed and the
+   remaining work is construction rather than design.
 2. **Does Baloon grow a door over a field?** §4.1 recommends deferring
    until a second client exists. If K3, K4, and K5 each want it, that is
    arguably three clients inside one library and the answer changes.

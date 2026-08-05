@@ -38,9 +38,9 @@ declared empty from the outset for exactly that purpose.
 Racoon's Milestone C is under way rather than done: integer factorization
 is built; real-root isolation (§R), algebraic number arithmetic (§A),
 van Hoeij recombination (§V), and the rational function field (§F) are
-specified and complete; and **sparse multivariate remains unspecified**,
-which `calhoon-spec.md` §4 now identifies as a hard prerequisite rather
-than a candidate.
+specified and complete; and **sparse multivariate (§M) is
+specified and not yet built** — it stopped being a §13 candidate when
+`calhoon-spec.md` §4 made it a prerequisite.
 
 §F is where the stack turned into a calculus engine — rational functions,
 partial fractions, integration by Hermite reduction and Rothstein–Trager,
@@ -92,10 +92,11 @@ equality *semi*-decides, and its heuristics are made safe by verifying
 every answer rather than by being correct — the same discipline §V4 uses
 for the van Hoeij lattice.
 
-Two things block it, both recorded in `calhoon-spec.md` §4 and §12:
-**sparse multivariate polynomials do not exist in Racoon** and are a hard
-prerequisite from phase K2 on, and linear algebra over ℚ(x) needs either
-a local elimination or a Baloon door over a field.
+Two things block it, both recorded in `calhoon-spec.md` §4 and §12.
+**Sparse multivariate polynomials** are a hard prerequisite from phase K2
+on; they are now specified as `raccoon-spec.md` §M and not yet built.
+Linear algebra over ℚ(x) needs either a local elimination or a Baloon
+door over a field, and that one is still open.
 
 - [`calhoon-spec.md`](./calhoon-spec.md) — normative
 
